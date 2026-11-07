@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup diário do PostgreSQL da POC 2.3 (%i)
+
+[Timer]
+# Fora do horário letivo. O atraso aleatório evita que os dois ambientes rodem juntos.
+OnCalendar=*-*-* 03:00:00 America/Sao_Paulo
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
