@@ -116,3 +116,5 @@ A maioria das classes em `src/test/java/br/ufg/inf/fixturesmodulith` viola as re
 
 - Requisitos POC 2.3 v2: requisitos funcionais, regras de negócio (RN) e requisitos não funcionais (RNF).
 - Stack Tecnológica POC 2.3: tecnologias, arquitetura e regras de gerência de configuração.
+- [Hospedagem](docs/operacao/hospedagem.md): VM, ambientes, deploy, backups e checklist de ações manuais.
+- [Roteiro de reversão](docs/operacao/reversao.md): como voltar para a versão anterior e o que fazer com o banco.
