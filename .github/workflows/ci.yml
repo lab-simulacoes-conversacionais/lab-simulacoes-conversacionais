@@ -89,7 +89,7 @@ jobs:
           tags: |
             type=raw,value=${{ steps.project-version.outputs.value }},enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,prefix=sha-,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-
             type=ref,event=tag,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and publish image
