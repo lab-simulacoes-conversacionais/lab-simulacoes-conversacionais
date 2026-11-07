@@ -118,3 +118,11 @@ jobs:
       tag: ${{ needs.docker-image.outputs.tag-sha }}
     secrets: inherit
 
+  deploy-piloto:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && vars.DEPLOY_HABILITADO == 'true'
+    needs: docker-image
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ambiente: piloto
+      tag: ${{ github.ref_name }}
+    secrets: inherit
