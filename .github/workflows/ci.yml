@@ -56,6 +56,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      tag-sha: ${{ steps.tag-sha.outputs.value }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,3 +101,20 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      # Mesmo formato da tag type=sha acima, que usa os 7 primeiros caracteres do commit.
+      - name: Read commit image tag
+        id: tag-sha
+        run: echo "value=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  # Os deploys só rodam depois que a VM estiver pronta e a variável DEPLOY_HABILITADO for criada no
+  # repositório (docs/operacao/hospedagem.md). Sem ela, a main ficaria vermelha a cada merge.
+  deploy-homologacao:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_HABILITADO == 'true'
+    needs: docker-image
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ambiente: homologacao
+      tag: ${{ needs.docker-image.outputs.tag-sha }}
+    secrets: inherit
+
