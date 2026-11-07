@@ -1,0 +1,4 @@
+piloto.localhost {
+	tls internal
+	import proxy app-piloto
+}

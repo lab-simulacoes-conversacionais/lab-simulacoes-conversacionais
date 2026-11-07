@@ -1,0 +1,4 @@
+homologacao.localhost {
+	tls internal
+	import proxy app-homologacao
+}
