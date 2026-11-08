@@ -11,6 +11,8 @@ import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import br.ufg.inf.labsimulacoes.eventos.CenarioAprovado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioArquivado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
+import br.ufg.inf.labsimulacoes.eventos.CenarioReativado;
+import br.ufg.inf.labsimulacoes.eventos.CenarioSuspenso;
 import br.ufg.inf.labsimulacoes.eventos.PerfilAlterado;
 import java.time.Instant;
 import java.util.List;
@@ -81,6 +83,30 @@ class OuvinteDeAcoesCriticasTest {
         assertThat(linha.usuarioId()).isEqualTo(6);
         assertThat(linha.entidadeId()).isEqualTo("10");
         assertThat(linha.detalhes()).isEmpty();
+    }
+
+    @Test
+    void suspensaoRegistraQuemADisparouEOMotivo() {
+        ouvinte.cenarioSuspenso(new CenarioSuspenso(10, 30, 4, "SINALIZACAO_GRAVE", MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.SUSPENDER_CENARIO);
+        assertThat(linha.usuarioId()).isEqualTo(4);
+        assertThat(linha.entidadeId()).isEqualTo("10");
+        assertThat(linha.detalhes()).containsEntry("versaoId", 30L).containsEntry("motivo", "SINALIZACAO_GRAVE");
+    }
+
+    @Test
+    void reativacaoRegistraOCuradorEOMotivo() {
+        ouvinte.cenarioReativado(new CenarioReativado(10, 30, 5, "SINALIZACAO_DESCARTADA", MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.REATIVAR_CENARIO);
+        assertThat(linha.usuarioId()).isEqualTo(5);
+        assertThat(linha.entidadeId()).isEqualTo("10");
+        assertThat(linha.detalhes())
+                .containsEntry("versaoId", 30L)
+                .containsEntry("motivo", "SINALIZACAO_DESCARTADA");
     }
 
     private RegistroDeAuditoria registrado() {

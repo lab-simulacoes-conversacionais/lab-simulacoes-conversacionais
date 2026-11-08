@@ -6,6 +6,8 @@ import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.eventos.CenarioAprovado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioArquivado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
+import br.ufg.inf.labsimulacoes.eventos.CenarioReativado;
+import br.ufg.inf.labsimulacoes.eventos.CenarioSuspenso;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -78,6 +80,23 @@ class AcoesCriticasNoLogTest {
         publicar(new CenarioArquivado(cenario, usuario, momento));
 
         aguardarLinha("ARQUIVAR_CENARIO", cenario);
+    }
+
+    @Test
+    void suspensaoDeCenarioVaiParaOLog() throws InterruptedException {
+        long cenario = CENARIO.incrementAndGet();
+        publicar(new CenarioSuspenso(cenario, 3, usuario, "SINALIZACAO_GRAVE", momento));
+
+        assertThat(aguardarLinha("SUSPENDER_CENARIO", cenario).get("detalhes").toString())
+                .contains("\"motivo\": \"SINALIZACAO_GRAVE\"");
+    }
+
+    @Test
+    void reativacaoDeCenarioVaiParaOLog() throws InterruptedException {
+        long cenario = CENARIO.incrementAndGet();
+        publicar(new CenarioReativado(cenario, 3, usuario, "SINALIZACAO_DESCARTADA", momento));
+
+        aguardarLinha("REATIVAR_CENARIO", cenario);
     }
 
     private void publicar(Object evento) {

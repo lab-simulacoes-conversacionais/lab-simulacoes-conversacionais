@@ -5,6 +5,8 @@ import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import br.ufg.inf.labsimulacoes.eventos.CenarioAprovado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioArquivado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
+import br.ufg.inf.labsimulacoes.eventos.CenarioReativado;
+import br.ufg.inf.labsimulacoes.eventos.CenarioSuspenso;
 import br.ufg.inf.labsimulacoes.eventos.PerfilAlterado;
 import java.util.Map;
 import java.util.TreeSet;
@@ -64,6 +66,26 @@ class OuvinteDeAcoesCriticas {
                 evento.arquivadoPorId(),
                 String.valueOf(evento.cenarioId()),
                 Map.of(),
+                evento.ocorridoEm()));
+    }
+
+    @ApplicationModuleListener
+    void cenarioSuspenso(CenarioSuspenso evento) {
+        registro.registrar(RegistroDeAuditoria.novo(
+                AcaoCritica.SUSPENDER_CENARIO,
+                evento.responsavelId(),
+                String.valueOf(evento.cenarioId()),
+                Map.of("versaoId", evento.versaoId(), "motivo", evento.motivo()),
+                evento.ocorridoEm()));
+    }
+
+    @ApplicationModuleListener
+    void cenarioReativado(CenarioReativado evento) {
+        registro.registrar(RegistroDeAuditoria.novo(
+                AcaoCritica.REATIVAR_CENARIO,
+                evento.responsavelId(),
+                String.valueOf(evento.cenarioId()),
+                Map.of("versaoId", evento.versaoId(), "motivo", evento.motivo()),
                 evento.ocorridoEm()));
     }
 }
