@@ -5,8 +5,11 @@ import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointR
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
 /**
  * Regras de acesso às rotas (RF-01, RNF-09). Tudo exige login, menos a tela de login e a verificação
@@ -14,14 +17,19 @@ import org.springframework.security.web.SecurityFilterChain;
  *
  * <p>A proteção CSRF fica ligada no padrão do Spring Security: o token é guardado na sessão e aceito
  * no campo {@code _csrf} ou no cabeçalho {@code X-CSRF-TOKEN}, que é o usado nas requisições HTMX.
+ *
+ * <p>As rotas só exigem login. O perfil é verificado em cada caso de uso, com {@code @PreAuthorize}
+ * (Stack, seção 7).
  */
 @Configuration(proxyBeanMethods = false)
+@EnableMethodSecurity
 class ConfiguracaoDeSeguranca {
 
     @Bean
-    SecurityFilterChain filtroDeSeguranca(HttpSecurity http) throws Exception {
+    SecurityFilterChain filtroDeSeguranca(HttpSecurity http, UserDetailsService usuarios) throws Exception {
         var sessaoExpirada = new SessaoExpirada();
         return http
+                .addFilterBefore(new SincronizacaoDePerfis(usuarios), AuthorizationFilter.class)
                 .authorizeHttpRequests(rotas -> rotas
                         // Sem isto, um erro como o 403 do CSRF viraria redirecionamento para o login.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()

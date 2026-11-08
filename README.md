@@ -45,6 +45,25 @@ Só profissionais da escola têm conta (RF-01, RN-11). Todas as rotas exigem log
 - **Senhas:** novos usuários são criados pelo `CadastroDeUsuarios`, que grava só o hash em Argon2id. Nunca grave em `usuario.senha_hash` por outro caminho.
 - **Mensagem de erro:** e-mail sem conta, usuário inativo e senha errada recebem a mesma resposta, para a tela não revelar quais contas existem.
 
+### Perfis e autorização
+
+Os perfis são `PROFESSOR`, `CURADOR` e `ADMINISTRADOR`, e um usuário pode acumular mais de um (RF-02, RN-36). O perfil é verificado em cada caso de uso, com `@PreAuthorize`:
+
+```java
+@PreAuthorize("hasAnyRole('PROFESSOR', 'CURADOR')")
+public Cenario criar(...) { ... }
+```
+
+O `AutorizacaoDosCasosDeUsoTest` falha o build se um método público de um `@Service` público em `aplicacao` não declarar `@PreAuthorize`, no método ou na classe, ou se um caso de uso de `cenarios` liberar o perfil Administrador (RN-37). Só o `CadastroDeUsuarios` fica de fora, porque não é um caso de uso.
+
+- **Gestão de usuários:** a `GestaoDeUsuarios` é exclusiva do Administrador e permite listar, buscar, cadastrar, ativar, desativar e atribuir perfis (RF-03). O sistema recusa a operação que deixaria o sistema sem nenhum administrador ativo.
+- **Quem já está logado:** os perfis são conferidos no banco a cada requisição. Uma mudança vale na requisição seguinte, e o usuário desativado perde a sessão.
+- **Log de auditoria:** cadastrar um usuário ou alterar seus perfis publica o evento `PerfilAlterado`, e a Auditoria grava uma linha em `log_auditoria` com o autor, a data e os perfis antes e depois (RN-35). A gravação acontece logo depois da transação, em outra thread.
+
+### Primeiro administrador
+
+Só um administrador cadastra usuários, então o primeiro é criado ao subir, a partir de `ADMIN_INICIAL_EMAIL` e `ADMIN_INICIAL_SENHA`, que valem nos dois perfis. Se já houver um administrador ativo, as variáveis são ignoradas e podem ser removidas. Sem elas, a aplicação sobe normalmente, sem administrador, e registra um aviso.
+
 ### CSRF nas requisições HTMX
 
 Todo envio que não seja `GET` precisa do token CSRF, e o HTMX o envia pelo cabeçalho `X-CSRF-TOKEN`. Basta declarar o cabeçalho uma vez no `<body>` do layout, que todos os elementos da página herdam:

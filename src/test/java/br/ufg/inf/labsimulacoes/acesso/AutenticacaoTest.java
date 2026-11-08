@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.acesso.aplicacao.CadastroDeUsuarios;
+import br.ufg.inf.labsimulacoes.acesso.dominio.Perfil;
 import java.io.IOException;
 import java.net.CookieManager;
 import java.net.URI;
@@ -15,6 +16,7 @@ import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import org.apache.catalina.Context;
@@ -188,7 +190,15 @@ class AutenticacaoTest {
 
     @Test
     void cadastroExigeSenha() {
-        assertThatThrownBy(() -> cadastro.cadastrar("Ana", "sem-senha@escola.test", " "))
+        assertThatThrownBy(() -> cadastro.cadastrar("Ana", "sem-senha@escola.test", " ", Set.of(Perfil.PROFESSOR)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void cadastroRecusaEmailJaUsadoSemDiferenciarMaiusculas() {
+        String email = novoUsuario();
+
+        assertThatThrownBy(() -> cadastro.cadastrar("Ana", email.toUpperCase(), SENHA, Set.of(Perfil.PROFESSOR)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -346,7 +356,7 @@ class AutenticacaoTest {
 
     private String novoUsuario() {
         String email = "usuario" + SEQUENCIA.incrementAndGet() + "@escola.test";
-        cadastro.cadastrar("Profissional de teste", email, SENHA);
+        cadastro.cadastrar("Profissional de teste", email, SENHA, Set.of(Perfil.PROFESSOR));
         return email;
     }
 
