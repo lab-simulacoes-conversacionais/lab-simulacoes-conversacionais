@@ -8,6 +8,7 @@ import br.ufg.inf.labsimulacoes.eventos.CenarioArquivado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
 import br.ufg.inf.labsimulacoes.eventos.CenarioReativado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioSuspenso;
+import br.ufg.inf.labsimulacoes.eventos.RelatorioExportado;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -97,6 +98,24 @@ class AcoesCriticasNoLogTest {
         publicar(new CenarioReativado(cenario, 3, usuario, "SINALIZACAO_DESCARTADA", momento));
 
         aguardarLinha("REATIVAR_CENARIO", cenario);
+    }
+
+    @Test
+    void exportacaoDeRelatorioVaiParaOLog() throws InterruptedException {
+        publicar(new RelatorioExportado(usuario, "PDF", Map.of("turma", "8º A"), momento));
+
+        List<Map<String, Object>> linhas = List.of();
+        for (int tentativa = 0; tentativa < 100 && linhas.isEmpty(); tentativa++) {
+            Thread.sleep(50);
+            linhas = jdbc.queryForList("""
+                    SELECT entidade, entidade_id, detalhes::text AS detalhes, hash
+                    FROM log_auditoria WHERE acao = 'EXPORTAR_RELATORIO' AND usuario_id = ?""", usuario);
+        }
+        assertThat(linhas).hasSize(1);
+        assertThat(linhas.get(0).get("entidade")).isEqualTo("relatorio");
+        assertThat(linhas.get(0).get("entidade_id")).isNull();
+        assertThat(linhas.get(0).get("detalhes").toString()).contains("\"formato\": \"PDF\"");
+        assertThat(linhas.get(0).get("hash")).isNotNull();
     }
 
     private void publicar(Object evento) {

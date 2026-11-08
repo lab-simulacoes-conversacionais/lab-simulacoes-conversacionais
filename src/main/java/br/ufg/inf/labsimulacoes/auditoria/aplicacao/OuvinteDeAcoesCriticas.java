@@ -8,6 +8,7 @@ import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
 import br.ufg.inf.labsimulacoes.eventos.CenarioReativado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioSuspenso;
 import br.ufg.inf.labsimulacoes.eventos.PerfilAlterado;
+import br.ufg.inf.labsimulacoes.eventos.RelatorioExportado;
 import java.util.Map;
 import java.util.TreeSet;
 import org.springframework.modulith.events.ApplicationModuleListener;
@@ -86,6 +87,17 @@ class OuvinteDeAcoesCriticas {
                 evento.responsavelId(),
                 String.valueOf(evento.cenarioId()),
                 Map.of("versaoId", evento.versaoId(), "motivo", evento.motivo()),
+                evento.ocorridoEm()));
+    }
+
+    /** O relatório não é um registro do banco, então a linha não tem entidade_id. */
+    @ApplicationModuleListener
+    void relatorioExportado(RelatorioExportado evento) {
+        registro.registrar(RegistroDeAuditoria.novo(
+                AcaoCritica.EXPORTAR_RELATORIO,
+                evento.usuarioId(),
+                null,
+                Map.of("formato", evento.formato(), "filtros", evento.filtros()),
                 evento.ocorridoEm()));
     }
 }

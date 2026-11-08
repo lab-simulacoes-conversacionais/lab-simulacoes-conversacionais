@@ -14,6 +14,7 @@ import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
 import br.ufg.inf.labsimulacoes.eventos.CenarioReativado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioSuspenso;
 import br.ufg.inf.labsimulacoes.eventos.PerfilAlterado;
+import br.ufg.inf.labsimulacoes.eventos.RelatorioExportado;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -107,6 +108,19 @@ class OuvinteDeAcoesCriticasTest {
         assertThat(linha.detalhes())
                 .containsEntry("versaoId", 30L)
                 .containsEntry("motivo", "SINALIZACAO_DESCARTADA");
+    }
+
+    @Test
+    void exportacaoRegistraFormatoEFiltros() {
+        ouvinte.relatorioExportado(new RelatorioExportado(5, "CSV", Map.of("turma", "8º A"), MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.EXPORTAR_RELATORIO);
+        assertThat(linha.usuarioId()).isEqualTo(5);
+        assertThat(linha.entidadeId()).isNull();
+        assertThat(linha.detalhes())
+                .containsEntry("formato", "CSV")
+                .containsEntry("filtros", Map.of("turma", "8º A"));
     }
 
     private RegistroDeAuditoria registrado() {
