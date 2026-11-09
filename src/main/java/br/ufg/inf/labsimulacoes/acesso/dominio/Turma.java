@@ -24,12 +24,15 @@ public record Turma(Long id, String escola, String anoSerie, String turno, Strin
         return new Turma(id, escola, anoSerie, turno, rotulo);
     }
 
-    /** Duas turmas com a mesma identificação seriam indistinguíveis ao iniciar uma sessão. */
+    /**
+     * Duas turmas com a mesma identificação seriam indistinguíveis ao iniciar uma sessão. A comparação
+     * ignora maiúsculas e minúsculas, para que "8º A" e "8º a" não virem turmas diferentes.
+     */
     public boolean mesmaIdentificacaoQue(Turma outra) {
-        return escola.equals(outra.escola)
-                && anoSerie.equals(outra.anoSerie)
-                && turno.equals(outra.turno)
-                && rotulo.equals(outra.rotulo);
+        return escola.equalsIgnoreCase(outra.escola)
+                && anoSerie.equalsIgnoreCase(outra.anoSerie)
+                && turno.equalsIgnoreCase(outra.turno)
+                && rotulo.equalsIgnoreCase(outra.rotulo);
     }
 
     /** Remove os espaços das pontas, para que "8º A " e "8º A" não virem turmas diferentes. */

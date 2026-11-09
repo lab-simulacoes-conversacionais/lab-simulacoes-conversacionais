@@ -69,6 +69,14 @@ class TurmaTest {
     }
 
     @Test
+    void mesmaIdentificacaoIgnoraMaiusculasEMinusculas() {
+        Turma turma = Turma.nova("Escola Estadual", "8º ano", "Matutino", "8º A");
+
+        assertThat(turma.mesmaIdentificacaoQue(Turma.nova("escola estadual", "8º ANO", "matutino", "8º a")))
+                .isTrue();
+    }
+
+    @Test
     void qualquerCampoDiferenteEOutraIdentificacao() {
         Turma turma = Turma.nova("Escola", "8º ano", "Matutino", "8º A");
 
