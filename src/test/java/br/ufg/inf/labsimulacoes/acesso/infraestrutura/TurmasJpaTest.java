@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,6 +79,16 @@ class TurmasJpaTest {
                         + " FROM turma WHERE id = ?",
                 salva.id());
         assertThat(datas).containsEntry("criacao_mantida", true).containsEntry("atualizada", true);
+    }
+
+    /** O índice uq_turma_sem_caixa barra a duplicata mesmo que ela escape da checagem do cadastro. */
+    @Test
+    void turmaQueSoMudaMaiusculasERecusada() {
+        turmas.salvar(Turma.nova(ESCOLA, "8º ano", "Matutino", "8º A"));
+
+        assertThatThrownBy(() -> turmas.salvar(Turma.nova(ESCOLA, "8º ANO", "matutino", "8º a")))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("uq_turma_sem_caixa");
     }
 
     @Test

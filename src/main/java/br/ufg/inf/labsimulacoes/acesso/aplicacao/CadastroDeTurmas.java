@@ -50,8 +50,8 @@ public class CadastroDeTurmas {
     }
 
     /**
-     * A restrição uq_turma do banco também impede a duplicata, mas a checagem aqui devolve uma
-     * mensagem que o formulário consegue mostrar. A lista é pequena, porque o piloto é numa escola só.
+     * O índice uq_turma_sem_caixa do banco também impede a duplicata, mas a checagem aqui devolve
+     * uma mensagem que o formulário consegue mostrar. A lista é pequena, porque o piloto é numa escola só.
      */
     private Turma salvarSemDuplicar(Turma turma) {
         boolean duplicada = turmas.listar().stream()
