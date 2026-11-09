@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import br.ufg.inf.labsimulacoes.acesso.UsuarioLogado;
 import br.ufg.inf.labsimulacoes.acesso.dominio.Perfil;
 import br.ufg.inf.labsimulacoes.acesso.dominio.Usuario;
 import br.ufg.inf.labsimulacoes.acesso.dominio.Usuarios;
@@ -17,37 +18,27 @@ import br.ufg.inf.labsimulacoes.acesso.infraestrutura.PublicacaoDeEventos;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.authentication.TestingAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 /** Regras da gestão de usuários, sem banco. A verificação do perfil fica no {@code PerfisTest}. */
 class GestaoDeUsuariosTest {
 
     private static final long ID_ADMIN = 1L;
     private static final long ID_ALVO = 2L;
-    private static final String EMAIL_ADMIN = "admin@escola.test";
     private static final Set<Perfil> ADMIN = Set.of(Perfil.ADMINISTRADOR);
     private static final Set<Perfil> PROFESSOR = Set.of(Perfil.PROFESSOR);
 
     private final Usuarios usuarios = mock(Usuarios.class);
     private final CadastroDeUsuarios cadastro = mock(CadastroDeUsuarios.class);
     private final PublicacaoDeEventos eventos = mock(PublicacaoDeEventos.class);
-    private final GestaoDeUsuarios gestao = new GestaoDeUsuarios(usuarios, cadastro, eventos);
+    private final UsuarioLogado usuarioLogado = mock(UsuarioLogado.class);
+    private final GestaoDeUsuarios gestao = new GestaoDeUsuarios(usuarios, cadastro, eventos, usuarioLogado);
 
     @BeforeEach
     void logarComoAdministrador() {
-        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(EMAIL_ADMIN, null));
-        when(usuarios.buscarPorEmail(EMAIL_ADMIN))
-                .thenReturn(Optional.of(new Usuario(ID_ADMIN, "Admin", EMAIL_ADMIN, "hash", true, ADMIN)));
+        when(usuarioLogado.id()).thenReturn(ID_ADMIN);
         when(usuarios.salvar(any())).thenAnswer(chamada -> chamada.getArgument(0));
-    }
-
-    @AfterEach
-    void sair() {
-        SecurityContextHolder.clearContext();
     }
 
     @Test

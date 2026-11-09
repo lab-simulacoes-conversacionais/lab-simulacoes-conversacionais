@@ -9,7 +9,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -98,6 +100,21 @@ class HabilidadesJdbc implements Habilidades {
         sql.append(" ORDER BY codigo LIMIT ?");
         parametros.add(filtro.limite());
         return jdbc.query(sql.toString(), (linha, numero) -> habilidade(linha), parametros.toArray());
+    }
+
+    @Override
+    public Set<String> existentes(Collection<String> codigos) {
+        if (codigos.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(jdbc.query(
+                conexao -> {
+                    PreparedStatement comando =
+                            conexao.prepareStatement("SELECT codigo FROM habilidade_bncc WHERE codigo = ANY (?)");
+                    comando.setArray(1, conexao.createArrayOf("text", codigos.toArray()));
+                    return comando;
+                },
+                (linha, numero) -> linha.getString("codigo")));
     }
 
     private static HabilidadeBncc habilidade(ResultSet linha) throws SQLException {

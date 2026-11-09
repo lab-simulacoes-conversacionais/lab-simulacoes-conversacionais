@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.acesso.aplicacao;
 
+import br.ufg.inf.labsimulacoes.acesso.UsuarioLogado;
 import br.ufg.inf.labsimulacoes.acesso.dominio.Perfil;
 import br.ufg.inf.labsimulacoes.acesso.dominio.Usuario;
 import br.ufg.inf.labsimulacoes.acesso.dominio.Usuarios;
@@ -7,7 +8,6 @@ import br.ufg.inf.labsimulacoes.acesso.infraestrutura.PublicacaoDeEventos;
 import java.util.List;
 import java.util.Set;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,11 +24,17 @@ public class GestaoDeUsuarios {
     private final Usuarios usuarios;
     private final CadastroDeUsuarios cadastro;
     private final PublicacaoDeEventos eventos;
+    private final UsuarioLogado usuarioLogado;
 
-    GestaoDeUsuarios(Usuarios usuarios, CadastroDeUsuarios cadastro, PublicacaoDeEventos eventos) {
+    GestaoDeUsuarios(
+            Usuarios usuarios,
+            CadastroDeUsuarios cadastro,
+            PublicacaoDeEventos eventos,
+            UsuarioLogado usuarioLogado) {
         this.usuarios = usuarios;
         this.cadastro = cadastro;
         this.eventos = eventos;
+        this.usuarioLogado = usuarioLogado;
     }
 
     @Transactional(readOnly = true)
@@ -44,7 +50,7 @@ public class GestaoDeUsuarios {
     @Transactional
     public Usuario cadastrar(String nome, String email, String senha, Set<Perfil> perfis) {
         Usuario novo = cadastro.cadastrar(nome, email, senha, perfis);
-        eventos.perfilAlterado(novo.id(), idDoUsuarioLogado(), Set.of(), novo.perfis());
+        eventos.perfilAlterado(novo.id(), usuarioLogado.id(), Set.of(), novo.perfis());
         return novo;
     }
 
@@ -57,7 +63,7 @@ public class GestaoDeUsuarios {
         }
         exigirOutroAdministrador(usuario, alterado);
         Usuario salvo = usuarios.salvar(alterado);
-        eventos.perfilAlterado(id, idDoUsuarioLogado(), usuario.perfis(), salvo.perfis());
+        eventos.perfilAlterado(id, usuarioLogado.id(), usuario.perfis(), salvo.perfis());
         return salvo;
     }
 
@@ -86,10 +92,5 @@ public class GestaoDeUsuarios {
     private Usuario existente(long id) {
         return usuarios.buscarPorId(id)
                 .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado: " + id));
-    }
-
-    private long idDoUsuarioLogado() {
-        String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        return usuarios.buscarPorEmail(email).orElseThrow().id();
     }
 }
