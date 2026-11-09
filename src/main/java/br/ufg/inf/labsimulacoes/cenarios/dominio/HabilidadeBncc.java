@@ -22,10 +22,10 @@ public record HabilidadeBncc(String codigo, String descricao, String etapa, List
     /** Vale para as etapas da BNCC: EF08HI03, EF15LP01, EI03EO01, EM13LGG101. */
     private static final Pattern CODIGO = Pattern.compile("[A-Z]{2}\\d{2}[A-Z]{2,4}\\d{2,3}");
 
-    private static final Pattern ETAPA = Pattern.compile("[A-Z]{2}");
+    static final Pattern ETAPA = Pattern.compile("[A-Z]{2}");
 
-    private static final int PRIMEIRO_ANO = 1;
-    private static final int ULTIMO_ANO = 9;
+    static final int PRIMEIRO_ANO = 1;
+    static final int ULTIMO_ANO = 9;
 
     public HabilidadeBncc {
         codigo = preenchido(codigo, "código");
