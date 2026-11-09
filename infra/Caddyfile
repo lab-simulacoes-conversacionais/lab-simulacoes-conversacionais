@@ -1,0 +1,26 @@
+# Os certificados da Let's Encrypt são gerados e renovados sozinhos, e HTTP redireciona para HTTPS
+# (RNF-09). Os blocos de cada ambiente ficam em sites/, e o provision.sh instala só os da VM.
+{
+	email {$ACME_EMAIL}
+	# Sem HTTP/3, que usaria 443/udp: a VM só libera 22, 80 e 443 em TCP.
+	servers {
+		protocols h1 h2
+	}
+}
+
+# Sem compressão: ela poderia segurar os trechos das respostas da IA, enviados por SSE (RNF-03).
+(proxy) {
+	# O ">" substitui o cabeçalho do Spring Security, que inclui os subdomínios e não deve valer aqui.
+	header >Strict-Transport-Security "max-age=31536000"
+	header -Server
+
+	@actuator {
+		path /actuator /actuator/*
+		not path /actuator/health
+	}
+	respond @actuator 404
+
+	reverse_proxy {args[0]}:8080
+}
+
+import /etc/caddy/sites/*.caddy

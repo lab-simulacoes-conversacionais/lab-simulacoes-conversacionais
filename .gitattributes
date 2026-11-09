@@ -1,3 +1,8 @@
 * text=auto
 mvnw text eol=lf
 *.cmd text eol=crlf
+*.sh text eol=lf
+*.caddy text eol=lf
+Caddyfile text eol=lf
+*.service text eol=lf
+*.timer text eol=lf

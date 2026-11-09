@@ -1,0 +1,9 @@
+[Unit]
+Description=Backup do PostgreSQL da POC 2.3 (%i)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/opt/poc23/%i/scripts/backup-postgres.sh %i

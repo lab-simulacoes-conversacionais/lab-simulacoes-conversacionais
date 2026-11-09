@@ -1,0 +1,3 @@
+{$DOMINIO_PILOTO} {
+	import proxy app-piloto
+}

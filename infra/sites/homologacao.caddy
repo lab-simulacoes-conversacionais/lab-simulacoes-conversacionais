@@ -1,0 +1,3 @@
+{$DOMINIO_HOMOLOG} {
+	import proxy app-homologacao
+}

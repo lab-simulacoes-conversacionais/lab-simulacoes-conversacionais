@@ -1,0 +1,84 @@
+# Stack de um ambiente (homologação ou piloto): cada um é um projeto Compose próprio, com banco e
+# volumes separados. O Caddy fica em docker-compose.borda.yml, porque só um processo da VM pode usar
+# as portas 80 e 443. Nada aqui publica portas.
+# Os valores vêm de /opt/poc23/<ambiente>/.env. Use os scripts de scripts/, que já passam o projeto.
+services:
+  app:
+    # A tag vem do .env e é trocada pelo scripts/deploy.sh. Nunca usar latest: a reversão depende de
+    # saber exatamente qual versão estava no ar.
+    image: ${IMAGE_REPO:-ghcr.io/lab-simulacoes-conversacionais/lab-simulacoes-conversacionais}:${IMAGE_TAG:?defina IMAGE_TAG no .env}
+    restart: unless-stopped
+    # A imagem limita o heap a 75% da memória que enxerga. Sem este limite, duas JVMs na mesma VM
+    # disputariam a memória toda.
+    mem_limit: ${APP_MEM_LIMIT:-1g}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:?defina DB_NAME no .env}
+      DB_USER: ${DB_USER:?defina DB_USER no .env}
+      DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env}
+      SESSAO_INATIVIDADE: ${SESSAO_INATIVIDADE:-60m}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 60s
+    networks:
+      interna:
+      borda:
+        # O nome "app" existe nos dois projetos, então o Caddy usa este alias para não confundi-los.
+        aliases:
+          - app-${AMBIENTE:?defina AMBIENTE no .env}
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:?defina DB_NAME no .env}
+      POSTGRES_USER: ${DB_USER:?defina DB_USER no .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD no .env}
+    volumes:
+      - postgres-dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - interna
+
+  # Sem persistência em disco: o PostgreSQL é a fonte da verdade (Stack, seção 5).
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--requirepass", "${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env}"]
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - interna
+
+volumes:
+  postgres-dados:
+
+networks:
+  # Sem saída para a internet. A aplicação alcança a OpenAI pela rede borda.
+  interna:
+    internal: true
+  # Criada pelo provision.sh. Cada ambiente tem a sua, para um não alcançar a aplicação do outro.
+  borda:
+    external: true
+    name: poc23-borda-${AMBIENTE:?defina AMBIENTE no .env}

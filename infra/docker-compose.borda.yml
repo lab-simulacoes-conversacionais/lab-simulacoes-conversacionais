@@ -1,0 +1,41 @@
+# Proxy único da VM. Fica em um projeto separado porque os ambientes dividem as portas 80 e 443: assim
+# um deploy em homologação nunca reinicia o proxy do piloto. É o único serviço que publica portas.
+# Os valores vêm de /opt/poc23/borda/.env.
+name: poc23-borda
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMINIO_HOMOLOG: ${DOMINIO_HOMOLOG:-}
+      DOMINIO_PILOTO: ${DOMINIO_PILOTO:-}
+      ACME_EMAIL: ${ACME_EMAIL:?defina ACME_EMAIL no .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./sites:/etc/caddy/sites:ro
+      - caddy-dados:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    networks:
+      - homologacao
+      - piloto
+
+volumes:
+  caddy-dados:
+  caddy-config:
+
+networks:
+  homologacao:
+    external: true
+    name: poc23-borda-homologacao
+  piloto:
+    external: true
+    name: poc23-borda-piloto

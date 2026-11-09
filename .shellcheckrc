@@ -1,0 +1,3 @@
+# Os scripts carregam lib/ pelo caminho relativo a eles mesmos.
+source-path=SCRIPTDIR
+external-sources=true

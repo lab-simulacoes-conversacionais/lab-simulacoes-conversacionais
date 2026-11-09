@@ -10,9 +10,9 @@ class PerfisDeConfiguracaoTest {
 
     /** O Spring mantém a variável ausente como texto literal, que não é uma URL JDBC válida. */
     @Test
-    void homologacaoNaoSobeSemAUrlDoBanco() {
+    void prodNaoSobeSemAUrlDoBanco() {
         var aplicacao = new SpringApplicationBuilder(LabSimulacoesApplication.class)
-                .profiles("homologacao")
+                .profiles("prod")
                 .web(WebApplicationType.NONE);
 
         assertThatThrownBy(aplicacao::run).hasStackTraceContaining("must start with \"jdbc\"");
