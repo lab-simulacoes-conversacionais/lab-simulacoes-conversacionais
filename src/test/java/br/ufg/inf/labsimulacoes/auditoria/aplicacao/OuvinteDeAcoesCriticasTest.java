@@ -1,0 +1,131 @@
+package br.ufg.inf.labsimulacoes.auditoria.aplicacao;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
+import br.ufg.inf.labsimulacoes.eventos.CenarioAprovado;
+import br.ufg.inf.labsimulacoes.eventos.CenarioArquivado;
+import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
+import br.ufg.inf.labsimulacoes.eventos.CenarioReativado;
+import br.ufg.inf.labsimulacoes.eventos.CenarioSuspenso;
+import br.ufg.inf.labsimulacoes.eventos.PerfilAlterado;
+import br.ufg.inf.labsimulacoes.eventos.RelatorioExportado;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+/** Tradução de cada evento para a linha do log, sem banco. */
+class OuvinteDeAcoesCriticasTest {
+
+    private static final Instant MOMENTO = Instant.parse("2026-11-08T13:45:10Z");
+
+    private final RegistroNoLog registro = mock(RegistroNoLog.class);
+    private final OuvinteDeAcoesCriticas ouvinte = new OuvinteDeAcoesCriticas(registro);
+
+    @BeforeEach
+    void registrarDevolveOQueRecebeu() {
+        when(registro.registrar(any())).thenAnswer(chamada -> chamada.getArgument(0));
+    }
+
+    @Test
+    void alteracaoDePerfilRegistraQuemAlterouEQuemFoiAlterado() {
+        ouvinte.perfilAlterado(new PerfilAlterado(
+                2, 1, Set.of("PROFESSOR"), Set.of("PROFESSOR", "CURADOR"), MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.ALTERAR_PERFIS);
+        assertThat(linha.usuarioId()).isEqualTo(1);
+        assertThat(linha.entidadeId()).isEqualTo("2");
+        assertThat(linha.ocorridoEm()).isEqualTo(MOMENTO);
+        assertThat(linha.detalhes().get("perfisAnteriores")).isEqualTo(List.of("PROFESSOR"));
+        assertThat(linha.detalhes().get("perfisNovos")).isEqualTo(List.of("CURADOR", "PROFESSOR"));
+    }
+
+    @Test
+    void aprovacaoRegistraOCuradorEAVersao() {
+        ouvinte.cenarioAprovado(new CenarioAprovado(10, 30, 5, MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.APROVAR_CENARIO);
+        assertThat(linha.usuarioId()).isEqualTo(5);
+        assertThat(linha.entidadeId()).isEqualTo("10");
+        assertThat(linha.ocorridoEm()).isEqualTo(MOMENTO);
+        assertThat(linha.detalhes()).containsExactlyEntriesOf(Map.of("versaoId", 30L));
+    }
+
+    @Test
+    void devolucaoRegistraOComentario() {
+        ouvinte.cenarioDevolvido(new CenarioDevolvido(10, 30, 5, "Conferir a data da batalha", MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.DEVOLVER_CENARIO);
+        assertThat(linha.usuarioId()).isEqualTo(5);
+        assertThat(linha.entidadeId()).isEqualTo("10");
+        assertThat(linha.detalhes())
+                .containsEntry("versaoId", 30L)
+                .containsEntry("comentario", "Conferir a data da batalha");
+    }
+
+    @Test
+    void arquivamentoRegistraQuemArquivou() {
+        ouvinte.cenarioArquivado(new CenarioArquivado(10, 6, MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.ARQUIVAR_CENARIO);
+        assertThat(linha.usuarioId()).isEqualTo(6);
+        assertThat(linha.entidadeId()).isEqualTo("10");
+        assertThat(linha.detalhes()).isEmpty();
+    }
+
+    @Test
+    void suspensaoRegistraQuemADisparouEOMotivo() {
+        ouvinte.cenarioSuspenso(new CenarioSuspenso(10, 30, 4, "SINALIZACAO_GRAVE", MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.SUSPENDER_CENARIO);
+        assertThat(linha.usuarioId()).isEqualTo(4);
+        assertThat(linha.entidadeId()).isEqualTo("10");
+        assertThat(linha.detalhes()).containsEntry("versaoId", 30L).containsEntry("motivo", "SINALIZACAO_GRAVE");
+    }
+
+    @Test
+    void reativacaoRegistraOCuradorEOMotivo() {
+        ouvinte.cenarioReativado(new CenarioReativado(10, 30, 5, "SINALIZACAO_DESCARTADA", MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.REATIVAR_CENARIO);
+        assertThat(linha.usuarioId()).isEqualTo(5);
+        assertThat(linha.entidadeId()).isEqualTo("10");
+        assertThat(linha.detalhes())
+                .containsEntry("versaoId", 30L)
+                .containsEntry("motivo", "SINALIZACAO_DESCARTADA");
+    }
+
+    @Test
+    void exportacaoRegistraFormatoEFiltros() {
+        ouvinte.relatorioExportado(new RelatorioExportado(5, "CSV", Map.of("turma", "8º A"), MOMENTO));
+
+        RegistroDeAuditoria linha = registrado();
+        assertThat(linha.acao()).isEqualTo(AcaoCritica.EXPORTAR_RELATORIO);
+        assertThat(linha.usuarioId()).isEqualTo(5);
+        assertThat(linha.entidadeId()).isNull();
+        assertThat(linha.detalhes())
+                .containsEntry("formato", "CSV")
+                .containsEntry("filtros", Map.of("turma", "8º A"));
+    }
+
+    private RegistroDeAuditoria registrado() {
+        var linha = ArgumentCaptor.forClass(RegistroDeAuditoria.class);
+        verify(registro).registrar(linha.capture());
+        return linha.getValue();
+    }
+}
