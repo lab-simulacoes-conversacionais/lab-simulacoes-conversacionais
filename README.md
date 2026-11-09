@@ -91,7 +91,7 @@ Cada módulo é um subpacote direto de `br.ufg.inf.labsimulacoes`:
 | Pacote | Módulo | Responsabilidade |
 | --- | --- | --- |
 | `acesso` | Acesso | Usuários, perfis, turmas, parâmetros e autenticação |
-| `cenarios` | Cenários | Cenários, versões, BNCC, quiz, curadoria e biblioteca |
+| `cenarios` | Cenários | Cenários, versões, catálogo da BNCC, quiz, curadoria e biblioteca |
 | `sessoes` | Sessões | Sessões em sala, mensagens, controles, aplicação do quiz e engajamento |
 | `auditoria` | Auditoria | Conteúdo bloqueado, sinalizações, triagem, suspensão e log de ações críticas |
 | `metricas` | Métricas | Indicadores, comparação com sessões de controle, painel e exportação |
@@ -107,6 +107,23 @@ Dentro de cada módulo, o código fica em quatro camadas, e a dependência vai s
 | `aplicacao` | Aplicação | Casos de uso, transações e verificação de perfil |
 | `dominio` | Domínio | Entidades, estados e regras de negócio, sem dependência de framework |
 | `infraestrutura` | Infraestrutura | Repositórios, cache, chamadas externas e tarefas agendadas |
+
+O que um módulo oferece aos outros fica em interfaces no pacote raiz, implementadas na camada de aplicação:
+
+| Módulo | Interface | Para quê |
+| --- | --- | --- |
+| `acesso` | `ParametrosDeUso` | Ler o limite de perguntas por sessão e o custo diário máximo |
+| `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
+
+### Catálogo da BNCC
+
+As habilidades da BNCC ficam na tabela `habilidade_bncc` e vêm dos arquivos em `src/main/resources/bncc/` (ver [Créditos dos dados da BNCC](#créditos-dos-dados-da-bncc)). Por enquanto, só o Ensino Fundamental é importado.
+
+- **Importação:** roda a cada subida da aplicação. Ela grava pelo código, sem duplicar, só atualiza o que mudou e nunca apaga uma habilidade, porque as versões de cenário apontam para elas. Só entram as habilidades vigentes, e o log mostra quantas foram inseridas, atualizadas, mantidas e ignoradas. Se um arquivo tiver problema, como um componente que o `estrutura.json` não conhece, nada é gravado e a aplicação não sobe.
+- **Desligar na subida:** defina `BNCC_IMPORTAR_AO_INICIAR=false` (propriedade `bncc.importar-ao-iniciar`). Os testes já rodam assim e importam o arquivo quando precisam.
+- **Busca:** pela `CatalogoBncc`, com filtros opcionais por código, trecho da descrição, etapa, ano e componente, em ordem de código e com até 50 resultados por padrão (`bncc.busca.limite-padrao`). O ano 7 também encontra as habilidades do bloco 6º e 7º, como EF67LP08.
+- **Cache:** cada busca fica no Redis (cache `habilidades-bncc`), com a chave formada pelos filtros normalizados. A importação limpa o cache inteiro depois que a gravação é confirmada. A validade de 24 horas (`bncc.cache.validade`) é só uma garantia a mais.
+- **Outra etapa:** basta criar um novo leitor que implemente `FonteDeHabilidades` na infraestrutura de `cenarios`. A importação junta as habilidades de todos os leitores.
 
 ## Regras de fronteira
 
@@ -137,3 +154,14 @@ A maioria das classes em `src/test/java/br/ufg/inf/fixturesmodulith` viola as re
 - Stack Tecnológica POC 2.3: tecnologias, arquitetura e regras de gerência de configuração.
 - [Hospedagem](docs/operacao/hospedagem.md): VM, ambientes, deploy, backups e checklist de ações manuais.
 - [Roteiro de reversão](docs/operacao/reversao.md): como voltar para a versão anterior e o que fazer com o banco.
+
+## Créditos dos dados da BNCC
+
+O catálogo de habilidades usa dados do dataset "bncc.dev: dados abertos e verificados da Base Nacional Comum Curricular", publicado pela Profy (Profy Tecnologias Educacionais Ltda) sob a licença CC BY 4.0. Os dados originais vêm das planilhas oficiais do MEC.
+
+- Fonte: https://github.com/bncc-dev/bncc-dados (site: https://bncc.dev)
+- Versão usada: dados-2026.08, publicada em 2026-10-15 (commit d70016185a3cb8b1f146f50592a2a6502f58edde)
+- DOI da versão: 10.5281/zenodo.23403987
+- Licença dos dados (CC BY 4.0): https://github.com/bncc-dev/bncc-dados/blob/main/dados/LICENSE.md
+- Arquivos usados: dados/bncc-2018/ensino-fundamental.json e dados/bncc-2018/estrutura.json, copiados sem alteração para src/main/resources/bncc/
+- Modificações: o sistema importa apenas as habilidades vigentes e somente os campos código, texto, componente e anos. O identificador do componente é trocado pelo nome (ex.: ef-comp-hi vira História) e a lista de anos é gravada como texto (ex.: "6,7"). O dataset original não foi alterado.

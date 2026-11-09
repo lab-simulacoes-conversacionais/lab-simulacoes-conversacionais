@@ -1,0 +1,7 @@
+{
+  "documento_curricular": {"id": "bncc-2018"},
+  "componentes_curriculares": [
+    {"id": "ef-comp-hi", "etapa": "EF", "nome": "História", "sigla_codigo": "HI"},
+    {"id": "ef-comp-lp", "etapa": "EF", "nome": "Língua Portuguesa", "sigla_codigo": "LP"}
+  ]
+}

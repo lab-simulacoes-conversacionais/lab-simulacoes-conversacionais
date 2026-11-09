@@ -1,0 +1,6 @@
+{
+  "habilidades": [
+    {"codigo": "EF08HI03", "texto": "Analisar os impactos da Revolução Industrial.", "componente": "ef-comp-hi", "anos": [8], "vigencia": {"status": "vigente"}},
+    {"codigo": "EF08XX01", "texto": "Componente que a estrutura não conhece.", "componente": "ef-comp-xx", "anos": [8], "vigencia": {"status": "vigente"}}
+  ]
+}
