@@ -1,6 +1,8 @@
 package br.ufg.inf.labsimulacoes.cenarios.dominio;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /** Porta de persistência do catálogo da BNCC. A implementação fica na infraestrutura. */
 public interface Habilidades {
@@ -13,4 +15,7 @@ public interface Habilidades {
 
     /** Em ordem de código, até o limite do filtro. */
     List<HabilidadeBncc> buscar(FiltroDeHabilidades filtro);
+
+    /** Quais destes códigos estão no catálogo. */
+    Set<String> existentes(Collection<String> codigos);
 }

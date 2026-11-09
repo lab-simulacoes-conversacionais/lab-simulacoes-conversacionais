@@ -168,6 +168,19 @@ class HabilidadesJdbcTest {
                 .containsExactly("EF08HI03", "EF09MA05");
     }
 
+    @Test
+    void existentesDevolveSoOsCodigosDoCatalogo() {
+        habilidades.gravar(List.of(REVOLUCAO, IMAGENS));
+
+        assertThat(habilidades.existentes(List.of("EF08HI03", "EF01XX99", "EF67LP08")))
+                .containsExactlyInAnyOrder("EF08HI03", "EF67LP08");
+    }
+
+    @Test
+    void existentesDeListaVaziaNaoConsultaEDevolveVazio() {
+        assertThat(habilidades.existentes(List.of())).isEmpty();
+    }
+
     private static FiltroDeHabilidades filtro(
             String codigo, String descricao, String etapa, Integer ano, String componente) {
         return new FiltroDeHabilidades(codigo, descricao, etapa, ano, componente, 50);
