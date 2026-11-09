@@ -1,0 +1,28 @@
+{
+  "habilidades": [
+    {
+      "codigo": "EF08HI03",
+      "texto": "Analisar os impactos da Revolução Industrial na produção e circulação de povos, produtos e culturas.",
+      "componente": "ef-comp-hi",
+      "anos": [8],
+      "organizacao": {"tipo": "unidade_tematica"},
+      "objetos_conhecimento": ["ef-comp-hi-oc-teste"],
+      "vigencia": {"status": "vigente", "desde": "dados-2026.07", "ate": null},
+      "fonte": {"documento": "bncc-2018"}
+    },
+    {
+      "codigo": "EF67LP08",
+      "texto": "Identificar os efeitos de sentido devidos à escolha de imagens.",
+      "componente": "ef-comp-lp",
+      "anos": [7, 6],
+      "vigencia": {"status": "vigente"}
+    },
+    {
+      "codigo": "EF08HI99",
+      "texto": "Habilidade que saiu da base.",
+      "componente": "ef-comp-hi",
+      "anos": [8],
+      "vigencia": {"status": "revogada", "desde": "dados-2026.07", "ate": "dados-2026.08"}
+    }
+  ]
+}
