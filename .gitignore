@@ -11,3 +11,7 @@ target/
 
 # Configuração local e segredos
 .env
+
+# Arquivos de configuração do Claude
+CLAUDE.local.md
+.claude/settings.local.json
