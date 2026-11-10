@@ -1,6 +1,7 @@
 package br.ufg.inf.labsimulacoes.auditoria.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -9,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -69,6 +71,40 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
                 SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
                 FROM log_auditoria ORDER BY id""",
                 this::paraRegistro);
+    }
+
+    /** Usa os índices de ocorrido_em e de usuario_id. A ação tem poucos valores e dispensa índice. */
+    @Override
+    public List<RegistroDeAuditoria> consultar(FiltroDoLog filtro) {
+        var condicoes = new ArrayList<String>();
+        var parametros = new ArrayList<Object>();
+        if (filtro.inicio() != null) {
+            condicoes.add("ocorrido_em >= ?");
+            parametros.add(Timestamp.from(filtro.inicio()));
+        }
+        if (filtro.fim() != null) {
+            condicoes.add("ocorrido_em < ?");
+            parametros.add(Timestamp.from(filtro.fim()));
+        }
+        if (filtro.usuarioId() != null) {
+            condicoes.add("usuario_id = ?");
+            parametros.add(filtro.usuarioId());
+        }
+        if (filtro.acao() != null) {
+            condicoes.add("acao = ?");
+            parametros.add(filtro.acao().name());
+        }
+        String onde = condicoes.isEmpty() ? "" : "WHERE " + String.join(" AND ", condicoes);
+        parametros.add(filtro.tamanho());
+        parametros.add(filtro.deslocamento());
+        return jdbc.query("""
+                SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
+                FROM log_auditoria
+                %s
+                ORDER BY ocorrido_em DESC, id DESC
+                LIMIT ? OFFSET ?""".formatted(onde),
+                this::paraRegistro,
+                parametros.toArray());
     }
 
     private RegistroDeAuditoria paraRegistro(ResultSet linha, int numero) throws SQLException {
