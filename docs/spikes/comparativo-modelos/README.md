@@ -3,7 +3,8 @@
 Escolhe o modelo da POC comparando qualidade em português, latência e custo, como pede a seção 2 da
 [stack.md](../../stack.md). O modelo e o esforço de raciocínio escolhidos vão para
 `spring.ai.openai.chat.options.model` e `spring.ai.openai.chat.options.reasoning-effort`, em
-`src/main/resources/application.properties`.
+`src/main/resources/application.properties`. Nos ambientes, o modelo pode ser trocado pela variável
+`IA_MODELO` do `.env` (RNF-02).
 
 ## Como rodar
 
