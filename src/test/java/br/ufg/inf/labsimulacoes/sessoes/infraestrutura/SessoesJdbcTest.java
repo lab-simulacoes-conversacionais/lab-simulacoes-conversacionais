@@ -146,6 +146,42 @@ class SessoesJdbcTest {
                 .containsExactly(MensagemExibida.Autoria.TURMA, MensagemExibida.Autoria.IA);
     }
 
+    /** RN-11 e RNF-10: autoria genérica, e a resposta da IA aponta para os metadados dela. */
+    @Test
+    void mensagensGravadasVoltamNoHistorico() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        long metadados = jdbc.queryForObject("""
+                INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt) VALUES ('openai', 'm', 'v1')
+                RETURNING id""", Long.class);
+        var pergunta = new MensagemExibida(MensagemExibida.Autoria.TURMA, "Quem é você?", AGORA.plusSeconds(1));
+        var resposta = new MensagemExibida(MensagemExibida.Autoria.IA, "Sou Santos Dumont.", AGORA.plusSeconds(3));
+
+        sessoes.registrarMensagem(sessao.id(), pergunta, null);
+        sessoes.registrarMensagem(sessao.id(), resposta, metadados);
+
+        HistoricoDaSessao historico = sessoes.historico(sessao.id(), EstadoDaSessao.MENSAGENS_GUARDADAS).orElseThrow();
+        assertThat(historico.mensagensDesdeOReinicio()).containsExactly(pergunta, resposta);
+        assertThat(historico.perguntasDaTurma()).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT resposta_ia_meta_id FROM mensagem WHERE sessao_id = ? AND autoria = 'IA'", Long.class, sessao.id()))
+                .isEqualTo(metadados);
+    }
+
+    @Test
+    void soARespostaDaIaTemMetadados() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        var pergunta = new MensagemExibida(MensagemExibida.Autoria.TURMA, "Quem é você?", AGORA);
+        var resposta = new MensagemExibida(MensagemExibida.Autoria.IA, "Sou Santos Dumont.", AGORA);
+
+        // O @Repository traduz a IllegalArgumentException para a hierarquia de exceções do Spring.
+        assertThatThrownBy(() -> sessoes.registrarMensagem(sessao.id(), pergunta, 1L))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("RNF-10");
+        assertThatThrownBy(() -> sessoes.registrarMensagem(sessao.id(), resposta, null))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("RNF-10");
+    }
+
     /** Só as mais recentes voltam, mas em ordem de exibição. */
     @Test
     void historicoLimitaAsMensagensAsMaisRecentes() {

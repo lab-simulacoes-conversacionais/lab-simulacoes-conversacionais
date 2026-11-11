@@ -98,6 +98,20 @@ class SessoesJdbc implements Sessoes {
     }
 
     @Override
+    public void registrarMensagem(long sessaoId, MensagemExibida mensagem, Long respostaIaMetaId) {
+        if ((mensagem.autoria() == MensagemExibida.Autoria.IA) != (respostaIaMetaId != null)) {
+            throw new IllegalArgumentException("Só a resposta da IA tem metadados, e ela sempre tem (RNF-10)");
+        }
+        jdbc.update(
+                "INSERT INTO mensagem (sessao_id, autoria, texto, resposta_ia_meta_id, criado_em) VALUES (?, ?, ?, ?, ?)",
+                sessaoId,
+                mensagem.autoria().name(),
+                mensagem.texto(),
+                respostaIaMetaId,
+                utc(mensagem.em()));
+    }
+
+    @Override
     public Optional<HistoricoDaSessao> historico(long sessaoId, int mensagens) {
         return buscar(sessaoId).map(sessao -> new HistoricoDaSessao(
                 sessao,
