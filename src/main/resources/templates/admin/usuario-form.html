@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Adicionar usuário · Administração')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<main class="page form-page">
+  <a class="back-link" th:href="@{/admin/usuarios}">← Voltar para configurações</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">ADMINISTRAÇÃO · USUÁRIOS</p>
+      <h1>Adicionar usuário</h1>
+      <p>Cadastre um profissional e defina um ou mais perfis de acesso.</p>
+    </div>
+    <span class="badge badge-pending"><span aria-hidden="true">•</span>Rascunho</span>
+  </div>
+
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <form th:action="@{/admin/usuarios}" method="post" class="form-layout" data-resumo>
+    <section class="card complete-form">
+      <div class="section-title"><div class="section-title-main"><span>1</span><h2>Dados profissionais</h2></div></div>
+      <div class="form-content">
+        <div class="form-grid">
+          <div>
+            <label for="nome">Nome completo *</label>
+            <input id="nome" name="nome" required minlength="3" placeholder="Nome do profissional" th:value="${nome}">
+          </div>
+          <div>
+            <label for="email">E-mail institucional *</label>
+            <input id="email" name="email" type="email" required placeholder="nome@escola.edu.br"
+                   autocomplete="off" th:value="${emailNovo}">
+          </div>
+        </div>
+        <!-- O protótipo envia um convite por e-mail; o sistema ainda não envia e-mails, então o
+             administrador define uma senha provisória e a repassa ao profissional. -->
+        <label for="senha">Senha provisória *</label>
+        <input id="senha" name="senha" type="password" required autocomplete="new-password">
+        <small>Repasse a senha ao profissional. Ela é guardada apenas de forma cifrada.</small>
+      </div>
+
+      <div class="section-title"><div class="section-title-main"><span>2</span><h2>Perfis de acesso</h2></div></div>
+      <div class="form-content">
+        <p class="field-description">Perfis são acumuláveis. Selecione ao menos um.</p>
+        <div class="profile-selector" data-exige-um="perfis">
+          <label th:each="opcao : ${opcoesDePerfil}">
+            <input type="checkbox" name="perfis" th:data-rotulo="${opcao.nome}"
+                   th:value="${opcao.valor}" th:checked="${perfisMarcados.contains(opcao.valor)}">
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong th:text="${opcao.nome}">Perfil</strong>
+              <small th:text="${opcao.descricao}">descrição</small>
+            </div>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <aside class="form-summary">
+      <h3>Resumo do acesso</h3>
+      <dl>
+        <div><dt>Profissional</dt><dd data-resumo-de="nome" data-vazio="Não informado" th:text="${#strings.isEmpty(nome)} ? 'Não informado' : ${nome}">Não informado</dd></div>
+        <div><dt>E-mail</dt><dd data-resumo-de="email" data-vazio="Não informado" th:text="${#strings.isEmpty(emailNovo)} ? 'Não informado' : ${emailNovo}">Não informado</dd></div>
+        <div><dt>Perfis</dt><dd data-resumo-de="perfis" data-vazio="Nenhum selecionado">Nenhum selecionado</dd></div>
+      </dl>
+      <p class="field-help" data-ajuda hidden>Preencha nome, e-mail válido, senha e ao menos um perfil.</p>
+      <button class="btn btn-primary full" type="submit" data-enviar>Adicionar usuário</button>
+    </aside>
+  </form>
+</main>
+<script th:src="@{/js/formulario.js}" defer></script>
+</body>
+</html>

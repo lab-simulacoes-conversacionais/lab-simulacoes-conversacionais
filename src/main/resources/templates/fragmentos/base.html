@@ -32,6 +32,32 @@
     Personagem simulado por Inteligência Artificial · pode conter erros
   </div>
 </header>
+
+<!--
+  Título e abas da área de administração, iguais em todas as abas, como no protótipo.
+  'ativa' é 'usuarios', 'turmas' ou 'parametros'. O log de auditoria ganha a sua aba quando a tela existir.
+-->
+<div th:fragment="painelAdmin(ativa)">
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">ADMINISTRAÇÃO</p>
+      <h1>Configurações da plataforma</h1>
+      <p>Gerencie acessos e parâmetros globais com rastreabilidade.</p>
+    </div>
+    <span class="badge badge-positive"><span aria-hidden="true">✓</span>Ativa</span>
+  </div>
+  <nav class="admin-tabs" aria-label="Seções da administração">
+    <a th:href="@{/admin/usuarios}" th:classappend="${ativa == 'usuarios'} ? 'active'"
+       th:attr="aria-current=${ativa == 'usuarios'} ? 'page' : null">Usuários</a>
+    <a th:href="@{/admin/turmas}" th:classappend="${ativa == 'turmas'} ? 'active'"
+       th:attr="aria-current=${ativa == 'turmas'} ? 'page' : null">Turmas</a>
+    <a th:href="@{/admin/parametros}" th:classappend="${ativa == 'parametros'} ? 'active'"
+       th:attr="aria-current=${ativa == 'parametros'} ? 'page' : null">Parâmetros</a>
+  </nav>
+</div>
+
+<!-- Ícone de confirmação (check) usado nas telas de cadastro concluído. -->
+<svg th:fragment="iconeCheck" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
 </body>
 </html>
 

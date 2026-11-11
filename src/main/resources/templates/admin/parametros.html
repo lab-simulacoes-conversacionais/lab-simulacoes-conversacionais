@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Parâmetros · Administração')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<main class="page admin-page">
+  <div th:replace="~{fragmentos/base :: painelAdmin('parametros')}"></div>
+
+  <!-- O protótipo diz que as alterações vão para o log de auditoria, mas a troca de parâmetros ainda
+       não é uma ação registrada (RN-35); o texto descreve o que o sistema faz hoje. -->
+  <div class="admin-section-head">
+    <div>
+      <h2>Parâmetros globais</h2>
+      <p>Valem para as sessões iniciadas depois da alteração.</p>
+    </div>
+  </div>
+
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <form th:action="@{/admin/parametros}" method="post">
+    <div class="parameter-grid">
+      <section class="card">
+        <div class="parameter-title"><span aria-hidden="true">#</span>
+          <div><h3>Limite de perguntas</h3><p>Máximo permitido por sessão.</p></div>
+        </div>
+        <label for="limite">Perguntas por sessão</label>
+        <input id="limite" name="limiteDePerguntasPorSessao" type="number" min="1" max="100" required
+               th:value="${parametros.limiteDePerguntasPorSessao}">
+        <small>Valor atual recomendado: 40 perguntas.</small>
+      </section>
+      <!-- O protótipo usa reais; o custo do provedor é cobrado e registrado em dólares (RNF-13). -->
+      <section class="card">
+        <div class="parameter-title"><span aria-hidden="true">US$</span>
+          <div><h3>Custo diário máximo</h3><p>Limite operacional de uso de IA por dia.</p></div>
+        </div>
+        <label for="custo">Valor máximo em dólares</label>
+        <input id="custo" name="custoDiarioMaximoUsd" type="number" min="0" step="0.01"
+               th:value="${parametros.custoDiarioMaximoUsd}" placeholder="Sem limite">
+        <small>O administrador é alertado quando o custo do dia passar deste valor. Em branco, não há limite.</small>
+      </section>
+    </div>
+    <div class="parameter-save">
+      <span th:if="${sucesso}" class="saved-label" role="status">✓ <th:block th:text="${sucesso}">Parâmetros salvos</th:block></span>
+      <button class="btn btn-primary" type="submit">Salvar parâmetros</button>
+    </div>
+  </form>
+</main>
+</body>
+</html>
