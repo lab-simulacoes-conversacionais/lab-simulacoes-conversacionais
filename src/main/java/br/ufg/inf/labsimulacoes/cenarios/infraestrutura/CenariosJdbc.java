@@ -1,8 +1,10 @@
 package br.ufg.inf.labsimulacoes.cenarios.infraestrutura;
 
+import br.ufg.inf.labsimulacoes.cenarios.dominio.Aprovacao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.Devolucao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
@@ -12,6 +14,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -19,23 +24,42 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Tabelas cenario, cenario_versao e versao_habilidade com SQL direto: elas se referenciam em ciclo, e
- * o cenário sempre é lido junto com só uma das suas versões, o que em JPA daria mais trabalho.
+ * Tabelas cenario, cenario_versao, versao_habilidade e devolucao com SQL direto: elas se referenciam
+ * em ciclo, e o cenário sempre é lido junto com só uma das suas versões, o que em JPA daria mais
+ * trabalho.
  */
 @Repository
 class CenariosJdbc implements Cenarios {
 
+    private static final String COLUNAS_DA_VERSAO = """
+            v.id AS versao_id, v.numero, v.status AS versao_status, v.titulo, v.conteudo::text AS conteudo,
+            v.componente, v.etapa, v.ano, v.faixa_etaria, v.duracao_prevista_min, v.criado_por_id,
+            v.aprovado_por_id, v.aprovado_em,
+            ARRAY(SELECT h.habilidade_codigo FROM versao_habilidade h
+                  WHERE h.cenario_versao_id = v.id ORDER BY h.habilidade_codigo) AS habilidades""";
+
+    /** A devolução mais recente da versão, para o autor saber o que mudar (RN-07). */
     private static final String CENARIO_COM_ULTIMA_VERSAO = """
-            SELECT c.id, c.autor_id, c.status, v.id AS versao_id, v.numero, v.status AS versao_status,
-                   v.titulo, v.conteudo::text AS conteudo, v.componente, v.etapa, v.ano, v.faixa_etaria,
-                   v.duracao_prevista_min, v.criado_por_id,
-                   ARRAY(SELECT h.habilidade_codigo FROM versao_habilidade h
-                         WHERE h.cenario_versao_id = v.id ORDER BY h.habilidade_codigo) AS habilidades
+            SELECT c.id, c.autor_id, c.status, %s,
+                   d.id AS devolucao_id, d.curador_id AS devolucao_curador_id,
+                   d.comentario AS devolucao_comentario, d.criado_em AS devolucao_em
             FROM cenario c
             JOIN cenario_versao v ON v.cenario_id = c.id
+            LEFT JOIN LATERAL (
+                SELECT id, curador_id, comentario, criado_em FROM devolucao
+                WHERE cenario_versao_id = v.id
+                ORDER BY criado_em DESC, id DESC
+                LIMIT 1) d ON true
             WHERE c.id = ?
             ORDER BY v.numero DESC
-            LIMIT 1""";
+            LIMIT 1""".formatted(COLUNAS_DA_VERSAO);
+
+    /** RN-01: só cenário Aprovado. Suspenso e arquivado guardam a versão vigente, mas não vão à sala. */
+    private static final String VERSAO_VIGENTE = """
+            SELECT %s
+            FROM cenario c
+            JOIN cenario_versao v ON v.id = c.versao_vigente_id
+            WHERE c.id = ? AND c.status = 'APROVADO' AND v.status = 'APROVADA'""".formatted(COLUNAS_DA_VERSAO);
 
     private static final String INSERIR_VERSAO = """
             INSERT INTO cenario_versao (cenario_id, numero, status, titulo, conteudo, componente, etapa, ano,
@@ -43,11 +67,15 @@ class CenariosJdbc implements Cenarios {
             VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
             RETURNING id""";
 
+    /**
+     * Versão aprovada é imutável, e o banco recusaria a alteração (RN-08). O filtro deixa a linha de
+     * fora antes disso, para que salvar um cenário aprovado mude só o cenário.
+     */
     private static final String ATUALIZAR_VERSAO = """
             UPDATE cenario_versao
             SET status = ?, titulo = ?, conteudo = ?::jsonb, componente = ?, etapa = ?, ano = ?,
-                faixa_etaria = ?, duracao_prevista_min = ?
-            WHERE id = ?""";
+                faixa_etaria = ?, duracao_prevista_min = ?, aprovado_por_id = ?, aprovado_em = ?
+            WHERE id = ? AND status <> 'APROVADA'""";
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -67,11 +95,16 @@ class CenariosJdbc implements Cenarios {
         return consultar(CENARIO_COM_ULTIMA_VERSAO + " FOR UPDATE OF c", id);
     }
 
-    /** A versão e suas habilidades precisam ser gravadas juntas. */
+    /** A versão, suas habilidades e a devolução precisam ser gravadas juntas. */
     @Override
     @Transactional
     public Cenario salvar(Cenario cenario) {
         return cenario.id() == null ? inserir(cenario) : atualizar(cenario);
+    }
+
+    @Override
+    public Optional<VersaoDoCenario> versaoVigente(long cenarioId) {
+        return jdbc.query(VERSAO_VIGENTE, (linha, numero) -> paraVersao(linha), cenarioId).stream().findFirst();
     }
 
     private Optional<Cenario> consultar(String sql, long id) {
@@ -108,13 +141,26 @@ class CenariosJdbc implements Cenarios {
     }
 
     private Cenario atualizar(Cenario cenario) {
+        VersaoDoCenario versao = cenario.versao();
         jdbc.update(
                 "UPDATE cenario SET status = ?, atualizado_em = now() WHERE id = ?",
                 cenario.status().name(),
                 cenario.id());
-        VersaoDoCenario versao = cenario.versao();
+        atualizarVersao(versao);
+        if (versao.status() == StatusDaVersao.APROVADA) {
+            jdbc.update("UPDATE cenario SET versao_vigente_id = ? WHERE id = ?", versao.id(), cenario.id());
+        }
+        Devolucao devolucao = cenario.ultimaDevolucao();
+        if (devolucao != null && devolucao.id() == null) {
+            devolucao = devolucao.comId(inserirDevolucao(versao.id(), devolucao));
+        }
+        return new Cenario(cenario.id(), cenario.autorId(), cenario.status(), versao, devolucao);
+    }
+
+    private void atualizarVersao(VersaoDoCenario versao) {
         ConteudoDoCenario conteudo = versao.conteudo();
         VinculoCurricular curriculo = conteudo.curriculo();
+        Aprovacao aprovacao = versao.aprovacao();
         jdbc.update(
                 ATUALIZAR_VERSAO,
                 versao.status().name(),
@@ -125,10 +171,25 @@ class CenariosJdbc implements Cenarios {
                 anoComoTexto(curriculo),
                 conteudo.faixaEtaria(),
                 conteudo.duracaoPrevistaMin(),
+                aprovacao == null ? null : aprovacao.curadorId(),
+                aprovacao == null ? null : utc(aprovacao.em()),
                 versao.id());
-        jdbc.update("DELETE FROM versao_habilidade WHERE cenario_versao_id = ?", versao.id());
-        inserirHabilidades(versao.id(), curriculo.habilidades());
-        return cenario;
+        // O conteúdo só muda em rascunho, então nas outras transições as habilidades continuam as mesmas.
+        if (versao.status() == StatusDaVersao.RASCUNHO) {
+            jdbc.update("DELETE FROM versao_habilidade WHERE cenario_versao_id = ?", versao.id());
+            inserirHabilidades(versao.id(), curriculo.habilidades());
+        }
+    }
+
+    private long inserirDevolucao(long versaoId, Devolucao devolucao) {
+        return jdbc.queryForObject("""
+                INSERT INTO devolucao (cenario_versao_id, curador_id, comentario, criado_em)
+                VALUES (?, ?, ?, ?) RETURNING id""",
+                Long.class,
+                versaoId,
+                devolucao.curadorId(),
+                devolucao.comentario(),
+                utc(devolucao.em()));
     }
 
     private void inserirHabilidades(long versaoId, List<String> codigos) {
@@ -142,6 +203,15 @@ class CenariosJdbc implements Cenarios {
     }
 
     private Cenario paraCenario(ResultSet linha, int numero) throws SQLException {
+        return new Cenario(
+                linha.getLong("id"),
+                linha.getLong("autor_id"),
+                StatusDoCenario.valueOf(linha.getString("status")),
+                paraVersao(linha),
+                paraDevolucao(linha));
+    }
+
+    private VersaoDoCenario paraVersao(ResultSet linha) throws SQLException {
         String ano = linha.getString("ano");
         var curriculo = new VinculoCurricular(
                 linha.getString("componente"),
@@ -154,17 +224,36 @@ class CenariosJdbc implements Cenarios {
                 curriculo,
                 linha.getString("faixa_etaria"),
                 linha.getObject("duracao_prevista_min", Integer.class));
-        var versao = new VersaoDoCenario(
+        Long aprovadoPor = linha.getObject("aprovado_por_id", Long.class);
+        Aprovacao aprovacao = aprovadoPor == null ? null : new Aprovacao(aprovadoPor, instante(linha, "aprovado_em"));
+        return new VersaoDoCenario(
                 linha.getLong("versao_id"),
                 linha.getInt("numero"),
                 StatusDaVersao.valueOf(linha.getString("versao_status")),
                 conteudo,
-                linha.getLong("criado_por_id"));
-        return new Cenario(
-                linha.getLong("id"),
-                linha.getLong("autor_id"),
-                StatusDoCenario.valueOf(linha.getString("status")),
-                versao);
+                linha.getLong("criado_por_id"),
+                aprovacao);
+    }
+
+    private static Devolucao paraDevolucao(ResultSet linha) throws SQLException {
+        Long id = linha.getObject("devolucao_id", Long.class);
+        if (id == null) {
+            return null;
+        }
+        return new Devolucao(
+                id,
+                linha.getLong("devolucao_curador_id"),
+                linha.getString("devolucao_comentario"),
+                instante(linha, "devolucao_em"));
+    }
+
+    private static Instant instante(ResultSet linha, String coluna) throws SQLException {
+        OffsetDateTime valor = linha.getObject(coluna, OffsetDateTime.class);
+        return valor == null ? null : valor.toInstant();
+    }
+
+    private static OffsetDateTime utc(Instant instante) {
+        return instante.atOffset(ZoneOffset.UTC);
     }
 
     private String paraJson(RoteiroDoCenario roteiro) {

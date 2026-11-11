@@ -114,6 +114,7 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | --- | --- | --- |
 | `acesso` | `ParametrosDeUso` | Ler o limite de perguntas por sessão e o custo diário máximo |
 | `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
+| `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
 
 ### Catálogo da BNCC
 
