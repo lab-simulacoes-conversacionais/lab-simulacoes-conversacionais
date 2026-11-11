@@ -1,6 +1,7 @@
 package br.ufg.inf.labsimulacoes.ia.aplicacao;
 
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
+import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeSugestao;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
@@ -51,7 +52,11 @@ public class ChamadasAoProvedor implements AdaptadorDeIa {
         PromptMontado prompt = montador.daFala(pedido);
         long inicio = System.nanoTime();
         Geracao<String> geracao = provedor.conversar(prompt, aoReceberTrecho);
-        return new RespostaDoPersonagem(geracao.conteudo(), registrar(prompt, geracao, inicio).id());
+        long metadadosId = registrar(prompt, geracao, inicio).id();
+        if (geracao.conteudo() == null || geracao.conteudo().isBlank()) {
+            throw new FalhaNoProvedorDeIa("O provedor de IA devolveu uma resposta vazia", null);
+        }
+        return new RespostaDoPersonagem(geracao.conteudo(), metadadosId);
     }
 
     @Override
