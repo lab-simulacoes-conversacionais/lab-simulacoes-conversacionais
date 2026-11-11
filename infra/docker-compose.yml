@@ -21,6 +21,11 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env}
       SESSAO_INATIVIDADE: ${SESSAO_INATIVIDADE:-60m}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Mesmo padrão do application.properties. Vazio não serve: o Spring usaria o texto vazio como modelo.
+      IA_MODELO: ${IA_MODELO:-gpt-6.1-terra}
+      # Preços por 1 milhão de tokens do modelo acima. Vazios usam a tarifa do gpt-6.1-terra, como o padrão.
+      IA_PRECO_ENTRADA: ${IA_PRECO_ENTRADA:-1.00}
+      IA_PRECO_SAIDA: ${IA_PRECO_SAIDA:-5.00}
     depends_on:
       postgres:
         condition: service_healthy

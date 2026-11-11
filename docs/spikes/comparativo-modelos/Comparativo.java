@@ -14,6 +14,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Stream;
 
 /**
@@ -54,10 +56,20 @@ public class Comparativo {
     static final int MAX_TOKENS_DE_SAIDA = 2000;
 
     static final int LIMITE_DE_PALAVRAS = 120; // RN-16
-    static final double LIMITE_P95_PRIMEIRO_TRECHO_S = 2.0; // RNF-03 (3 s) menos a margem da moderação
+
+    /**
+     * RNF-03, conforme o passo 7 do fluxo de uma pergunta (stack.md, seção 5): a exibição começa quando a
+     * primeira frase é aprovada pela moderação, então o critério é o tempo até a primeira frase aprovada,
+     * não até o primeiro trecho de texto.
+     */
+    static final double LIMITE_P95_PRIMEIRA_FRASE_APROVADA_S = 3.0;
     static final double LIMITE_P95_TOTAL_S = 10.0; // RNF-03
 
+    /** Modelo de moderação da OpenAI, o mesmo que o Spring AI usa no filtro de conteúdo (RF-22). */
+    static final String MODELO_DE_MODERACAO = "omni-moderation-latest";
+
     static final Duration TEMPO_MAXIMO_POR_CHAMADA = Duration.ofSeconds(90);
+    static final Duration TEMPO_MAXIMO_DA_MODERACAO = Duration.ofSeconds(30);
     static final String API = "https://api.openai.com/v1";
 
     /** Base: o cenário "O voo do 14-bis", o mesmo dos testes do módulo cenarios. */
@@ -109,12 +121,21 @@ public class Comparativo {
 
     record Fala(String texto, boolean dificil) {}
 
+    /**
+     * Uma resposta do personagem. Os tempos contam a partir do envio da pergunta, como a turma percebe:
+     * incluem a moderação da pergunta (passo 4 do fluxo) e, na primeira frase aprovada, a moderação dessa
+     * frase (passo 7).
+     */
     record Resposta(
             int turno,
             String pergunta,
             String texto,
             double primeiroTrechoS,
+            double primeiraFraseS,
+            double primeiraFraseAprovadaS,
             double totalS,
+            boolean perguntaSinalizada,
+            boolean primeiraFraseSinalizada,
             long tokensEntrada,
             long tokensSaida,
             long tokensRaciocinio,
@@ -260,8 +281,9 @@ public class Comparativo {
             Resposta resposta = perguntar(chave, modelo, historico, i + 1, pergunta);
             respostas.add(resposta);
             historico.add(new String[] {"assistant", resposta.texto()});
-            System.out.printf("  turno %2d: %.2f s até o primeiro trecho, %.2f s no total, %d palavras%s%n",
-                    i + 1, resposta.primeiroTrechoS(), resposta.totalS(), resposta.palavras(),
+            System.out.printf(
+                    "  turno %2d: %.2f s até o primeiro trecho, %.2f s até a primeira frase aprovada, %.2f s no total, %d palavras%s%n",
+                    i + 1, resposta.primeiroTrechoS(), resposta.primeiraFraseAprovadaS(), resposta.totalS(), resposta.palavras(),
                     resposta.cortada() ? " [CORTADA: " + resposta.motivoIncompleto() + "]" : "");
         }
         return new Sessao(modelo, rep, respostas);
@@ -279,6 +301,7 @@ public class Comparativo {
                 .build();
 
         long inicio = System.nanoTime();
+        Moderacao daPergunta = aguardar(moderar(chave, pergunta));
         HttpResponse<Stream<String>> resposta = HTTP.send(pedido, HttpResponse.BodyHandlers.ofLines());
         if (resposta.statusCode() != 200) {
             String erro;
@@ -290,6 +313,8 @@ public class Comparativo {
 
         StringBuilder texto = new StringBuilder();
         long primeiroTrecho = -1;
+        long primeiraFrase = -1;
+        CompletableFuture<Moderacao> daPrimeiraFrase = null;
         Map<String, Object> respostaFinal = null;
         try (Stream<String> linhas = resposta.body()) {
             for (String linha : (Iterable<String>) linhas::iterator) {
@@ -304,10 +329,19 @@ public class Comparativo {
                 String tipo = (String) evento.get("type");
                 switch (tipo) {
                     case "response.output_text.delta" -> {
+                        long agora = System.nanoTime();
                         if (primeiroTrecho < 0) {
-                            primeiroTrecho = System.nanoTime();
+                            primeiroTrecho = agora;
                         }
                         texto.append((String) evento.get("delta"));
+                        if (primeiraFrase < 0) {
+                            int fim = fimDaPrimeiraFrase(texto);
+                            if (fim > 0) {
+                                primeiraFrase = agora;
+                                // Em paralelo, como no passo 7: o streaming continua enquanto a frase é moderada.
+                                daPrimeiraFrase = moderar(chave, texto.substring(0, fim).strip());
+                            }
+                        }
                     }
                     case "response.completed", "response.incomplete" ->
                             respostaFinal = Json.objeto(evento.get("response"));
@@ -322,18 +356,28 @@ public class Comparativo {
         if (respostaFinal == null) {
             throw new FalhaDaApi(modelo.id() + ": o streaming terminou sem o evento final da resposta.");
         }
+        String conteudo = texto.toString().strip();
+        if (primeiraFrase < 0 && !conteudo.isEmpty()) {
+            // Sem fim de frase no meio: a resposta inteira é a primeira frase, completa só no fim do streaming.
+            primeiraFrase = fim;
+            daPrimeiraFrase = moderar(chave, conteudo);
+        }
+        Moderacao daFrase = daPrimeiraFrase == null ? null : aguardar(daPrimeiraFrase);
 
         Map<String, Object> uso = Json.objeto(respostaFinal.getOrDefault("usage", Map.of()));
         Map<String, Object> detalhesDaSaida = Json.objeto(uso.getOrDefault("output_tokens_details", Map.of()));
         Object incompleto = respostaFinal.get("incomplete_details");
         String motivo = incompleto == null ? "" : String.valueOf(Json.objeto(incompleto).get("reason"));
-        String conteudo = texto.toString().strip();
         return new Resposta(
                 turno,
                 pergunta,
                 conteudo,
-                primeiroTrecho < 0 ? Double.NaN : (primeiroTrecho - inicio) / 1e9,
-                (fim - inicio) / 1e9,
+                segundos(inicio, primeiroTrecho),
+                segundos(inicio, primeiraFrase),
+                daFrase == null ? Double.NaN : segundos(inicio, daFrase.concluidaEm()),
+                segundos(inicio, fim),
+                daPergunta.sinalizada(),
+                daFrase != null && daFrase.sinalizada(),
                 numero(uso.get("input_tokens")),
                 numero(uso.get("output_tokens")),
                 numero(detalhesDaSaida.get("reasoning_tokens")),
@@ -359,6 +403,84 @@ public class Comparativo {
         corpo.put("store", false);
         corpo.put("stream", true);
         return Json.escrever(corpo);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Moderação e primeira frase (passos 4 e 7 do fluxo de uma pergunta, stack.md seção 5)
+    // ---------------------------------------------------------------------------------------------
+
+    /** Resultado de uma chamada de moderação; {@code concluidaEm} vem de {@link System#nanoTime()}. */
+    record Moderacao(long concluidaEm, boolean sinalizada) {}
+
+    /**
+     * Modera um texto sem bloquear quem chama. Uma frase sinalizada não interrompe o spike: o tempo conta
+     * igual e a resposta aparece nos alertas do resultado.
+     */
+    static CompletableFuture<Moderacao> moderar(String chave, String texto) {
+        Map<String, Object> corpo = new LinkedHashMap<>();
+        corpo.put("model", MODELO_DE_MODERACAO);
+        corpo.put("input", texto);
+        HttpRequest pedido = HttpRequest.newBuilder(URI.create(API + "/moderations"))
+                .header("Authorization", "Bearer " + chave)
+                .header("Content-Type", "application/json")
+                .timeout(TEMPO_MAXIMO_DA_MODERACAO)
+                .POST(HttpRequest.BodyPublishers.ofString(Json.escrever(corpo), StandardCharsets.UTF_8))
+                .build();
+        return HTTP.sendAsync(pedido, HttpResponse.BodyHandlers.ofString()).thenApply(resposta -> {
+            long concluida = System.nanoTime();
+            if (resposta.statusCode() != 200) {
+                throw new FalhaDaApi("moderação: " + descreverErro(resposta.statusCode(), resposta.body()));
+            }
+            @SuppressWarnings("unchecked")
+            List<Object> resultados = (List<Object>) Json.objeto(Json.ler(resposta.body())).get("results");
+            boolean sinalizada = resultados.stream().anyMatch(r -> Boolean.TRUE.equals(Json.objeto(r).get("flagged")));
+            return new Moderacao(concluida, sinalizada);
+        });
+    }
+
+    static Moderacao aguardar(CompletableFuture<Moderacao> moderacao) throws IOException {
+        try {
+            return moderacao.join();
+        } catch (CompletionException e) {
+            switch (e.getCause()) {
+                case FalhaDaApi falha -> throw falha;
+                case IOException io -> throw io;
+                case null, default -> throw e;
+            }
+        }
+    }
+
+    /**
+     * Posição logo depois da primeira frase completa, ou -1 se ela ainda não terminou. A frase termina em
+     * ".", "!", "?" ou "…" (com aspas ou parêntese de fechamento opcionais) seguido de espaço, ou em uma
+     * quebra de linha. Exige o espaço depois da pontuação para não cortar números como "1.5"; por isso a
+     * última frase só fecha no fim do streaming.
+     */
+    static int fimDaPrimeiraFrase(CharSequence texto) {
+        boolean temConteudo = false;
+        for (int i = 0; i < texto.length(); i++) {
+            char c = texto.charAt(i);
+            if (c == '\n' && temConteudo) {
+                return i;
+            }
+            if (!Character.isWhitespace(c)) {
+                temConteudo = true;
+            }
+            if (".!?…".indexOf(c) >= 0) {
+                int j = i + 1;
+                while (j < texto.length() && "\"'”»)".indexOf(texto.charAt(j)) >= 0) {
+                    j++;
+                }
+                if (j < texto.length() && Character.isWhitespace(texto.charAt(j))) {
+                    return j;
+                }
+            }
+        }
+        return -1;
+    }
+
+    static double segundos(long inicio, long instante) {
+        return instante < 0 ? Double.NaN : (instante - inicio) / 1e9;
     }
 
     /** Monta a mensagem de erro sem repetir o pedido, que contém a chave no cabeçalho. */
@@ -415,8 +537,10 @@ public class Comparativo {
             md.append("**Turma:** ").append(r.pergunta()).append("\n\n");
             md.append("**Personagem:** ").append(r.texto().isEmpty() ? "_(sem texto visível)_" : r.texto()).append("\n\n");
             md.append(String.format(Locale.ROOT,
-                    "_Primeiro trecho %.2f s · total %.2f s · %d palavras%s · tokens: %d entrada, %d saída, %d raciocínio%s_%n%n",
-                    r.primeiroTrechoS(), r.totalS(), r.palavras(),
+                    "_Primeiro trecho %.2f s · primeira frase %.2f s, aprovada em %.2f s%s · total %.2f s · %d palavras%s · tokens: %d entrada, %d saída, %d raciocínio%s_%n%n",
+                    r.primeiroTrechoS(), r.primeiraFraseS(), r.primeiraFraseAprovadaS(),
+                    r.perguntaSinalizada() || r.primeiraFraseSinalizada() ? " (**sinalizada pela moderação**)" : "",
+                    r.totalS(), r.palavras(),
                     r.longa() ? " (**passa de " + LIMITE_DE_PALAVRAS + "**)" : "",
                     r.tokensEntrada(), r.tokensSaida(), r.tokensRaciocinio(),
                     r.cortada() ? " · **CORTADA: " + r.status() + " / " + r.motivoIncompleto() + "**" : ""));
@@ -436,20 +560,28 @@ public class Comparativo {
                 .append(MAX_TOKENS_DE_SAIDA).append(" tokens de saída por resposta.\n\n");
 
         md.append("## Latência por resposta (RNF-03)\n\n");
-        md.append("Calculada sobre cada resposta, não sobre a sessão. O p95 usa o método do posto mais próximo. ")
-                .append("O primeiro trecho tem meta de ").append(LIMITE_P95_PRIMEIRO_TRECHO_S)
-                .append(" s, abaixo dos 3 s do RNF-03, para sobrar margem para a moderação frase a frase.\n\n");
-        md.append("| Modelo | Esforço | Respostas | 1º trecho médio (s) | 1º trecho p95 (s) | p95 > 2 s? | Total médio (s) | Total p95 (s) | p95 > 10 s? |\n");
-        md.append("| --- | --- | ---: | ---: | ---: | --- | ---: | ---: | --- |\n");
+        md.append("Calculada sobre cada resposta, não sobre a sessão, a partir do envio da pergunta. O p95 usa o ")
+                .append("método do posto mais próximo. O critério do RNF-03 é a **primeira frase aprovada** (stack.md, ")
+                .append("seção 5, passos 4 e 7): inclui a moderação da pergunta, a geração até o fim da primeira frase ")
+                .append("e a moderação dessa frase (`").append(MODELO_DE_MODERACAO).append("`). O primeiro trecho e a ")
+                .append("primeira frase sem moderação aparecem só como referência.\n\n");
+        md.append(String.format(Locale.ROOT,
+                "| Modelo | Esforço | Respostas | 1º trecho p95 (s) | 1ª frase p95 (s) | 1ª frase aprovada, média (s) "
+                        + "| 1ª frase aprovada, p95 (s) | p95 > %s s? | Total médio (s) | Total p95 (s) | p95 > %s s? |%n",
+                formatarLimite(LIMITE_P95_PRIMEIRA_FRASE_APROVADA_S), formatarLimite(LIMITE_P95_TOTAL_S)));
+        md.append("| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | --- |\n");
         for (Modelo modelo : modelosRodados(sessoes)) {
             List<Resposta> todas = respostasDe(sessoes, modelo);
-            List<Double> primeiro = todas.stream().map(Resposta::primeiroTrechoS).filter(d -> !d.isNaN()).toList();
+            List<Double> primeiroTrecho = semNaN(todas, Resposta::primeiroTrechoS);
+            List<Double> primeiraFrase = semNaN(todas, Resposta::primeiraFraseS);
+            List<Double> aprovada = semNaN(todas, Resposta::primeiraFraseAprovadaS);
             List<Double> total = todas.stream().map(Resposta::totalS).toList();
-            double p95Primeiro = p95(primeiro);
+            double p95Aprovada = p95(aprovada);
             double p95Total = p95(total);
-            md.append(String.format(Locale.ROOT, "| %s | %s | %d | %.2f | %.2f | %s | %.2f | %.2f | %s |%n",
-                    modelo.id(), modelo.esforco(), todas.size(), media(primeiro), p95Primeiro,
-                    p95Primeiro > LIMITE_P95_PRIMEIRO_TRECHO_S ? "**SIM**" : "não",
+            md.append(String.format(Locale.ROOT, "| %s | %s | %d | %.2f | %.2f | %.2f | %.2f | %s | %.2f | %.2f | %s |%n",
+                    modelo.id(), modelo.esforco(), todas.size(), p95(primeiroTrecho), p95(primeiraFrase),
+                    media(aprovada), p95Aprovada,
+                    p95Aprovada > LIMITE_P95_PRIMEIRA_FRASE_APROVADA_S ? "**SIM**" : "não",
                     media(total), p95Total, p95Total > LIMITE_P95_TOTAL_S ? "**SIM**" : "não"));
         }
 
@@ -484,9 +616,15 @@ public class Comparativo {
                 if (r.longa()) {
                     alertas.add(onde + ": " + r.palavras() + " palavras, passa de " + LIMITE_DE_PALAVRAS + " (RN-16)");
                 }
+                if (r.perguntaSinalizada()) {
+                    alertas.add(onde + ": pergunta **sinalizada** pela moderação (em sala, não seria enviada ao modelo)");
+                }
+                if (r.primeiraFraseSinalizada()) {
+                    alertas.add(onde + ": primeira frase **sinalizada** pela moderação (em sala, a resposta não apareceria)");
+                }
             }
         }
-        md.append("\n## Respostas cortadas ou longas\n\n");
+        md.append("\n## Respostas cortadas, longas ou sinalizadas\n\n");
         if (alertas.isEmpty()) {
             md.append("Nenhuma.\n");
         } else {
@@ -525,6 +663,15 @@ public class Comparativo {
 
     static List<Resposta> respostasDe(List<Sessao> sessoes, Modelo modelo) {
         return sessoes.stream().filter(s -> s.modelo().equals(modelo)).flatMap(s -> s.respostas().stream()).toList();
+    }
+
+    static List<Double> semNaN(List<Resposta> respostas, java.util.function.ToDoubleFunction<Resposta> tempo) {
+        return respostas.stream().map(tempo::applyAsDouble).filter(d -> !d.isNaN()).toList();
+    }
+
+    /** "3" em vez de "3.0", para o cabeçalho da tabela. */
+    static String formatarLimite(double segundos) {
+        return segundos == Math.rint(segundos) ? String.valueOf((long) segundos) : String.valueOf(segundos);
     }
 
     static double media(List<Double> valores) {
