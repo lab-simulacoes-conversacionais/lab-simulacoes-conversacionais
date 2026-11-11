@@ -108,17 +108,21 @@ public final class MontadorComTemplates implements MontadorDePrompt {
 
     private String exigir(String valor, String campo) {
         if (valor == null) {
-            throw new IllegalArgumentException("O cenário da conversa está sem o campo " + campo
-                    + ", exigido pelo template " + personagem.versao());
+            throw campoAusente(campo);
         }
         return valor;
     }
 
     private List<String> exigirItens(List<String> itens, String campo) {
         if (itens.isEmpty()) {
-            exigir(null, campo);
+            throw campoAusente(campo);
         }
         return itens;
+    }
+
+    private IllegalArgumentException campoAusente(String campo) {
+        return new IllegalArgumentException("O cenário da conversa está sem o campo " + campo
+                + ", exigido pelo template " + personagem.versao());
     }
 
     private String itens(List<String> itens, String campo) {
