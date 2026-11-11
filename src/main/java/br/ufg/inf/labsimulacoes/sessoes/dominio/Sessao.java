@@ -10,6 +10,8 @@ import java.util.Objects;
  *
  * @param id {@code null} enquanto não foi gravada
  * @param versaoId versão aprovada vigente no início da sessão (RN-01)
+ * @param limiteDePerguntas quantas perguntas da turma a sessão aceita, lido dos parâmetros no início e
+ *     guardado, para uma alteração do administrador não mudar uma aula em andamento (RN-18)
  * @param motivoDaPausa presente só quando a sessão está pausada
  * @param encerradaEm presente só quando a sessão está encerrada
  */
@@ -18,6 +20,7 @@ public record Sessao(
         long professorId,
         long turmaId,
         long versaoId,
+        int limiteDePerguntas,
         StatusDaSessao status,
         MotivoDaPausa motivoDaPausa,
         Instant iniciadaEm,
@@ -26,6 +29,9 @@ public record Sessao(
     public Sessao {
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(iniciadaEm, "iniciadaEm");
+        if (limiteDePerguntas < 1) {
+            throw new IllegalArgumentException("A sessão precisa aceitar ao menos uma pergunta: " + limiteDePerguntas);
+        }
         if ((status == StatusDaSessao.PAUSADA) != (motivoDaPausa != null)) {
             throw new IllegalArgumentException("Só a sessão pausada tem motivo de pausa, e ela sempre tem");
         }
@@ -35,12 +41,14 @@ public record Sessao(
     }
 
     /** A sessão começa em andamento (RF-14). */
-    public static Sessao iniciar(long professorId, long turmaId, long versaoId, Instant em) {
-        return new Sessao(null, professorId, turmaId, versaoId, StatusDaSessao.EM_ANDAMENTO, null, em, null);
+    public static Sessao iniciar(long professorId, long turmaId, long versaoId, int limiteDePerguntas, Instant em) {
+        return new Sessao(
+                null, professorId, turmaId, versaoId, limiteDePerguntas, StatusDaSessao.EM_ANDAMENTO, null, em, null);
     }
 
     public Sessao comId(long novoId) {
-        return new Sessao(novoId, professorId, turmaId, versaoId, status, motivoDaPausa, iniciadaEm, encerradaEm);
+        return new Sessao(
+                novoId, professorId, turmaId, versaoId, limiteDePerguntas, status, motivoDaPausa, iniciadaEm, encerradaEm);
     }
 
     /** RN-10: a sessão é do professor que a iniciou, e só ele a controla. */
@@ -107,6 +115,6 @@ public record Sessao(
     }
 
     private Sessao comStatus(StatusDaSessao novo, MotivoDaPausa motivo, Instant encerramento) {
-        return new Sessao(id, professorId, turmaId, versaoId, novo, motivo, iniciadaEm, encerramento);
+        return new Sessao(id, professorId, turmaId, versaoId, limiteDePerguntas, novo, motivo, iniciadaEm, encerramento);
     }
 }

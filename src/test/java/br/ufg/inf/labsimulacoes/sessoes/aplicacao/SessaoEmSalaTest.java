@@ -90,6 +90,22 @@ class SessaoEmSalaTest {
         assertThat(estados.buscar(sessao.id())).contains(EstadoDaSessao.inicial(sessao));
     }
 
+    /** RN-18: o limite é o do administrador no início; mudar o parâmetro depois não muda esta sessão. */
+    @Test
+    void sessaoGuardaOLimiteDePerguntasDoInicio() {
+        jdbc.update("INSERT INTO parametro (chave, valor) VALUES ('limite_perguntas_por_sessao', '25')");
+        try {
+            Sessao sessao = inicio.iniciar(turma, cenario.cenarioId());
+            jdbc.update("UPDATE parametro SET valor = '10' WHERE chave = 'limite_perguntas_por_sessao'");
+
+            assertThat(sessao.limiteDePerguntas()).isEqualTo(25);
+            assertThat(jdbc.queryForObject("SELECT limite_perguntas FROM sessao WHERE id = ?", Integer.class, sessao.id()))
+                    .isEqualTo(25);
+        } finally {
+            jdbc.update("DELETE FROM parametro WHERE chave = 'limite_perguntas_por_sessao'");
+        }
+    }
+
     @Test
     void turmaInexistenteERecusada() {
         assertThatThrownBy(() -> inicio.iniciar(-1, cenario.cenarioId())).isInstanceOf(TurmaNaoEncontrada.class);

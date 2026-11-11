@@ -16,7 +16,7 @@ class SessaoTest {
 
     @Test
     void sessaoComecaEmAndamentoLigadaAProfessorTurmaEVersao() {
-        Sessao sessao = Sessao.iniciar(1, 2, 3, INICIO);
+        Sessao sessao = Sessao.iniciar(1, 2, 3, 40, INICIO);
 
         assertThat(sessao.id()).isNull();
         assertThat(sessao.professorId()).isEqualTo(1);
@@ -106,14 +106,21 @@ class SessaoTest {
 
     @Test
     void estadoIncoerenteERecusado() {
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.PAUSADA, null, INICIO, null))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.PAUSADA, null, INICIO, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.EM_ANDAMENTO, MotivoDaPausa.MANUAL, INICIO, null))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.EM_ANDAMENTO, MotivoDaPausa.MANUAL, INICIO, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.ENCERRADA, null, INICIO, null))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.ENCERRADA, null, INICIO, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.EM_ANDAMENTO, null, INICIO, DEPOIS))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.EM_ANDAMENTO, null, INICIO, DEPOIS))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** RN-18: o limite vem dos parâmetros, que já exigem ao menos uma pergunta. */
+    @Test
+    void sessaoAceitaAoMenosUmaPergunta() {
+        assertThatThrownBy(() -> Sessao.iniciar(1, 2, 3, 0, INICIO)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(Sessao.iniciar(1, 2, 3, 1, INICIO).limiteDePerguntas()).isEqualTo(1);
     }
 
     @Test
@@ -125,6 +132,6 @@ class SessaoTest {
     }
 
     private static Sessao emAndamento() {
-        return Sessao.iniciar(1, 2, 3, INICIO).comId(10);
+        return Sessao.iniciar(1, 2, 3, 40, INICIO).comId(10);
     }
 }

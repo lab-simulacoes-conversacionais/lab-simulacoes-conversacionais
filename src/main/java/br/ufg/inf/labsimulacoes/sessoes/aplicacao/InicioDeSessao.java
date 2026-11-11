@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.sessoes.aplicacao;
 
+import br.ufg.inf.labsimulacoes.acesso.ParametrosDeUso;
 import br.ufg.inf.labsimulacoes.acesso.TurmasDaEscola;
 import br.ufg.inf.labsimulacoes.acesso.UsuarioLogado;
 import br.ufg.inf.labsimulacoes.cenarios.CenariosAprovados;
@@ -27,6 +28,7 @@ public class InicioDeSessao {
     private final EstadosDasSessoes estados;
     private final TurmasDaEscola turmas;
     private final CenariosAprovados cenarios;
+    private final ParametrosDeUso parametros;
     private final UsuarioLogado usuarioLogado;
     private final Relogio relogio;
 
@@ -35,19 +37,21 @@ public class InicioDeSessao {
             EstadosDasSessoes estados,
             TurmasDaEscola turmas,
             CenariosAprovados cenarios,
+            ParametrosDeUso parametros,
             UsuarioLogado usuarioLogado,
             Relogio relogio) {
         this.sessoes = sessoes;
         this.estados = estados;
         this.turmas = turmas;
         this.cenarios = cenarios;
+        this.parametros = parametros;
         this.usuarioLogado = usuarioLogado;
         this.relogio = relogio;
     }
 
     /**
      * A sessão guarda a versão vigente neste momento: se o cenário ganhar outra versão depois, esta
-     * aula continua com a que começou (RN-08).
+     * aula continua com a que começou (RN-08). O limite de perguntas também é o deste momento (RN-18).
      *
      * @throws TurmaNaoEncontrada se a turma não existir
      * @throws CenarioSemVersaoAprovada se o cenário não existir ou não estiver aprovado (RN-01)
@@ -64,8 +68,8 @@ public class InicioDeSessao {
         if (sessoes.temSessaoEmAndamento(turmaId)) {
             throw new TurmaComSessaoEmAndamento(turmaId);
         }
-        Sessao sessao = sessoes.salvar(
-                Sessao.iniciar(usuarioLogado.id(), turmaId, versao.versaoId(), relogio.agora()));
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(
+                usuarioLogado.id(), turmaId, versao.versaoId(), parametros.limiteDePerguntasPorSessao(), relogio.agora()));
         estados.gravar(EstadoDaSessao.inicial(sessao));
         return sessao;
     }

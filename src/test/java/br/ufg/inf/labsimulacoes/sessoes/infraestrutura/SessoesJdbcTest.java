@@ -55,18 +55,19 @@ class SessoesJdbcTest {
 
     @Test
     void sessaoGravadaEhLidaIgual() {
-        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 25, AGORA));
 
         assertThat(salva.id()).isNotNull();
         assertThat(sessoes.buscar(salva.id())).contains(salva);
         assertThat(sessoes.buscarParaAlterar(salva.id())).contains(salva);
+        assertThat(sessoes.buscar(salva.id()).orElseThrow().limiteDePerguntas()).isEqualTo(25);
         assertThat(jdbc.queryForObject("SELECT tipo FROM sessao WHERE id = ?", String.class, salva.id()))
                 .isEqualTo("SIMULACAO");
     }
 
     @Test
     void mudancaDeEstadoEhGravada() {
-        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
 
         Sessao pausada = sessoes.salvar(salva.pausar(MotivoDaPausa.CENARIO_SUSPENSO, AGORA).sessao());
         assertThat(sessoes.buscar(salva.id())).contains(pausada);
@@ -85,21 +86,21 @@ class SessoesJdbcTest {
     /** RN-10: o índice único recusa a segunda sessão em andamento da turma. */
     @Test
     void indiceDoBancoImpedeDuasSessoesEmAndamentoNaTurma() {
-        sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
 
         assertThat(sessoes.temSessaoEmAndamento(turma)).isTrue();
-        assertThatThrownBy(() -> sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA)))
+        assertThatThrownBy(() -> sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA)))
                 .isInstanceOf(TurmaComSessaoEmAndamento.class);
     }
 
     /** Pausada e encerrada não contam como em andamento (RN-10, decisão da issue #12). */
     @Test
     void pausadaEEncerradaNaoContamComoEmAndamento() {
-        Sessao primeira = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao primeira = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
         sessoes.salvar(primeira.pausar(MotivoDaPausa.MANUAL, AGORA).sessao());
 
         assertThat(sessoes.temSessaoEmAndamento(turma)).isFalse();
-        Sessao segunda = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao segunda = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
         sessoes.salvar(segunda.encerrar(AGORA));
         assertThat(sessoes.temSessaoEmAndamento(turma)).isFalse();
     }
@@ -108,8 +109,8 @@ class SessoesJdbcTest {
     @Test
     void retomarComOutraEmAndamentoERecusadoPeloBanco() {
         Sessao pausada = sessoes.salvar(
-                sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA)).pausar(MotivoDaPausa.MANUAL, AGORA).sessao());
-        sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+                sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA)).pausar(MotivoDaPausa.MANUAL, AGORA).sessao());
+        sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
 
         assertThatThrownBy(() -> sessoes.salvar(pausada.retomar(AGORA).sessao()))
                 .isInstanceOf(TurmaComSessaoEmAndamento.class);
@@ -118,7 +119,7 @@ class SessoesJdbcTest {
     /** RNF-04: eventos, contador e mensagens desde o último reinício reconstroem o estado. */
     @Test
     void historicoTrazEventosContadorEMensagensDesdeOReinicio() {
-        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
         dados.mensagem(sessao.id(), "TURMA", "Antes do reinício");
         dados.mensagem(sessao.id(), "IA", "Resposta antes do reinício");
         sessoes.registrar(sessao.id(), EventoDaSessao.pausa(MotivoDaPausa.MANUAL, AGORA.minusSeconds(20)));
@@ -148,7 +149,7 @@ class SessoesJdbcTest {
     /** Só as mais recentes voltam, mas em ordem de exibição. */
     @Test
     void historicoLimitaAsMensagensAsMaisRecentes() {
-        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
         for (int i = 1; i <= 5; i++) {
             dados.mensagem(sessao.id(), "TURMA", "P" + i);
         }

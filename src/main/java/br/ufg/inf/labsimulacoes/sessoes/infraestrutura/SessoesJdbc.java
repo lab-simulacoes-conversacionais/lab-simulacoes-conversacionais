@@ -34,7 +34,8 @@ class SessoesJdbc implements Sessoes {
     private static final String INDICE_DO_RN_10 = "uq_sessao_em_andamento_por_turma";
 
     private static final String COLUNAS = """
-            id, professor_id, turma_id, cenario_versao_id, status, motivo_pausa, iniciada_em, encerrada_em""";
+            id, professor_id, turma_id, cenario_versao_id, limite_perguntas, status, motivo_pausa, iniciada_em,
+            encerrada_em""";
 
     private static final String BUSCAR = "SELECT " + COLUNAS + " FROM sessao WHERE id = ?";
 
@@ -116,19 +117,21 @@ class SessoesJdbc implements Sessoes {
     private Sessao inserir(Sessao sessao) {
         Long id = jdbc.queryForObject(
                 """
-                INSERT INTO sessao (professor_id, turma_id, cenario_versao_id, status, motivo_pausa, iniciada_em)
-                VALUES (?, ?, ?, ?, ?, ?) RETURNING id""",
+                INSERT INTO sessao (professor_id, turma_id, cenario_versao_id, limite_perguntas, status, motivo_pausa,
+                                    iniciada_em)
+                VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id""",
                 Long.class,
                 sessao.professorId(),
                 sessao.turmaId(),
                 sessao.versaoId(),
+                sessao.limiteDePerguntas(),
                 sessao.status().name(),
                 nome(sessao.motivoDaPausa()),
                 utc(sessao.iniciadaEm()));
         return sessao.comId(id);
     }
 
-    /** Professor, turma, versão e início nunca mudam (RN-10); só o estado da sessão muda. */
+    /** Professor, turma, versão, limite e início nunca mudam (RN-10, RN-18); só o estado da sessão muda. */
     private Sessao atualizar(Sessao sessao) {
         jdbc.update(
                 "UPDATE sessao SET status = ?, motivo_pausa = ?, encerrada_em = ? WHERE id = ?",
@@ -152,6 +155,7 @@ class SessoesJdbc implements Sessoes {
                 linha.getLong("professor_id"),
                 linha.getLong("turma_id"),
                 linha.getLong("cenario_versao_id"),
+                linha.getInt("limite_perguntas"),
                 StatusDaSessao.valueOf(linha.getString("status")),
                 motivo == null ? null : MotivoDaPausa.valueOf(motivo),
                 instante(linha, "iniciada_em"),
