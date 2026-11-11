@@ -12,7 +12,7 @@ Pré-requisito: **Docker** com Docker Compose. Para subir tudo, incluindo o Post
 docker compose up --build
 ```
 
-A aplicação aplica as migrations ao iniciar e fica em <http://localhost:8080>. Sem login, as rotas levam para `/login`. Por enquanto ela não tem outras telas, então a resposta 404 em `/` depois de entrar é esperada. Para conferir se ela está conectada ao banco e ao Redis, acesse <http://localhost:8080/actuator/health>, que não exige login.
+A aplicação aplica as migrations ao iniciar e fica em <http://localhost:8080>. Sem login, as rotas levam para a tela de entrada em `/login`. Depois de entrar, a página inicial (`/`) mostra os atalhos conforme o perfil de quem acessou (RF-01, RF-02). Para conferir se ela está conectada ao banco e ao Redis, acesse <http://localhost:8080/actuator/health>, que não exige login.
 
 Para parar, use `docker compose down`. Para apagar também os dados do banco, use `docker compose down -v`. Se alguma porta já estiver em uso, copie `.env.example` para `.env` e troque o valor.
 
@@ -41,7 +41,7 @@ A variável `SESSAO_INATIVIDADE` vale nos dois perfis e define o tempo sem ativi
 
 Só profissionais da escola têm conta (RF-01, RN-11). Todas as rotas exigem login, menos a tela de login e `/actuator/health`.
 
-- **Formulário de login:** `POST /login` com os campos `email`, `senha` e `_csrf`. Enquanto a tela da aplicação não existe, o Spring Security gera uma tela provisória em `/login`. A saída é `POST /logout`, também com o token CSRF.
+- **Formulário de login:** `POST /login` com os campos `email`, `senha` e `_csrf`. A tela de entrada é a `login.html`, com o visual do protótipo; o campo CSRF é incluído pelo Thymeleaf. A saída é `POST /logout`, também com o token CSRF, pelo botão **Sair** do cabeçalho.
 - **Senhas:** novos usuários são criados pelo `CadastroDeUsuarios`, que grava só o hash em Argon2id. Nunca grave em `usuario.senha_hash` por outro caminho.
 - **Mensagem de erro:** e-mail sem conta, usuário inativo e senha errada recebem a mesma resposta, para a tela não revelar quais contas existem.
 
