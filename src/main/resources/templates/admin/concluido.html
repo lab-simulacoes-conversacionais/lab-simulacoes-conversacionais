@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca(${concluido.titulo} + ' · Administração')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!-- Confirmação depois de adicionar um usuário ou salvar uma turma, como no protótipo. -->
+<main class="end-page">
+  <div class="success-mark"><svg th:replace="~{fragmentos/base :: iconeCheck}"></svg></div>
+  <p class="eyebrow" th:text="${concluido.sobretitulo}">USUÁRIO ADICIONADO</p>
+  <h1 th:text="${concluido.titulo}">Acesso preparado</h1>
+  <p th:text="${concluido.texto}">Texto</p>
+  <section class="card summary-card">
+    <div class="summary-head">
+      <div>
+        <span class="subject-tag" th:text="${concluido.etiqueta}">Ativo</span>
+        <h2 th:text="${concluido.nome}">Nome</h2>
+        <p th:text="${concluido.detalhe}">Detalhe</p>
+      </div>
+    </div>
+  </section>
+  <a class="btn btn-primary" th:href="@{${concluido.voltarPara}}" th:text="${concluido.voltarRotulo}">Voltar</a>
+</main>
+</body>
+</html>

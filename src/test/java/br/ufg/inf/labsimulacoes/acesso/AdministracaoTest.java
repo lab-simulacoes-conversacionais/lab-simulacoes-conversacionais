@@ -65,21 +65,53 @@ class AdministracaoTest {
         var resposta = navegador.postForm("/admin/usuarios",
                 "nome=Nova+Professora&email=" + cod(email) + "&senha=" + cod(SENHA) + "&perfis=PROFESSOR");
 
-        assertThat(local(resposta)).endsWith("/admin/usuarios");
+        assertThat(local(resposta)).endsWith("/admin/concluido");
+        assertThat(navegador.get("/admin/concluido").body())
+                .contains("Acesso preparado")
+                .contains("Nova Professora")
+                .contains(email);
         assertThat(navegador.get("/admin/usuarios").body()).contains(email).contains("Nova Professora");
     }
 
+    /** A confirmação só existe logo depois de um cadastro; aberta direto, volta para a lista. */
     @Test
-    void cadastroComEmailDuplicadoMostraErro() throws Exception {
+    void confirmacaoSemCadastroVoltaParaALista() throws Exception {
+        var navegador = logado(novoAdministrador());
+
+        var resposta = navegador.get("/admin/concluido");
+
+        assertThat(resposta.statusCode()).isEqualTo(302);
+        assertThat(local(resposta)).endsWith("/admin/usuarios");
+    }
+
+    /** O erro aparece no próprio formulário, que mantém o que foi digitado. */
+    @Test
+    void cadastroComEmailDuplicadoMostraErroNoFormulario() throws Exception {
         var navegador = logado(novoAdministrador());
         String email = "repetida" + SEQUENCIA.incrementAndGet() + "@escola.test";
-        String corpo = "nome=Alguem&email=" + cod(email) + "&senha=" + cod(SENHA) + "&perfis=CURADOR";
+        String corpo = "nome=Alguem+Repetido&email=" + cod(email) + "&senha=" + cod(SENHA) + "&perfis=CURADOR";
         navegador.postForm("/admin/usuarios", corpo);
 
         var resposta = navegador.postForm("/admin/usuarios", corpo);
 
-        assertThat(local(resposta)).endsWith("/admin/usuarios/novo");
-        assertThat(navegador.get("/admin/usuarios/novo").body()).contains("Já existe um usuário com este e-mail");
+        assertThat(resposta.statusCode()).isEqualTo(200);
+        assertThat(resposta.body())
+                .contains("Já existe um usuário com este e-mail")
+                .contains("value=\"Alguem Repetido\"")
+                .contains("value=\"" + email + "\"")
+                .contains("value=\"CURADOR\" checked");
+    }
+
+    @Test
+    void cadastroSemPerfilMostraErroNoFormulario() throws Exception {
+        var navegador = logado(novoAdministrador());
+        String email = "sem.perfil" + SEQUENCIA.incrementAndGet() + "@escola.test";
+
+        var resposta = navegador.postForm("/admin/usuarios",
+                "nome=Sem+Perfil&email=" + cod(email) + "&senha=" + cod(SENHA));
+
+        assertThat(resposta.statusCode()).isEqualTo(200);
+        assertThat(resposta.body()).contains("O usuário precisa ter ao menos um perfil");
     }
 
     @Test
@@ -137,8 +169,25 @@ class AdministracaoTest {
 
         var resposta = navegador.postForm("/admin/turmas", corpo);
 
-        assertThat(local(resposta)).endsWith("/admin/turmas/nova");
-        assertThat(navegador.get("/admin/turmas/nova").body()).contains("Já existe a turma");
+        assertThat(resposta.statusCode()).isEqualTo(200);
+        assertThat(resposta.body())
+                .contains("Já existe a turma")
+                .contains("value=\"" + rotulo + "\"")
+                .contains("value=\"Noite\" required checked");
+    }
+
+    @Test
+    void turmaSalvaMostraAConfirmacao() throws Exception {
+        var navegador = logado(novoAdministrador());
+        String rotulo = "6º C" + SEQUENCIA.incrementAndGet();
+
+        var resposta = navegador.postForm("/admin/turmas", turma("EMEF Horizonte", "6º ano", "Tarde", rotulo));
+
+        assertThat(local(resposta)).endsWith("/admin/concluido");
+        assertThat(navegador.get("/admin/concluido").body())
+                .contains("Turma adicionada")
+                .contains(rotulo)
+                .contains("EMEF Horizonte · Tarde · sem lista de estudantes");
     }
 
     @Test
@@ -177,6 +226,16 @@ class AdministracaoTest {
         assertThat(navegador.get("/admin/usuarios").statusCode()).isEqualTo(403);
         assertThat(navegador.get("/admin/turmas").statusCode()).isEqualTo(403);
         assertThat(navegador.get("/admin/parametros").statusCode()).isEqualTo(403);
+    }
+
+    /** Os formulários vazios não chamam caso de uso; quem barra é a configuração de segurança. */
+    @Test
+    void professorNaoAbreOsFormulariosDaAdministracao() throws Exception {
+        var navegador = logado(novoProfessor());
+
+        assertThat(navegador.get("/admin/usuarios/novo").statusCode()).isEqualTo(403);
+        assertThat(navegador.get("/admin/turmas/nova").statusCode()).isEqualTo(403);
+        assertThat(navegador.get("/admin/concluido").statusCode()).isEqualTo(403);
     }
 
     // ---------------------------------------------------------------------------------------------

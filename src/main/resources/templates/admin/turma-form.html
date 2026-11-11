@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragmentos/base :: cabeca('Turma · Administração')}"></head>
-<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<body>
 <div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
 
-<main class="page admin-page narrow-page">
-  <a class="back-link" th:href="@{/admin/turmas}">← Voltar para turmas</a>
+<main class="page form-page">
+  <a class="back-link" th:href="@{/admin/turmas}">← Voltar para configurações</a>
   <div class="library-heading">
     <div>
       <p class="eyebrow">ADMINISTRAÇÃO · TURMAS</p>
-      <h1 th:text="${turma != null} ? 'Editar turma' : 'Adicionar turma'">Adicionar turma</h1>
-      <p>Registre apenas dados gerais. A plataforma não mantém listas de alunos (RN-32).</p>
+      <h1 th:text="${turma.editando} ? 'Editar turma' : 'Adicionar turma'">Adicionar turma</h1>
+      <p>Registre apenas dados gerais. A plataforma não mantém listas de alunos.</p>
     </div>
+    <span class="badge badge-pending"><span aria-hidden="true">•</span>Rascunho</span>
   </div>
 
   <div class="no-students-note prominent">
@@ -24,45 +25,54 @@
 
   <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
 
-  <form method="post" class="card complete-form"
-        th:action="${turma != null} ? @{'/admin/turmas/' + ${turma.id}} : @{/admin/turmas}">
-    <div class="section-title"><div class="section-title-main"><span>1</span><h2>Identificação da turma</h2></div></div>
-    <div class="form-content">
-      <label for="escola">Escola *</label>
-      <input id="escola" name="escola" required placeholder="Ex.: EMEF Horizonte"
-             th:value="${turma != null} ? ${turma.escola} : ''">
-      <div class="form-grid">
-        <div>
-          <label for="rotulo">Rótulo da turma *</label>
-          <input id="rotulo" name="rotulo" required placeholder="Ex.: 8º A"
-                 th:value="${turma != null} ? ${turma.rotulo} : ''">
-          <small>Use um rótulo genérico, sem nomes.</small>
+  <form method="post" class="form-layout" data-resumo
+        th:action="${turma.editando} ? @{'/admin/turmas/' + ${turma.id}} : @{/admin/turmas}">
+    <section class="card complete-form">
+      <div class="section-title"><div class="section-title-main"><span>1</span><h2>Identificação da turma</h2></div></div>
+      <div class="form-content">
+        <!-- O protótipo escolhe a escola numa lista; o sistema ainda não tem cadastro de escolas. -->
+        <label for="escola">Escola *</label>
+        <input id="escola" name="escola" required placeholder="Ex.: EMEF Horizonte" th:value="${turma.escola}">
+        <div class="form-grid">
+          <div>
+            <label for="rotulo">Rótulo da turma *</label>
+            <input id="rotulo" name="rotulo" required placeholder="Ex.: 8º A" th:value="${turma.rotulo}">
+            <small>Use um rótulo genérico, sem nomes.</small>
+          </div>
+          <div>
+            <label for="anoSerie">Ano escolar *</label>
+            <select id="anoSerie" name="anoSerie" required>
+              <option value="" th:selected="${#strings.isEmpty(turma.anoSerie)}">Selecione</option>
+              <option th:each="ano : ${ {'6º ano','7º ano','8º ano','9º ano'} }"
+                      th:value="${ano}" th:text="${ano}" th:selected="${turma.anoSerie == ano}">8º ano</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label for="anoSerie">Ano/série *</label>
-          <select id="anoSerie" name="anoSerie" required>
-            <option value="" disabled th:selected="${turma == null}">Selecione</option>
-            <option th:each="ano : ${ {'6º ano','7º ano','8º ano','9º ano'} }"
-                    th:value="${ano}" th:text="${ano}"
-                    th:selected="${turma != null and turma.anoSerie == ano}">8º ano</option>
-          </select>
-        </div>
+        <fieldset class="period-field">
+          <legend>Turno *</legend>
+          <div class="period-options">
+            <label th:each="t : ${ {'Manhã','Tarde','Noite'} }">
+              <input type="radio" name="turno" th:value="${t}" required th:checked="${turma.turno == t}">
+              <span aria-hidden="true"></span><th:block th:text="${t}">Manhã</th:block>
+            </label>
+          </div>
+        </fieldset>
       </div>
-      <label>Turno *</label>
-      <div class="period-options">
-        <label th:each="t : ${ {'Manhã','Tarde','Noite'} }">
-          <input type="radio" name="turno" th:value="${t}" required
-                 th:checked="${turma != null and turma.turno == t}">
-          <span aria-hidden="true"></span><span th:text="${t}">Manhã</span>
-        </label>
-      </div>
-    </div>
-    <div class="form-content">
-      <button class="btn btn-primary full" type="submit"
-              th:text="${turma != null} ? 'Salvar alterações' : 'Adicionar turma'">Adicionar turma</button>
-    </div>
+    </section>
+
+    <aside class="form-summary">
+      <h3>Resumo da turma</h3>
+      <dl>
+        <div><dt>Rótulo</dt><dd data-resumo-de="rotulo" data-vazio="Não informado" th:text="${#strings.isEmpty(turma.rotulo)} ? 'Não informado' : ${turma.rotulo}">Não informado</dd></div>
+        <div><dt>Escola</dt><dd data-resumo-de="escola" data-vazio="Não informado" th:text="${#strings.isEmpty(turma.escola)} ? 'Não informado' : ${turma.escola}">Não informado</dd></div>
+        <div><dt>Ano e turno</dt><dd data-resumo-de="anoSerie turno" data-todos data-separador=" · " data-vazio="Não informado">Não informado</dd></div>
+      </dl>
+      <p class="field-help" data-ajuda hidden>Preencha todos os campos obrigatórios.</p>
+      <button class="btn btn-primary full" type="submit" data-enviar
+              th:text="${turma.editando} ? 'Salvar alterações' : 'Adicionar turma'">Adicionar turma</button>
+    </aside>
   </form>
 </main>
+<script th:src="@{/js/formulario.js}" defer></script>
 </body>
 </html>
-

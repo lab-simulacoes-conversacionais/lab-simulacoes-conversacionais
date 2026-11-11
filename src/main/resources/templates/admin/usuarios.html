@@ -1,21 +1,19 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragmentos/base :: cabeca('Usuários · Administração')}"></head>
-<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<body>
 <div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
 
 <main class="page admin-page">
-  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
-  <div class="library-heading">
-    <div>
-      <p class="eyebrow">ADMINISTRAÇÃO</p>
-      <h1>Usuários profissionais</h1>
-      <p>Uma pessoa pode acumular mais de um perfil (RN-36).</p>
-    </div>
-    <a class="btn btn-primary" th:href="@{/admin/usuarios/novo}">Adicionar usuário <span aria-hidden="true">+</span></a>
-  </div>
+  <div th:replace="~{fragmentos/base :: painelAdmin('usuarios')}"></div>
 
-  <div th:replace="~{fragmentos/base :: abasAdmin('usuarios')}"></div>
+  <div class="admin-section-head">
+    <div>
+      <h2>Usuários profissionais</h2>
+      <p>Uma pessoa pode acumular mais de um perfil.</p>
+    </div>
+    <a class="btn btn-primary" th:href="@{/admin/usuarios/novo}">Adicionar usuário</a>
+  </div>
 
   <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
   <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
@@ -28,15 +26,16 @@
           <tr th:each="usuario : ${usuarios}">
             <td><strong th:text="${usuario.nome}">Nome</strong><small th:text="${usuario.email}">email</small></td>
             <td>
+              <!-- Marcar ou desmarcar um perfil já salva, como no protótipo; sem JavaScript, há o botão. -->
               <form th:action="@{'/admin/usuarios/' + ${usuario.id} + '/perfis'}" method="post">
                 <div class="role-options">
-                  <label th:each="p : ${perfisDisponiveis}"
-                         th:with="rotulo=${p.name() == 'PROFESSOR' ? 'Professor' : (p.name() == 'CURADOR' ? 'Curador' : 'Administrador')}">
-                    <input type="checkbox" name="perfis" th:value="${p}" th:checked="${usuario.perfis.contains(p)}">
-                    <span aria-hidden="true">✓</span><span th:text="${rotulo}">Perfil</span>
+                  <label th:each="opcao : ${opcoesDePerfil}">
+                    <input type="checkbox" name="perfis" onchange="this.form.requestSubmit()"
+                           th:value="${opcao.valor}" th:checked="${usuario.perfis.contains(opcao.valor)}">
+                    <span aria-hidden="true">✓</span><th:block th:text="${opcao.nome}">Perfil</th:block>
                   </label>
                 </div>
-                <button class="btn btn-ghost btn-mini" type="submit">Salvar perfis</button>
+                <noscript><button class="btn btn-ghost" type="submit">Salvar perfis</button></noscript>
               </form>
             </td>
             <td>
@@ -46,10 +45,10 @@
             </td>
             <td>
               <form th:if="${usuario.ativo}" th:action="@{'/admin/usuarios/' + ${usuario.id} + '/desativar'}" method="post">
-                <button class="btn btn-ghost btn-mini" type="submit">Desativar</button>
+                <button class="btn btn-ghost" type="submit">Desativar</button>
               </form>
               <form th:unless="${usuario.ativo}" th:action="@{'/admin/usuarios/' + ${usuario.id} + '/ativar'}" method="post">
-                <button class="btn btn-secondary btn-mini" type="submit">Ativar</button>
+                <button class="btn btn-secondary" type="submit">Ativar</button>
               </form>
             </td>
           </tr>
@@ -60,4 +59,3 @@
 </main>
 </body>
 </html>
-

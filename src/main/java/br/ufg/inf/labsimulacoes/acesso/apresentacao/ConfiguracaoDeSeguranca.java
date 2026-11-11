@@ -38,6 +38,9 @@ class ConfiguracaoDeSeguranca {
                         // processamento (POST) e as variações de query (?error, ?logout, ?expirada),
                         // o que o permitAll() por URL exata do formLogin não faria.
                         .requestMatchers("/login", "/css/**", "/js/**", "/img/**", "/favicon.*").permitAll()
+                        // Os casos de uso já exigem o perfil, mas os formulários vazios não chamam
+                        // nenhum; assim nenhuma tela da administração abre para outro perfil (RN-37).
+                        .requestMatchers("/admin/**").hasRole("ADMINISTRADOR")
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage("/login")
