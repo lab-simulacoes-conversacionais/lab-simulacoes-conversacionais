@@ -21,9 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Pausar, retomar, reiniciar e encerrar a sessão a qualquer momento (RF-17). Só o professor que a
  * iniciou a controla (RN-10, Professor no controle).
  *
- * <p>Cada controle grava a sessão e o evento no PostgreSQL e atualiza o estado quente no Redis depois
- * da confirmação. Se a chave do Redis tiver sumido ou estiver desatualizada, o estado é refeito do
- * banco antes de receber a mudança (RNF-04).
+ * <p>Cada controle trava a sessão, refaz o estado a partir do PostgreSQL, grava a sessão e o evento e
+ * atualiza o estado quente no Redis depois da confirmação. O Redis serve só à leitura da tela; se a
+ * chave tiver sumido ou discordar do banco, o estado é refeito dele (RNF-04).
  */
 @Service
 @PreAuthorize("hasRole('PROFESSOR')")
@@ -89,7 +89,7 @@ public class ControlesDaSessao {
     @Transactional
     public EstadoDaSessao encerrar(long id) {
         Sessao sessao = doProfessorLogado(sessoes.buscarParaAlterar(id), id);
-        EstadoDaSessao antes = estadoAtual(sessao);
+        EstadoDaSessao antes = doBanco(id);
         Sessao encerrada = sessoes.salvar(sessao.encerrar(relogio.agora()));
         EstadoDaSessao depois = antes.encerrar(encerrada.encerradaEm());
         estados.gravar(depois);
@@ -98,7 +98,7 @@ public class ControlesDaSessao {
 
     private EstadoDaSessao mudar(long id, Function<Sessao, MudancaNaSessao> controle) {
         Sessao sessao = doProfessorLogado(sessoes.buscarParaAlterar(id), id);
-        EstadoDaSessao antes = estadoAtual(sessao);
+        EstadoDaSessao antes = doBanco(id);
         MudancaNaSessao mudanca = controle.apply(sessao);
         sessoes.salvar(mudanca.sessao());
         sessoes.registrar(id, mudanca.evento());
@@ -108,21 +108,30 @@ public class ControlesDaSessao {
     }
 
     /**
-     * O estado do Redis, se ele concordar com o banco. Uma chave que discorda, porque uma gravação no
-     * Redis falhou depois da confirmação, é descartada e o estado é refeito do banco.
+     * Só para a leitura da tela: o estado do Redis, se ele concordar com o banco. Uma chave que
+     * discorda, porque uma gravação no Redis falhou depois da confirmação, é descartada e o estado é
+     * refeito do banco. Uma chave desatualizada que passe pela conferência é corrigida na próxima
+     * gravação, porque os controles nunca partem do Redis.
      */
     private EstadoDaSessao estadoAtual(Sessao sessao) {
         return estados.buscar(sessao.id())
                 .filter(estado -> concorda(estado, sessao))
-                .orElseGet(() -> reconstruir(sessao.id()));
+                .orElseGet(() -> {
+                    EstadoDaSessao estado = doBanco(sessao.id());
+                    estados.gravar(estado);
+                    return estado;
+                });
     }
 
-    private EstadoDaSessao reconstruir(long id) {
-        EstadoDaSessao estado = EstadoDaSessao.reconstruir(sessoes
+    /**
+     * O estado refeito do PostgreSQL. Os controles sempre partem daqui, e não do Redis: o Redis é
+     * gravado depois da confirmação, quando o lock do {@code FOR UPDATE} já foi liberado, então o
+     * controle seguinte pode ler a chave antes de ela ser atualizada.
+     */
+    private EstadoDaSessao doBanco(long id) {
+        return EstadoDaSessao.reconstruir(sessoes
                 .historico(id, EstadoDaSessao.MENSAGENS_GUARDADAS)
                 .orElseThrow(() -> new SessaoNaoEncontrada(id)));
-        estados.gravar(estado);
-        return estado;
     }
 
     private static boolean concorda(EstadoDaSessao estado, Sessao sessao) {

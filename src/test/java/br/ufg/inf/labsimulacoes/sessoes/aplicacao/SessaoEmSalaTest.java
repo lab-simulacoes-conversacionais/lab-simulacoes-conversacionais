@@ -220,6 +220,27 @@ class SessaoEmSalaTest {
         assertThat(controles.retomar(sessao.id()).tempoEmPausa()).isPositive();
     }
 
+    /**
+     * O Redis é gravado depois da confirmação. Um controle logo após o reinício pode encontrar ali o
+     * estado anterior, com o mesmo status, e não pode trazer de volta as mensagens que o reinício limpou.
+     */
+    @Test
+    void controleNaoParteDeEstadoAnteriorAoReinicio() {
+        long id = inicio.iniciar(turma, cenario.cenarioId()).id();
+        dados.mensagem(id, "TURMA", "Por que o 14-bis foi importante?");
+        redis.delete("sessao:" + id + ":estado");
+        EstadoDaSessao antesDoReinicio = controles.estado(id);
+        EstadoDaSessao reiniciada = controles.reiniciar(id);
+        estados.gravar(antesDoReinicio);
+
+        EstadoDaSessao pausada = controles.pausar(id);
+
+        assertThat(pausada.ultimasMensagens()).isEmpty();
+        assertThat(pausada.reiniciadaEm()).isEqualTo(reiniciada.reiniciadaEm());
+        assertThat(pausada.perguntasDaTurma()).isEqualTo(1);
+        assertThat(estados.buscar(id)).contains(pausada);
+    }
+
     /** RN-10: só o professor que iniciou a sessão a vê e controla. */
     @Test
     void outroProfessorNaoControlaASessao() {
