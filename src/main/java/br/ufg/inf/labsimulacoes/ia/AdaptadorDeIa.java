@@ -25,6 +25,8 @@ public interface AdaptadorDeIa {
      * <p>Uma resposta sem texto, como quando o raciocínio gasta todos os tokens, não é exibida: vira
      * {@link FalhaNoProvedorDeIa}, mas os metadados são gravados antes, porque houve consumo (RNF-13).
      *
+     * @throws IllegalArgumentException se faltar ao cenário um campo que o template do personagem usa;
+     *     num cenário aprovado, todos existem (RN-02, RN-03)
      * @throws FalhaNoProvedorDeIa se o provedor falhar, ficar fora do ar ou devolver uma resposta vazia
      */
     RespostaDoPersonagem responder(PedidoDeFala pedido, Consumer<String> aoReceberTrecho);

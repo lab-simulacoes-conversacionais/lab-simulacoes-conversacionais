@@ -14,7 +14,8 @@ import java.util.Map;
  *
  * <p>A mensagem de sistema é só o template preenchido com os dados da versão do cenário. Depois dela
  * vêm o histórico, cada fala com o próprio papel, e por último a pergunta da turma, numa mensagem de
- * usuário separada. Nada do que é digitado entra nas instruções (RNF-09).
+ * usuário separada. Nada do que a turma digita entra nas instruções; os dados do cenário entram porque
+ * passaram pela curadoria (RNF-09).
  *
  * <p>Com o histórico vazio, no início da sessão ou depois de reiniciar, a seção {@code abertura} entra
  * nas instruções, para a primeira fala apresentar o personagem como simulação (RN-14).
