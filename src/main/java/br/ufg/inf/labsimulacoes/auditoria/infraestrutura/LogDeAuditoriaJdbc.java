@@ -10,11 +10,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.ArrayList;
+import java.sql.Types;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /** Log de auditoria na tabela log_auditoria, que tem trigger contra UPDATE, DELETE e TRUNCATE. */
@@ -24,10 +27,12 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
     private static final TypeReference<Map<String, Object>> DETALHES = new TypeReference<>() {};
 
     private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate comNomes;
     private final ObjectMapper json;
 
     LogDeAuditoriaJdbc(JdbcTemplate jdbc, ObjectMapper json) {
         this.jdbc = jdbc;
+        this.comNomes = new NamedParameterJdbcTemplate(jdbc);
         this.json = json;
     }
 
@@ -73,38 +78,35 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
                 this::paraRegistro);
     }
 
-    /** Usa os índices de ocorrido_em e de usuario_id. A ação tem poucos valores e dispensa índice. */
+    /**
+     * O texto da consulta é fixo: um filtro ausente vai como parâmetro nulo e deixa de restringir.
+     * Nas pontas do período, o nulo vira infinito dentro do próprio SQL, o que mantém o uso do índice
+     * de ocorrido_em.
+     */
+    private static final String CONSULTA = """
+            SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
+            FROM log_auditoria
+            WHERE ocorrido_em >= COALESCE(CAST(:inicio AS TIMESTAMPTZ), '-infinity')
+              AND ocorrido_em < COALESCE(CAST(:fim AS TIMESTAMPTZ), 'infinity')
+              AND (CAST(:usuarioId AS BIGINT) IS NULL OR usuario_id = :usuarioId)
+              AND (CAST(:acao AS TEXT) IS NULL OR acao = :acao)
+            ORDER BY ocorrido_em DESC, id DESC
+            LIMIT :tamanho OFFSET :deslocamento""";
+
     @Override
     public List<RegistroDeAuditoria> consultar(FiltroDoLog filtro) {
-        var condicoes = new ArrayList<String>();
-        var parametros = new ArrayList<Object>();
-        if (filtro.inicio() != null) {
-            condicoes.add("ocorrido_em >= ?");
-            parametros.add(Timestamp.from(filtro.inicio()));
-        }
-        if (filtro.fim() != null) {
-            condicoes.add("ocorrido_em < ?");
-            parametros.add(Timestamp.from(filtro.fim()));
-        }
-        if (filtro.usuarioId() != null) {
-            condicoes.add("usuario_id = ?");
-            parametros.add(filtro.usuarioId());
-        }
-        if (filtro.acao() != null) {
-            condicoes.add("acao = ?");
-            parametros.add(filtro.acao().name());
-        }
-        String onde = condicoes.isEmpty() ? "" : "WHERE " + String.join(" AND ", condicoes);
-        parametros.add(filtro.tamanho());
-        parametros.add(filtro.deslocamento());
-        return jdbc.query("""
-                SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
-                FROM log_auditoria
-                %s
-                ORDER BY ocorrido_em DESC, id DESC
-                LIMIT ? OFFSET ?""".formatted(onde),
-                this::paraRegistro,
-                parametros.toArray());
+        var parametros = new MapSqlParameterSource()
+                .addValue("inicio", paraTimestamp(filtro.inicio()), Types.TIMESTAMP)
+                .addValue("fim", paraTimestamp(filtro.fim()), Types.TIMESTAMP)
+                .addValue("usuarioId", filtro.usuarioId(), Types.BIGINT)
+                .addValue("acao", filtro.acao() == null ? null : filtro.acao().name(), Types.VARCHAR)
+                .addValue("tamanho", filtro.tamanho())
+                .addValue("deslocamento", filtro.deslocamento());
+        return comNomes.query(CONSULTA, parametros, this::paraRegistro);
+    }
+
+    private static Timestamp paraTimestamp(Instant instante) {
+        return instante == null ? null : Timestamp.from(instante);
     }
 
     private RegistroDeAuditoria paraRegistro(ResultSet linha, int numero) throws SQLException {
