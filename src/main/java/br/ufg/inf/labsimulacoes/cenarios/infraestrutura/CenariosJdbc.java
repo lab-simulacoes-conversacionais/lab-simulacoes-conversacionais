@@ -42,10 +42,14 @@ class CenariosJdbc implements Cenarios {
             ARRAY(SELECT h.habilidade_codigo FROM versao_habilidade h
                   WHERE h.cenario_versao_id = v.id ORDER BY h.habilidade_codigo) AS habilidades""";
 
-    private static final String COLUNAS_DO_CENARIO = """
-            c.id, c.autor_id, c.status, %s,
+    /*
+     * Os trechos abaixo são juntados com +, e não com formatted(), para que cada consulta seja uma
+     * constante de compilação: nenhum valor entra no texto do SQL, só pelos parâmetros.
+     */
+    private static final String COLUNAS_DO_CENARIO = "c.id, c.autor_id, c.status, " + COLUNAS_DA_VERSAO + """
+            ,
             d.id AS devolucao_id, d.curador_id AS devolucao_curador_id,
-            d.comentario AS devolucao_comentario, d.criado_em AS devolucao_em""".formatted(COLUNAS_DA_VERSAO);
+            d.comentario AS devolucao_comentario, d.criado_em AS devolucao_em""";
 
     /** A devolução mais recente da versão, para o autor saber o que mudar (RN-07). */
     private static final String ULTIMA_DEVOLUCAO = """
@@ -55,31 +59,33 @@ class CenariosJdbc implements Cenarios {
                 ORDER BY criado_em DESC, id DESC
                 LIMIT 1) d ON true""";
 
-    private static final String CENARIO_COM_ULTIMA_VERSAO = """
-            SELECT %s
+    private static final String CENARIO_COM_ULTIMA_VERSAO = "SELECT " + COLUNAS_DO_CENARIO + """
+
             FROM cenario c
             JOIN cenario_versao v ON v.cenario_id = c.id
-            %s
+            """ + ULTIMA_DEVOLUCAO + """
+
             WHERE c.id = ?
             ORDER BY v.numero DESC
-            LIMIT 1""".formatted(COLUNAS_DO_CENARIO, ULTIMA_DEVOLUCAO);
+            LIMIT 1""";
 
     /**
      * RN-37: o curador vê todos os cenários, cada um com a versão mais recente, como em
      * {@link #CENARIO_COM_ULTIMA_VERSAO}. Status nulo traz todos. Mesma ordem da biblioteca.
      */
-    private static final String ACERVO = """
-            SELECT %s
+    private static final String ACERVO = "SELECT " + COLUNAS_DO_CENARIO + """
+
             FROM cenario c
             JOIN LATERAL (
                 SELECT * FROM cenario_versao
                 WHERE cenario_id = c.id
                 ORDER BY numero DESC
                 LIMIT 1) v ON true
-            %s
+            """ + ULTIMA_DEVOLUCAO + """
+
             WHERE (CAST(? AS text) IS NULL OR c.status = ?)
             ORDER BY v.titulo, c.id
-            LIMIT ? OFFSET ?""".formatted(COLUNAS_DO_CENARIO, ULTIMA_DEVOLUCAO);
+            LIMIT ? OFFSET ?""";
 
     /** RN-01: só cenário Aprovado. Suspenso e arquivado guardam a versão vigente, mas não vão à sala. */
     private static final String APROVADOS_COM_VERSAO_VIGENTE = """
