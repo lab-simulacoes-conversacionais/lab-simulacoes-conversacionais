@@ -33,15 +33,20 @@ Os preços ficam na constante `MODELOS`, no topo do script. São a tarifa padrã
   de 2000 tokens de saída por resposta, somando o raciocínio. Uma resposta de cerca de 120 palavras
   (RN-16) tem uns 200 tokens.
 - Para cada resposta, registra:
-  - o tempo até o primeiro trecho de texto e o tempo total;
+  - a partir do envio da pergunta: o tempo até o primeiro trecho de texto, até a primeira frase completa,
+    até a primeira frase aprovada e o tempo total;
   - os tokens de entrada, de saída e de raciocínio;
   - o número de palavras;
-  - se a resposta veio cortada (`status` diferente de `completed`).
+  - se a resposta veio cortada (`status` diferente de `completed`);
+  - se a pergunta ou a primeira frase foram sinalizadas pela moderação.
+- Reproduz a moderação dos passos 4 e 7 do fluxo de uma pergunta ([stack.md](../../stack.md), seção 5):
+  modera a pergunta antes de chamar o modelo e, assim que a primeira frase termina, modera essa frase
+  em paralelo, sem parar o streaming. A moderação usa o `omni-moderation-latest`, que não é cobrado.
 - Grava a conversa de cada sessão em `execucoes/<modelo>-rep<n>.md`, e gera `resultados.md` com:
   - a latência média e o p95 por resposta;
-  - a marcação de p95 acima de 2 s no primeiro trecho (margem para a moderação) e acima de 10 s no total;
+  - a marcação de p95 acima de 3 s na primeira frase aprovada e acima de 10 s no total (RNF-03);
   - os tokens e o custo médios por sessão;
-  - as respostas cortadas ou acima de 120 palavras;
+  - as respostas cortadas, acima de 120 palavras ou sinalizadas pela moderação;
   - a tabela de notas de qualidade, para o grupo preencher.
 
 Se a chave, o crédito ou o acesso ao modelo falharem, o script para e mostra o erro da API. Ele não
@@ -55,7 +60,10 @@ personagem simulado.
 
 ## Limites do spike
 
-- O tempo medido é só o do modelo. O RNF-03 conta até a primeira frase já moderada, por isso a marca
-  de 2 s no primeiro trecho.
+- A primeira frase é detectada por pontuação final seguida de espaço, ou por quebra de linha. Uma
+  abreviação como "Sr." fecha a frase antes da hora, o que deixa o tempo um pouco menor que o real.
+- Ficam de fora o bloqueio de dados pessoais por regex (passo 3), a gravação no banco e o envio por SSE
+  até a tela, que devem somar pouco perto das chamadas à OpenAI. O tempo total não inclui a moderação
+  das frases seguintes.
 - As instruções do personagem são provisórias. O template versionado do prompt é trabalho do módulo ia.
 - Não há dados reais de alunos: o cenário e as falas são fictícios.

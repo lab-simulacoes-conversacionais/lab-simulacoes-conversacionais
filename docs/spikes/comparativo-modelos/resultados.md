@@ -1,5 +1,9 @@
 # Resultados do comparativo de modelos (issue #14)
 
+> **Latência a medir de novo:** esta execução mediu o tempo até o primeiro trecho de texto. O critério
+> do RNF-03 é o tempo até a primeira frase aprovada pela moderação (stack.md, seção 5, passo 7), que o
+> script agora mede. A latência e a decisão abaixo só valem depois de rodar o script de novo.
+
 Gerado em 2026-11-11 16:19. Cenário "O voo do 14-bis", 10 falas por sessão, 3 repetições por modelo, `store=false`, teto de 2000 tokens de saída por resposta.
 
 ## Latência por resposta (RNF-03)
@@ -44,8 +48,11 @@ Notas de 1 a 5, lendo as conversas em `execucoes/`. Critérios:
 - **Modelo escolhido:** `gpt-6.1-terra`, com esforço de raciocínio `low`. Ficam como valores padrão de
   `spring.ai.openai.chat.options.model` e `spring.ai.openai.chat.options.reasoning-effort` em
   `src/main/resources/application.properties`.
+- **Pendente:** confirmar a latência com o tempo até a primeira frase aprovada (ver o aviso no topo). O
+  Terra precisa de p95 de até 3 s nessa medida. O Luna continua reprovado: o primeiro trecho já passava
+  de 3 s, e a primeira frase aprovada só pode chegar depois dele.
 - **Motivo:**
-  - Latência: o Terra cumpriu as duas metas. O p95 foi de 1,96 s no primeiro trecho (meta de 2 s) e
+  - Latência (medida antiga, só do primeiro trecho): o Terra cumpriu as duas metas. O p95 foi de 1,96 s no primeiro trecho (meta de 2 s) e
     de 3,99 s no total (meta de 10 s).
   - Reprovação do Luna: o `gpt-6-luna` teve p95 de 3,31 s no primeiro trecho. Isso passa dos 3 s do
     RNF-03 mesmo antes da moderação, então ele reprova.
