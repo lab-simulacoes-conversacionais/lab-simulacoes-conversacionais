@@ -25,4 +25,11 @@ public interface Cenarios {
      * suspenso ou arquivado não vai para a sala.
      */
     Optional<VersaoDoCenario> versaoVigente(long cenarioId);
+
+    /**
+     * Biblioteca (RF-12): os cenários Aprovados com a versão vigente, de todos os autores, pelo mesmo
+     * critério de {@link #versaoVigente}. Em ordem de título, com desempate pelo id do cenário, para
+     * que a mesma página traga sempre os mesmos cenários.
+     */
+    TrechoDaBiblioteca listarAprovados(Pagina pagina);
 }

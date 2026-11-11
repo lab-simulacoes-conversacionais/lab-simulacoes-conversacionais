@@ -2,12 +2,15 @@ package br.ufg.inf.labsimulacoes.cenarios.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Aprovacao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Devolucao;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.Pagina;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -55,11 +58,24 @@ class CenariosJdbc implements Cenarios {
             LIMIT 1""".formatted(COLUNAS_DA_VERSAO);
 
     /** RN-01: só cenário Aprovado. Suspenso e arquivado guardam a versão vigente, mas não vão à sala. */
-    private static final String VERSAO_VIGENTE = """
-            SELECT %s
+    private static final String APROVADOS_COM_VERSAO_VIGENTE = """
             FROM cenario c
             JOIN cenario_versao v ON v.id = c.versao_vigente_id
-            WHERE c.id = ? AND c.status = 'APROVADO' AND v.status = 'APROVADA'""".formatted(COLUNAS_DA_VERSAO);
+            WHERE c.status = 'APROVADO' AND v.status = 'APROVADA'""";
+
+    private static final String VERSAO_VIGENTE = """
+            SELECT %s
+            %s AND c.id = ?""".formatted(COLUNAS_DA_VERSAO, APROVADOS_COM_VERSAO_VIGENTE);
+
+    /**
+     * RF-12, mesmo critério da versão vigente. O id desempata títulos iguais, para que a ordem não
+     * mude de uma consulta para a outra e nenhuma página repita ou pule cenário.
+     */
+    private static final String BIBLIOTECA = """
+            SELECT c.id AS cenario_id, %s
+            %s
+            ORDER BY v.titulo, c.id
+            LIMIT ? OFFSET ?""".formatted(COLUNAS_DA_VERSAO, APROVADOS_COM_VERSAO_VIGENTE);
 
     private static final String INSERIR_VERSAO = """
             INSERT INTO cenario_versao (cenario_id, numero, status, titulo, conteudo, componente, etapa, ano,
@@ -105,6 +121,18 @@ class CenariosJdbc implements Cenarios {
     @Override
     public Optional<VersaoDoCenario> versaoVigente(long cenarioId) {
         return jdbc.query(VERSAO_VIGENTE, (linha, numero) -> paraVersao(linha), cenarioId).stream().findFirst();
+    }
+
+    /** Pede um item a mais que a página, só para saber se existe a próxima, sem contar a tabela. */
+    @Override
+    public TrechoDaBiblioteca listarAprovados(Pagina pagina) {
+        List<CenarioNaBiblioteca> lidos = jdbc.query(
+                BIBLIOTECA,
+                (linha, numero) -> new CenarioNaBiblioteca(linha.getLong("cenario_id"), paraVersao(linha)),
+                pagina.tamanho() + 1,
+                pagina.deslocamento());
+        boolean temProxima = lidos.size() > pagina.tamanho();
+        return new TrechoDaBiblioteca(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
     }
 
     private Optional<Cenario> consultar(String sql, long id) {
