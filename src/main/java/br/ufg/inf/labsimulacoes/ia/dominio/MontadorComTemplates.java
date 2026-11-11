@@ -17,8 +17,10 @@ import java.util.Map;
  * usuário separada. Nada do que a turma digita entra nas instruções; os dados do cenário entram porque
  * passaram pela curadoria (RNF-09).
  *
- * <p>Com o histórico vazio, no início da sessão ou depois de reiniciar, a seção {@code abertura} entra
- * nas instruções, para a primeira fala apresentar o personagem como simulação (RN-14).
+ * <p>Enquanto o personagem ainda não falou, no início da sessão ou depois de reiniciar, a seção
+ * {@code abertura} entra nas instruções, para a primeira fala apresentar o personagem como simulação
+ * (RN-14). Perguntas da turma sem resposta no histórico, porque o provedor falhou ou a resposta foi
+ * bloqueada, não contam como fala do personagem.
  */
 public final class MontadorComTemplates implements MontadorDePrompt {
 
@@ -59,7 +61,7 @@ public final class MontadorComTemplates implements MontadorDePrompt {
     public PromptMontado daFala(PedidoDeFala pedido) {
         Map<String, String> valores = valoresDo(pedido.cenario());
         String instrucoes = preencher(personagem, SECAO_INSTRUCOES, valores);
-        if (pedido.historico().isEmpty()) {
+        if (personagemAindaNaoFalou(pedido.historico())) {
             instrucoes = instrucoes + "\n\n" + preencher(personagem, SECAO_ABERTURA, valores);
         }
 
@@ -83,6 +85,10 @@ public final class MontadorComTemplates implements MontadorDePrompt {
         linha(texto, "Habilidades BNCC", pedido.habilidades().isEmpty() ? null : String.join(", ", pedido.habilidades()));
         return new PromptMontado(sugestao.versao(), preencher(sugestao, SECAO_INSTRUCOES, Map.of()),
                 List.of(MensagemDoPrompt.doUsuario(texto.toString())));
+    }
+
+    private static boolean personagemAindaNaoFalou(List<MensagemDaConversa> historico) {
+        return historico.stream().noneMatch(mensagem -> mensagem.autor() == MensagemDaConversa.Autor.PERSONAGEM);
     }
 
     private static String preencher(TemplateDePrompt template, String secao, Map<String, String> valores) {
