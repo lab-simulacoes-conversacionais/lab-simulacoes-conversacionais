@@ -139,7 +139,7 @@ class AutoriaDeCenariosTest {
     void versaoQueSaiuDoRascunhoNaoEAlterada() {
         logar(PROFESSORA, "ROLE_PROFESSOR");
         Cenario criado = autoria.criar(ConteudosDeTeste.completo());
-        cenarios.salvar(criado.enviarACuradoria());
+        cenarios.salvar(criado.enviarACuradoria(professora));
 
         assertThatThrownBy(() -> autoria.alterarRascunho(criado.id(), ConteudosDeTeste.soComTitulo()))
                 .isInstanceOf(CenarioForaDeRascunho.class);

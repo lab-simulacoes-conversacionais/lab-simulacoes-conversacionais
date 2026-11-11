@@ -127,7 +127,7 @@ class CenariosJdbcTest {
     void envioACuradoriaGravaOStatusDoCenarioEDaVersao() {
         Cenario salvo = cenarios.salvar(Cenario.novo(autor, ConteudosDeTeste.completo()));
 
-        cenarios.salvar(salvo.enviarACuradoria());
+        cenarios.salvar(salvo.enviarACuradoria(autor));
 
         var lido = cenarios.buscar(salvo.id()).orElseThrow();
         assertThat(lido.status()).isEqualTo(StatusDoCenario.EM_CURADORIA);

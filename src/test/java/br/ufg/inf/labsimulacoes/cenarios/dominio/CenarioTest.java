@@ -46,7 +46,7 @@ class CenarioTest {
 
     @Test
     void cenarioCompletoVaiParaACuradoria() {
-        Cenario enviado = Cenario.novo(AUTOR, ConteudosDeTeste.completo()).enviarACuradoria();
+        Cenario enviado = Cenario.novo(AUTOR, ConteudosDeTeste.completo()).enviarACuradoria(AUTOR);
 
         assertThat(enviado.status()).isEqualTo(StatusDoCenario.EM_CURADORIA);
         assertThat(enviado.versao().status()).isEqualTo(StatusDaVersao.EM_CURADORIA);
@@ -64,7 +64,7 @@ class CenarioTest {
         var conteudo = new ConteudoDoCenario("Título", semObjetivo, semHabilidade, "13 anos", 20);
         Cenario cenario = Cenario.novo(AUTOR, conteudo);
 
-        assertThatThrownBy(cenario::enviarACuradoria)
+        assertThatThrownBy(() -> cenario.enviarACuradoria(AUTOR))
                 .isInstanceOf(CenarioIncompleto.class)
                 .hasMessageContaining("habilidade da BNCC")
                 .hasMessageContaining("objetivo de aprendizagem")
@@ -82,7 +82,7 @@ class CenarioTest {
         assertThatThrownBy(() -> cenario.alterarRascunho(ConteudosDeTeste.soComTitulo()))
                 .isInstanceOf(CenarioForaDeRascunho.class)
                 .hasMessageContaining(status.name());
-        assertThatThrownBy(cenario::enviarACuradoria).isInstanceOf(CenarioForaDeRascunho.class);
+        assertThatThrownBy(() -> cenario.enviarACuradoria(AUTOR)).isInstanceOf(CenarioForaDeRascunho.class);
     }
 
     /** RN-08: a nova versão de um cenário aprovado é editável, mesmo com o cenário ainda aprovado. */
