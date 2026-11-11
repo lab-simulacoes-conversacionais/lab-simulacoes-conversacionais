@@ -11,6 +11,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 public final class DadosDeSessao {
 
+    /** No formato do JSONB de cenario_versao.conteudo. */
+    private static final String ROTEIRO_COMPLETO = """
+            {"personagem": "Santos Dumont", "papelDaIa": "Contar a história do voo do 14-bis",
+             "contexto": "Paris, 1906", "objetivos": ["Compreender a invenção do avião"],
+             "limitesDeAssunto": ["Política atual"], "fontes": ["Museu Aeroespacial"],
+             "perguntasDisparadoras": []}""";
+
     private final JdbcTemplate jdbc;
 
     public DadosDeSessao(JdbcTemplate jdbc) {
@@ -39,18 +46,28 @@ public final class DadosDeSessao {
                 "8º " + UUID.randomUUID());
     }
 
-    /** Cenário Aprovado com versão vigente, como a curadoria deixa (RN-01, RN-08). */
+    /**
+     * Cenário Aprovado com versão vigente, como a curadoria deixa (RN-01, RN-08): com todos os campos que
+     * o envio à curadoria exige (RN-02, RN-03), que o prompt do personagem usa.
+     */
     public VersaoNoBanco cenarioAprovado(long autorId, long curadorId) {
         long cenarioId = cenario(autorId, "APROVADO");
         long versaoId = jdbc.queryForObject(
                 """
-                INSERT INTO cenario_versao (cenario_id, numero, status, titulo, conteudo, criado_por_id,
-                                            aprovado_por_id, aprovado_em)
-                VALUES (?, 1, 'APROVADA', 'O voo do 14-bis', '{}'::jsonb, ?, ?, now()) RETURNING id""",
+                INSERT INTO cenario_versao (cenario_id, numero, status, titulo, conteudo, componente, etapa, ano,
+                                            faixa_etaria, duracao_prevista_min, criado_por_id, aprovado_por_id,
+                                            aprovado_em)
+                VALUES (?, 1, 'APROVADA', 'O voo do 14-bis', ?::jsonb, 'História', 'EF', '8', '13 a 14 anos', 20,
+                        ?, ?, now()) RETURNING id""",
                 Long.class,
                 cenarioId,
+                ROTEIRO_COMPLETO,
                 autorId,
                 curadorId);
+        jdbc.update("""
+                INSERT INTO habilidade_bncc (codigo, descricao, etapa, ano, componente)
+                VALUES ('EF08HI03', 'Descrição', 'EF', '8', 'História') ON CONFLICT DO NOTHING""");
+        jdbc.update("INSERT INTO versao_habilidade (cenario_versao_id, habilidade_codigo) VALUES (?, 'EF08HI03')", versaoId);
         jdbc.update("UPDATE cenario SET versao_vigente_id = ? WHERE id = ?", versaoId, cenarioId);
         return new VersaoNoBanco(cenarioId, versaoId);
     }
