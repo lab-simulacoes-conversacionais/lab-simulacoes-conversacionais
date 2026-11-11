@@ -29,6 +29,35 @@ class EstadoDaSessaoTest {
     }
 
     @Test
+    void ultimaPerguntaDaTurmaSemRespostaEstaPendente() {
+        var pergunta = new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10));
+
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao()).registrarMensagem(pergunta);
+
+        assertThat(estado.perguntaPendente()).contains(pergunta);
+    }
+
+    @Test
+    void perguntaRespondidaNaoEstaPendente() {
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10)))
+                .registrarMensagem(new MensagemExibida(Autoria.IA, "Sou Santos Dumont.", segundos(12)));
+
+        assertThat(estado.perguntaPendente()).isEmpty();
+        assertThat(EstadoDaSessao.inicial(sessao()).perguntaPendente()).isEmpty();
+    }
+
+    /** RN-19: depois de reiniciar, a tela está limpa e nada fica pendente. */
+    @Test
+    void reinicioLimpaAPerguntaPendente() {
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10)))
+                .aplicar(EventoDaSessao.reinicio(segundos(20)));
+
+        assertThat(estado.perguntaPendente()).isEmpty();
+    }
+
+    @Test
     void sessaoAindaNaoGravadaNaoTemEstado() {
         assertThatThrownBy(() -> EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, 40, INICIO)))
                 .isInstanceOf(NullPointerException.class);

@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Estado "quente" da sessão, guardado no Redis para a tela de projeção ser reconstruída sem consultas
@@ -104,6 +105,19 @@ public record EstadoDaSessao(
         return new EstadoDaSessao(
                 sessaoId, status, motivoDaPausa, iniciadaEm, tempoEmPausa, pausadaDesde, reiniciadaEm, perguntas,
                 mensagens);
+    }
+
+    /**
+     * A pergunta da turma que ainda espera a resposta do personagem: a última mensagem na tela, se for
+     * da turma. Vazio se a tela estiver limpa ou a última fala for da IA. Uma pergunta que ficou sem
+     * resposta, porque o provedor falhou, continua pendente e pode ser respondida de novo (RNF-04).
+     */
+    public Optional<MensagemExibida> perguntaPendente() {
+        if (ultimasMensagens.isEmpty()) {
+            return Optional.empty();
+        }
+        MensagemExibida ultima = ultimasMensagens.getLast();
+        return ultima.autoria() == MensagemExibida.Autoria.TURMA ? Optional.of(ultima) : Optional.empty();
     }
 
     /** Soma das pausas até o momento dado, contando a pausa em curso. */
