@@ -41,8 +41,9 @@ Notas de 1 a 5, lendo as conversas em `execucoes/`. Critérios:
 
 ## Decisão
 
-- **Modelo escolhido:** `gpt-6.1-terra`, com esforço de raciocínio `low`. Fica como valor padrão de
-  `ia.modelo` em `src/main/resources/application.properties`.
+- **Modelo escolhido:** `gpt-6.1-terra`, com esforço de raciocínio `low`. Ficam como valores padrão de
+  `spring.ai.openai.chat.options.model` e `spring.ai.openai.chat.options.reasoning-effort` em
+  `src/main/resources/application.properties`.
 - **Motivo:**
   - Latência: o Terra cumpriu as duas metas. O p95 foi de 1,96 s no primeiro trecho (meta de 2 s) e
     de 3,99 s no total (meta de 10 s).

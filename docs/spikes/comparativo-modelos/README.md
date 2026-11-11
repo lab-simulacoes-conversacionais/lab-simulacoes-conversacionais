@@ -1,7 +1,8 @@
 # Spike: comparativo de modelos da OpenAI (issue #14)
 
 Escolhe o modelo da POC comparando qualidade em português, latência e custo, como pede a seção 2 da
-[stack.md](../../stack.md). O modelo escolhido vai para a propriedade `ia.modelo` em
+[stack.md](../../stack.md). O modelo e o esforço de raciocínio escolhidos vão para
+`spring.ai.openai.chat.options.model` e `spring.ai.openai.chat.options.reasoning-effort`, em
 `src/main/resources/application.properties`.
 
 ## Como rodar
