@@ -34,8 +34,14 @@ class ConfiguracaoDeSeguranca {
                         // Sem isto, um erro como o 403 do CSRF viraria redirecionamento para o login.
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(EndpointRequest.to(HealthEndpoint.class)).permitAll()
+                        // A tela de login e os arquivos estáticos (CSS) são abertos; o resto exige login.
+                        .requestMatchers("/login", "/css/**", "/js/**", "/img/**", "/favicon.*").permitAll()
                         .anyRequest().authenticated())
-                .formLogin(login -> login.usernameParameter("email").passwordParameter("senha"))
+                .formLogin(login -> login
+                        .loginPage("/login")
+                        .usernameParameter("email")
+                        .passwordParameter("senha")
+                        .permitAll())
                 .logout(logout -> logout.deleteCookies("JSESSIONID"))
                 // Com a estratégia definida, o Spring também a usa quando o token CSRF sumiu junto com
                 // a sessão expirada, em vez de responder 403.

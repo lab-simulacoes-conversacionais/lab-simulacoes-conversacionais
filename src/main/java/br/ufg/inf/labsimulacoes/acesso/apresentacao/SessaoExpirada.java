@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.acesso.apresentacao;
 
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -24,12 +25,18 @@ final class SessaoExpirada implements InvalidSessionStrategy, AuthenticationEntr
     /**
      * O Spring também chama este método quando falta o token CSRF. Com a sessão ainda válida, isso não
      * é expiração, e sim um envio sem token, que precisa ser recusado.
+     *
+     * <p>Quando a sessão expirou e o próprio destino já é a tela de login, a página é renderizada com
+     * uma sessão nova (e um novo token CSRF), em vez de redirecionar, para quem entrar de novo logo
+     * após expirar não cair em um 302 sem conteúdo.
      */
     @Override
     public void onInvalidSessionDetected(HttpServletRequest requisicao, HttpServletResponse resposta)
             throws IOException {
         if (requisicao.isRequestedSessionIdValid()) {
             resposta.sendError(HttpServletResponse.SC_FORBIDDEN);
+        } else if (ehAberturaDoLogin(requisicao)) {
+            encaminharParaLogin(requisicao, resposta);
         } else {
             levarAoLogin(requisicao, resposta);
         }
@@ -50,6 +57,22 @@ final class SessaoExpirada implements InvalidSessionStrategy, AuthenticationEntr
             resposta.setHeader("HX-Redirect", destino);
         } else {
             resposta.sendRedirect(destino);
+        }
+    }
+
+    /** Abertura normal da tela de login (GET de navegador), o único caso que deve renderizar a página. */
+    private static boolean ehAberturaDoLogin(HttpServletRequest requisicao) {
+        return "GET".equals(requisicao.getMethod())
+                && LOGIN.equals(requisicao.getServletPath())
+                && !ehRequisicaoHtmx(requisicao);
+    }
+
+    private static void encaminharParaLogin(HttpServletRequest requisicao, HttpServletResponse resposta)
+            throws IOException {
+        try {
+            requisicao.getRequestDispatcher(LOGIN).forward(requisicao, resposta);
+        } catch (ServletException erro) {
+            throw new IOException(erro);
         }
     }
 }

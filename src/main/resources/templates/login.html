@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Entrar · Laboratório de Simulações')}"></head>
+<body>
+<main class="login-page">
+  <div class="login-shapes"><span></span><span></span><span></span></div>
+  <section class="card login-card">
+    <div class="login-brand">
+      <span class="brand-mark"><span></span></span>
+      <span><strong>Laboratório</strong><small>Simulações Conversacionais</small></span>
+    </div>
+    <div class="login-copy">
+      <p class="eyebrow">AMBIENTE EDUCACIONAL</p>
+      <h1>Boas-vindas</h1>
+      <p>Entre para preparar uma conversa que aproxima a turma de grandes ideias.</p>
+    </div>
+
+    <p th:if="${param.error}" class="field-error" role="alert">
+      E-mail ou senha incorretos, ou acesso não autorizado.
+    </p>
+    <p th:if="${param.logout}" class="success-notice" role="status">
+      <span aria-hidden="true">✓</span> Sessão encerrada com segurança.
+    </p>
+
+    <form th:action="@{/login}" method="post">
+      <label for="email">E-mail institucional</label>
+      <input id="email" name="email" type="email" autocomplete="username" required autofocus>
+      <label for="senha">Senha</label>
+      <input id="senha" name="senha" type="password" autocomplete="current-password" required>
+      <button type="submit" class="btn btn-primary full">Entrar</button>
+    </form>
+
+    <p class="access-note">
+      <span aria-hidden="true">i</span> Acesso apenas para profissionais da escola
+    </p>
+  </section>
+</main>
+</body>
+</html>
+
