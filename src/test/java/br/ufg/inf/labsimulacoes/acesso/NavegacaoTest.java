@@ -55,6 +55,14 @@ class NavegacaoTest {
     }
 
     @Test
+    void telaDeLoginAvisaQuandoASessaoExpirou() throws Exception {
+        var resposta = new Navegador().get("/login?expirada");
+
+        assertThat(resposta.statusCode()).isEqualTo(200);
+        assertThat(resposta.body()).contains("Sua sess").contains("expirou");
+    }
+
+    @Test
     void professorVeSoAtalhosDeProfessor() throws Exception {
         String corpo = inicioComPerfis(Perfil.PROFESSOR);
 
@@ -154,4 +162,5 @@ class NavegacaoTest {
         }
     }
 }
+
 

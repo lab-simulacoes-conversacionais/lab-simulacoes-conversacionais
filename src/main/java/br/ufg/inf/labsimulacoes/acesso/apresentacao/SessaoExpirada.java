@@ -38,7 +38,8 @@ final class SessaoExpirada implements InvalidSessionStrategy, AuthenticationEntr
         } else if (ehAberturaDoLogin(requisicao)) {
             encaminharParaLogin(requisicao, resposta);
         } else {
-            levarAoLogin(requisicao, resposta);
+            // A sessão existia e expirou (RNF-09): a tela de login avisa com ?expirada.
+            levarAoLogin(requisicao, resposta, true);
         }
     }
 
@@ -46,12 +47,14 @@ final class SessaoExpirada implements InvalidSessionStrategy, AuthenticationEntr
     public void commence(
             HttpServletRequest requisicao, HttpServletResponse resposta, AuthenticationException erro)
             throws IOException {
-        levarAoLogin(requisicao, resposta);
+        // Quem nunca entrou só é levado ao login, sem o aviso de expiração.
+        levarAoLogin(requisicao, resposta, false);
     }
 
-    private static void levarAoLogin(HttpServletRequest requisicao, HttpServletResponse resposta)
+    private static void levarAoLogin(
+            HttpServletRequest requisicao, HttpServletResponse resposta, boolean expirada)
             throws IOException {
-        String destino = requisicao.getContextPath() + LOGIN;
+        String destino = requisicao.getContextPath() + LOGIN + (expirada ? "?expirada" : "");
         if (ehRequisicaoHtmx(requisicao)) {
             resposta.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             resposta.setHeader("HX-Redirect", destino);

@@ -223,7 +223,7 @@ class AutenticacaoTest {
 
         var resposta = navegador.get("/teste/csrf");
         assertThat(resposta.statusCode()).isEqualTo(302);
-        assertThat(destino(resposta)).endsWith("/login");
+        assertThat(destino(resposta)).endsWith("/login?expirada");
     }
 
     @Test
@@ -256,7 +256,7 @@ class AutenticacaoTest {
         navegador.entrar(novoUsuario(), SENHA);
         expirar(navegador);
 
-        assertRedirecionaPeloHtmx(navegador.get("/teste/csrf", HTMX, "true"));
+        assertRedirecionaPeloHtmx(navegador.get("/teste/csrf", HTMX, "true"), "/login?expirada");
     }
 
     @Test
@@ -266,7 +266,7 @@ class AutenticacaoTest {
         String token = navegador.get("/teste/csrf").body();
         expirar(navegador);
 
-        assertRedirecionaPeloHtmx(navegador.post("/teste/acao", "", HTMX, "true", CABECALHO_CSRF, token));
+        assertRedirecionaPeloHtmx(navegador.post("/teste/acao", "", HTMX, "true", CABECALHO_CSRF, token), "/login?expirada");
     }
 
     @Test
@@ -370,8 +370,12 @@ class AutenticacaoTest {
     }
 
     private static void assertRedirecionaPeloHtmx(HttpResponse<String> resposta) {
+        assertRedirecionaPeloHtmx(resposta, "/login");
+    }
+
+    private static void assertRedirecionaPeloHtmx(HttpResponse<String> resposta, String destino) {
         assertThat(resposta.statusCode()).isEqualTo(401);
-        assertThat(resposta.headers().firstValue("HX-Redirect")).hasValue("/login");
+        assertThat(resposta.headers().firstValue("HX-Redirect")).hasValue(destino);
     }
 
     /** O tempo real é de uma hora, então a sessão passa a expirar em 1 s e o teste espera esse tempo. */

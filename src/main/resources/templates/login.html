@@ -18,6 +18,9 @@
     <p th:if="${param.error}" class="field-error" role="alert">
       E-mail ou senha incorretos, ou acesso não autorizado.
     </p>
+    <p th:if="${param.expirada}" class="login-aviso" role="status">
+      <span aria-hidden="true">i</span> Sua sessão expirou por inatividade. Entre novamente.
+    </p>
     <p th:if="${param.logout}" class="success-notice" role="status">
       <span aria-hidden="true">✓</span> Sessão encerrada com segurança.
     </p>
@@ -37,4 +40,5 @@
 </main>
 </body>
 </html>
+
 
