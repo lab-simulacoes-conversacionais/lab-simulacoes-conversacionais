@@ -116,6 +116,50 @@ class SessaoTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /** RN-18: até o limite a pergunta é aceita; a última possível também. */
+    @Test
+    void perguntaAbaixoDoLimiteEAceita() {
+        Sessao sessao = Sessao.iniciar(1, 2, 3, 3, INICIO).comId(10);
+
+        sessao.aceitarPergunta(0);
+        sessao.aceitarPergunta(2);
+
+        assertThat(sessao.perguntasRestantes(2)).isEqualTo(1);
+    }
+
+    /** RN-18: atingido o limite, o envio é bloqueado; reiniciar não zera a contagem (RN-19). */
+    @Test
+    void perguntaNoLimiteERecusada() {
+        Sessao sessao = Sessao.iniciar(1, 2, 3, 3, INICIO).comId(10);
+
+        assertThatThrownBy(() -> sessao.aceitarPergunta(3))
+                .isInstanceOf(LimiteDePerguntasAtingido.class)
+                .hasMessageContaining("3 perguntas");
+        assertThat(sessao.perguntasRestantes(3)).isZero();
+        assertThat(sessao.perguntasRestantes(5)).isZero();
+    }
+
+    @Test
+    void sessaoPausadaNaoRecebePerguntaNemResponde() {
+        Sessao pausada = emAndamento().pausar(MotivoDaPausa.MANUAL, DEPOIS).sessao();
+
+        assertThatThrownBy(() -> pausada.aceitarPergunta(0)).isInstanceOf(SessaoForaDoEstado.class);
+        assertThatThrownBy(pausada::aceitarResposta).isInstanceOf(SessaoForaDoEstado.class);
+    }
+
+    @Test
+    void sessaoEncerradaNaoRecebePerguntaNemResponde() {
+        Sessao encerrada = emAndamento().encerrar(DEPOIS);
+
+        assertThatThrownBy(() -> encerrada.aceitarPergunta(0)).isInstanceOf(SessaoEncerrada.class);
+        assertThatThrownBy(encerrada::aceitarResposta).isInstanceOf(SessaoEncerrada.class);
+    }
+
+    @Test
+    void sessaoEmAndamentoResponde() {
+        emAndamento().aceitarResposta();
+    }
+
     /** RN-18: o limite vem dos parâmetros, que já exigem ao menos uma pergunta. */
     @Test
     void sessaoAceitaAoMenosUmaPergunta() {

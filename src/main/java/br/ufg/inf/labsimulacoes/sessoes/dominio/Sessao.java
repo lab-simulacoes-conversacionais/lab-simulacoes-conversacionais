@@ -57,6 +57,38 @@ public record Sessao(
     }
 
     /**
+     * Confere se a turma pode fazer mais uma pergunta: só com a sessão em andamento e até o limite
+     * guardado no início (RN-18). Reiniciar não zera a contagem (RN-19).
+     *
+     * @param perguntasFeitas todas as perguntas da turma nesta sessão, inclusive as de antes de um reinício
+     * @throws SessaoEncerrada se a sessão já terminou (RN-19)
+     * @throws SessaoForaDoEstado se ela estiver pausada
+     * @throws LimiteDePerguntasAtingido se a turma já fez todas as perguntas (RN-18)
+     */
+    public void aceitarPergunta(int perguntasFeitas) {
+        exigir(StatusDaSessao.EM_ANDAMENTO, "enviar pergunta para");
+        if (perguntasRestantes(perguntasFeitas) == 0) {
+            throw new LimiteDePerguntasAtingido(id, limiteDePerguntas);
+        }
+    }
+
+    /** RN-18: quantas perguntas a turma ainda pode fazer; zero quando é hora de sugerir o quiz. */
+    public int perguntasRestantes(int perguntasFeitas) {
+        return Math.max(0, limiteDePerguntas - perguntasFeitas);
+    }
+
+    /**
+     * O personagem só responde com a sessão em andamento: depois de uma pausa, quem decide continuar é o
+     * professor (RN-17, RN-20).
+     *
+     * @throws SessaoEncerrada se a sessão já terminou (RN-19)
+     * @throws SessaoForaDoEstado se ela estiver pausada
+     */
+    public void aceitarResposta() {
+        exigir(StatusDaSessao.EM_ANDAMENTO, "responder na");
+    }
+
+    /**
      * @throws SessaoEncerrada se a sessão já terminou (RN-19)
      * @throws SessaoForaDoEstado se ela já estiver pausada
      */
