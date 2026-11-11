@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Adicionar usuário · Administração')}"></head>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<main class="page admin-page narrow-page">
+  <a class="back-link" th:href="@{/admin/usuarios}">← Voltar para usuários</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">ADMINISTRAÇÃO · USUÁRIOS</p>
+      <h1>Adicionar usuário</h1>
+      <p>Cadastre um profissional e defina um ou mais perfis de acesso.</p>
+    </div>
+  </div>
+
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <form th:action="@{/admin/usuarios}" method="post" class="card complete-form">
+    <div class="section-title"><div class="section-title-main"><span>1</span><h2>Dados profissionais</h2></div></div>
+    <div class="form-content">
+      <div class="form-grid">
+        <div>
+          <label for="nome">Nome completo *</label>
+          <input id="nome" name="nome" required placeholder="Nome do profissional">
+        </div>
+        <div>
+          <label for="email">E-mail institucional *</label>
+          <input id="email" name="email" type="email" required placeholder="nome@escola.edu.br">
+        </div>
+      </div>
+      <label for="senha">Senha provisória *</label>
+      <input id="senha" name="senha" type="password" required autocomplete="new-password">
+      <small>O profissional poderá trocar a senha depois. Ela é guardada apenas como hash (RNF-09).</small>
+    </div>
+
+    <div class="section-title"><div class="section-title-main"><span>2</span><h2>Perfis de acesso</h2></div></div>
+    <div class="form-content">
+      <p class="field-description">Perfis são acumuláveis (RN-36). Selecione ao menos um.</p>
+      <div class="profile-selector">
+        <label th:each="p : ${perfisDisponiveis}"
+               th:with="rotulo=${p.name() == 'PROFESSOR' ? 'Professor' : (p.name() == 'CURADOR' ? 'Curador Pedagógico' : 'Administrador')},
+                        desc=${p.name() == 'PROFESSOR' ? 'Conduz sessões e cria cenários.' : (p.name() == 'CURADOR' ? 'Revisa cenários e sinalizações.' : 'Gerencia usuários e parâmetros.')}">
+          <input type="checkbox" name="perfis" th:value="${p}">
+          <span aria-hidden="true">✓</span>
+          <strong th:text="${rotulo}">Perfil</strong>
+          <small th:text="${desc}">descrição</small>
+        </label>
+      </div>
+      <button class="btn btn-primary full" type="submit">Adicionar usuário</button>
+    </div>
+  </form>
+</main>
+</body>
+</html>
+

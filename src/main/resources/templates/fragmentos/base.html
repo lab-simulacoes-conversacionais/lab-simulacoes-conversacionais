@@ -32,6 +32,14 @@
     Personagem simulado por Inteligência Artificial · pode conter erros
   </div>
 </header>
+
+<!-- Abas da área de administração. 'ativa' é 'usuarios', 'turmas' ou 'parametros'. -->
+<nav th:fragment="abasAdmin(ativa)" class="admin-tabs" aria-label="Seções da administração">
+  <a th:href="@{/admin/usuarios}" th:classappend="${ativa == 'usuarios'} ? 'active'">Usuários</a>
+  <a th:href="@{/admin/turmas}" th:classappend="${ativa == 'turmas'} ? 'active'">Turmas</a>
+  <a th:href="@{/admin/parametros}" th:classappend="${ativa == 'parametros'} ? 'active'">Parâmetros</a>
+</nav>
 </body>
 </html>
+
 

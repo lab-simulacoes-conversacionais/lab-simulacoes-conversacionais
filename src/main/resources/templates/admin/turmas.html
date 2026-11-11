@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Turmas · Administração')}"></head>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<main class="page admin-page">
+  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">ADMINISTRAÇÃO</p>
+      <h1>Turmas</h1>
+      <p>Cadastros sem nomes ou listas de estudantes (RN-32).</p>
+    </div>
+    <a class="btn btn-primary" th:href="@{/admin/turmas/nova}">Adicionar turma <span aria-hidden="true">+</span></a>
+  </div>
+
+  <div th:replace="~{fragmentos/base :: abasAdmin('turmas')}"></div>
+
+  <div class="no-students-note"><span aria-hidden="true">i</span> Nenhum dado de estudante é armazenado nesta área.</div>
+
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <section class="card table-card">
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Rótulo</th><th>Escola</th><th>Ano/série</th><th>Turno</th><th>Ação</th></tr></thead>
+        <tbody>
+          <tr th:if="${turmas.isEmpty()}"><td colspan="5">Nenhuma turma cadastrada ainda.</td></tr>
+          <tr th:each="turma : ${turmas}">
+            <td><strong th:text="${turma.rotulo}">8º A</strong></td>
+            <td th:text="${turma.escola}">Escola</td>
+            <td th:text="${turma.anoSerie}">8º ano</td>
+            <td th:text="${turma.turno}">Manhã</td>
+            <td>
+              <div class="table-actions">
+                <a class="btn btn-ghost btn-mini" th:href="@{'/admin/turmas/' + ${turma.id} + '/editar'}">Editar</a>
+                <form th:action="@{'/admin/turmas/' + ${turma.id} + '/excluir'}" method="post"
+                      onsubmit="return confirm('Excluir esta turma?');">
+                  <button class="btn btn-ghost btn-mini" type="submit">Excluir</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</body>
+</html>
+

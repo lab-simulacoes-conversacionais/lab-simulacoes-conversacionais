@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Parâmetros · Administração')}"></head>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<main class="page admin-page">
+  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">ADMINISTRAÇÃO</p>
+      <h1>Parâmetros globais</h1>
+      <p>Valem para as sessões iniciadas após a alteração.</p>
+    </div>
+  </div>
+
+  <div th:replace="~{fragmentos/base :: abasAdmin('parametros')}"></div>
+
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <form th:action="@{/admin/parametros}" method="post">
+    <div class="parameter-grid">
+      <section class="card">
+        <div class="parameter-title"><span aria-hidden="true">#</span>
+          <div><h3>Limite de perguntas</h3><p>Máximo permitido por sessão (RN-18).</p></div>
+        </div>
+        <label for="limite">Perguntas por sessão</label>
+        <input id="limite" name="limiteDePerguntasPorSessao" type="number" min="1" max="100" required
+               th:value="${parametros.limiteDePerguntasPorSessao}">
+        <small>Valor recomendado: 40 perguntas.</small>
+      </section>
+      <section class="card">
+        <div class="parameter-title"><span aria-hidden="true">$</span>
+          <div><h3>Custo diário máximo</h3><p>Limite de uso de IA por dia, em dólares (RNF-13).</p></div>
+        </div>
+        <label for="custo">Valor máximo (USD)</label>
+        <input id="custo" name="custoDiarioMaximoUsd" type="number" min="0" step="0.01"
+               th:value="${parametros.custoDiarioMaximoUsd}" placeholder="Sem limite">
+        <small>Deixe em branco para não definir um limite de custo.</small>
+      </section>
+    </div>
+    <div class="parameter-save">
+      <button class="btn btn-primary" type="submit">Salvar parâmetros</button>
+    </div>
+  </form>
+</main>
+</body>
+</html>
+
