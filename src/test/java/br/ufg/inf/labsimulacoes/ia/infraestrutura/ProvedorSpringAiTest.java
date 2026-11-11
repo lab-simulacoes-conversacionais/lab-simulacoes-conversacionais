@@ -63,6 +63,17 @@ class ProvedorSpringAiTest {
         provedor = new ProvedorSpringAi(modelo, moderacao, "openai");
     }
 
+    /** IA_MODELO definida sem valor vence o padrão e deixaria o pedido sem modelo (HTTP 400). */
+    @Test
+    void modeloVazioNaConfiguracaoImpedeASubida() {
+        ChatModel semModelo = mock(ChatModel.class);
+        when(semModelo.getDefaultOptions()).thenReturn(OpenAiChatOptions.builder().model("").build());
+
+        assertThatThrownBy(() -> new ProvedorSpringAi(semModelo, moderacao, "openai"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("IA_MODELO");
+    }
+
     @Test
     void nomeVemDaConfiguracao() {
         assertThat(provedor.nome()).isEqualTo("openai");
