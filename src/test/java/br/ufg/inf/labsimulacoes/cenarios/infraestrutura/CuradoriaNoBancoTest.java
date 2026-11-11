@@ -14,6 +14,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Revisor;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoAprovadaDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -172,6 +173,35 @@ class CuradoriaNoBancoTest {
         jdbc.update("UPDATE cenario SET status = ? WHERE id = ?", status, aprovado.id());
 
         assertThat(cenarios.versaoVigente(aprovado.id())).isEmpty();
+    }
+
+    @Test
+    void versaoAprovadaPeloIdTrazOCenario() {
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+
+        VersaoAprovadaDoCenario lida = cenarios.versaoAprovada(aprovado.versao().id()).orElseThrow();
+
+        assertThat(lida).isEqualTo(new VersaoAprovadaDoCenario(aprovado.id(), aprovado.versao()));
+    }
+
+    /** RN-08: a sessão continua com a versão com que começou; a suspensão a pausa por evento (RN-25). */
+    @ParameterizedTest
+    @ValueSource(strings = {"SUSPENSO", "ARQUIVADO"})
+    void versaoAprovadaPeloIdNaoDependeDoStatusDoCenario(String status) {
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        jdbc.update("UPDATE cenario SET status = ? WHERE id = ?", status, aprovado.id());
+
+        assertThat(cenarios.versaoAprovada(aprovado.versao().id())).isPresent();
+    }
+
+    @Test
+    void versaoNaoAprovadaNaoEDevolvidaPeloId() {
+        Cenario rascunho = cenarios.salvar(Cenario.novo(autor, ConteudosDeTeste.completo()));
+        Cenario enviado = emCuradoria();
+
+        assertThat(cenarios.versaoAprovada(rascunho.versao().id())).isEmpty();
+        assertThat(cenarios.versaoAprovada(enviado.versao().id())).isEmpty();
+        assertThat(cenarios.versaoAprovada(-1)).isEmpty();
     }
 
     private Cenario emCuradoria() {
