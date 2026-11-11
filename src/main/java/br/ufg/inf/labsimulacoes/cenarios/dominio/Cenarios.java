@@ -32,4 +32,12 @@ public interface Cenarios {
      * que a mesma página traga sempre os mesmos cenários.
      */
     TrechoDaBiblioteca listarAprovados(Pagina pagina);
+
+    /**
+     * Acervo do curador (RN-37): os cenários de todos os autores, cada um com a versão mais recente,
+     * na mesma ordem da biblioteca (título da versão e id do cenário).
+     *
+     * @param status só os cenários com este status; {@code null} traz todos
+     */
+    TrechoDoAcervo listarTodos(StatusDoCenario status, Pagina pagina);
 }
