@@ -234,6 +234,18 @@ class ProvedorSpringAiTest {
         assertThat(resultado.categorias()).containsExactly("harassment", "violence");
     }
 
+    /** Caso de illicit: a OpenAI sinaliza, mas o Spring AI não traz a categoria. */
+    @Test
+    void textoSinalizadoSemCategoriaConhecidaContinuaSinalizado() {
+        when(moderacao.call(any(ModerationPrompt.class))).thenReturn(moderacao(
+                ModerationResult.builder().flagged(true).categories(Categories.builder().build()).build()));
+
+        ResultadoDaModeracao resultado = provedor.moderar("texto impróprio");
+
+        assertThat(resultado.sinalizado()).isTrue();
+        assertThat(resultado.categorias()).isEmpty();
+    }
+
     @Test
     void textoAprovadoNaoTemCategorias() {
         when(moderacao.call(any(ModerationPrompt.class))).thenReturn(moderacao(
