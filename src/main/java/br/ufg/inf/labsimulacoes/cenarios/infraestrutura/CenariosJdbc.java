@@ -2,12 +2,16 @@ package br.ufg.inf.labsimulacoes.cenarios.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Aprovacao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Devolucao;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.Pagina;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDaBiblioteca;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDoAcervo;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -38,28 +42,70 @@ class CenariosJdbc implements Cenarios {
             ARRAY(SELECT h.habilidade_codigo FROM versao_habilidade h
                   WHERE h.cenario_versao_id = v.id ORDER BY h.habilidade_codigo) AS habilidades""";
 
+    /*
+     * Os trechos abaixo são juntados com +, e não com formatted(), para que cada consulta seja uma
+     * constante de compilação: nenhum valor entra no texto do SQL, só pelos parâmetros.
+     */
+    private static final String COLUNAS_DO_CENARIO = "c.id, c.autor_id, c.status, " + COLUNAS_DA_VERSAO + """
+            ,
+            d.id AS devolucao_id, d.curador_id AS devolucao_curador_id,
+            d.comentario AS devolucao_comentario, d.criado_em AS devolucao_em""";
+
     /** A devolução mais recente da versão, para o autor saber o que mudar (RN-07). */
-    private static final String CENARIO_COM_ULTIMA_VERSAO = """
-            SELECT c.id, c.autor_id, c.status, %s,
-                   d.id AS devolucao_id, d.curador_id AS devolucao_curador_id,
-                   d.comentario AS devolucao_comentario, d.criado_em AS devolucao_em
-            FROM cenario c
-            JOIN cenario_versao v ON v.cenario_id = c.id
+    private static final String ULTIMA_DEVOLUCAO = """
             LEFT JOIN LATERAL (
                 SELECT id, curador_id, comentario, criado_em FROM devolucao
                 WHERE cenario_versao_id = v.id
                 ORDER BY criado_em DESC, id DESC
-                LIMIT 1) d ON true
+                LIMIT 1) d ON true""";
+
+    private static final String CENARIO_COM_ULTIMA_VERSAO = "SELECT " + COLUNAS_DO_CENARIO + """
+
+            FROM cenario c
+            JOIN cenario_versao v ON v.cenario_id = c.id
+            """ + ULTIMA_DEVOLUCAO + """
+
             WHERE c.id = ?
             ORDER BY v.numero DESC
-            LIMIT 1""".formatted(COLUNAS_DA_VERSAO);
+            LIMIT 1""";
+
+    /**
+     * RN-37: o curador vê todos os cenários, cada um com a versão mais recente, como em
+     * {@link #CENARIO_COM_ULTIMA_VERSAO}. Status nulo traz todos. Mesma ordem da biblioteca.
+     */
+    private static final String ACERVO = "SELECT " + COLUNAS_DO_CENARIO + """
+
+            FROM cenario c
+            JOIN LATERAL (
+                SELECT * FROM cenario_versao
+                WHERE cenario_id = c.id
+                ORDER BY numero DESC
+                LIMIT 1) v ON true
+            """ + ULTIMA_DEVOLUCAO + """
+
+            WHERE (CAST(? AS text) IS NULL OR c.status = ?)
+            ORDER BY v.titulo, c.id
+            LIMIT ? OFFSET ?""";
 
     /** RN-01: só cenário Aprovado. Suspenso e arquivado guardam a versão vigente, mas não vão à sala. */
-    private static final String VERSAO_VIGENTE = """
-            SELECT %s
+    private static final String APROVADOS_COM_VERSAO_VIGENTE = """
             FROM cenario c
             JOIN cenario_versao v ON v.id = c.versao_vigente_id
-            WHERE c.id = ? AND c.status = 'APROVADO' AND v.status = 'APROVADA'""".formatted(COLUNAS_DA_VERSAO);
+            WHERE c.status = 'APROVADO' AND v.status = 'APROVADA'""";
+
+    private static final String VERSAO_VIGENTE = """
+            SELECT %s
+            %s AND c.id = ?""".formatted(COLUNAS_DA_VERSAO, APROVADOS_COM_VERSAO_VIGENTE);
+
+    /**
+     * RF-12, mesmo critério da versão vigente. O id desempata títulos iguais, para que a ordem não
+     * mude de uma consulta para a outra e nenhuma página repita ou pule cenário.
+     */
+    private static final String BIBLIOTECA = """
+            SELECT c.id AS cenario_id, %s
+            %s
+            ORDER BY v.titulo, c.id
+            LIMIT ? OFFSET ?""".formatted(COLUNAS_DA_VERSAO, APROVADOS_COM_VERSAO_VIGENTE);
 
     private static final String INSERIR_VERSAO = """
             INSERT INTO cenario_versao (cenario_id, numero, status, titulo, conteudo, componente, etapa, ano,
@@ -105,6 +151,28 @@ class CenariosJdbc implements Cenarios {
     @Override
     public Optional<VersaoDoCenario> versaoVigente(long cenarioId) {
         return jdbc.query(VERSAO_VIGENTE, (linha, numero) -> paraVersao(linha), cenarioId).stream().findFirst();
+    }
+
+    /** Pede um item a mais que a página, só para saber se existe a próxima, sem contar a tabela. */
+    @Override
+    public TrechoDaBiblioteca listarAprovados(Pagina pagina) {
+        List<CenarioNaBiblioteca> lidos = jdbc.query(
+                BIBLIOTECA,
+                (linha, numero) -> new CenarioNaBiblioteca(linha.getLong("cenario_id"), paraVersao(linha)),
+                pagina.tamanho() + 1,
+                pagina.deslocamento());
+        boolean temProxima = lidos.size() > pagina.tamanho();
+        return new TrechoDaBiblioteca(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
+    }
+
+    /** Como na biblioteca, pede um item a mais só para saber se existe a próxima página. */
+    @Override
+    public TrechoDoAcervo listarTodos(StatusDoCenario status, Pagina pagina) {
+        String filtro = status == null ? null : status.name();
+        List<Cenario> lidos = jdbc.query(
+                ACERVO, this::paraCenario, filtro, filtro, pagina.tamanho() + 1, pagina.deslocamento());
+        boolean temProxima = lidos.size() > pagina.tamanho();
+        return new TrechoDoAcervo(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
     }
 
     private Optional<Cenario> consultar(String sql, long id) {
