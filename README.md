@@ -113,6 +113,7 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | Módulo | Interface | Para quê |
 | --- | --- | --- |
 | `acesso` | `ParametrosDeUso` | Ler o limite de perguntas por sessão e o custo diário máximo |
+| `acesso` | `TurmasDaEscola` | Listar e buscar turmas, só para leitura, com qualquer perfil autenticado |
 | `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
 | `cenarios` | `BibliotecaDeCenarios` | Listar, em páginas de até 100, os cenários aprovados da escola (RF-12), com perfil Professor ou Curador |
 | `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
@@ -126,6 +127,17 @@ As habilidades da BNCC ficam na tabela `habilidade_bncc` e vêm dos arquivos em 
 - **Busca:** pela `CatalogoBncc`, com filtros opcionais por código, trecho da descrição, etapa, ano e componente, em ordem de código e com até 50 resultados por padrão (`bncc.busca.limite-padrao`). O ano 7 também encontra as habilidades do bloco 6º e 7º, como EF67LP08.
 - **Cache:** cada busca fica no Redis (cache `habilidades-bncc`), com a chave formada pelos filtros normalizados. A importação limpa o cache inteiro depois que a gravação é confirmada. A validade de 24 horas (`bncc.cache.validade`) é só uma garantia a mais.
 - **Outra etapa:** basta criar um novo leitor que implemente `FonteDeHabilidades` na infraestrutura de `cenarios`. A importação junta as habilidades de todos os leitores.
+
+### Sessão em sala
+
+A sessão fica ligada ao professor, à turma e à versão aprovada vigente no início (RF-14, RN-10). Ela tem três estados: Em andamento, Pausada e Encerrada.
+
+- **Início:** a `InicioDeSessao` recebe a turma e o cenário e só aceita o perfil Professor. Ela recusa uma turma que não existe e um cenário sem versão aprovada (RN-01).
+- **Controles:** a `ControlesDaSessao` pausa, retoma, reinicia e encerra (RF-17). Só o professor que iniciou a sessão a controla. Pausar e retomar gravam um evento em `evento_sessao`, com o motivo da pausa. Reiniciar grava o ponto de corte: a tela fica limpa, mas as mensagens continuam no banco (RN-19). Sessão encerrada não aceita nenhum controle.
+- **Uma sessão por turma:** só a sessão Em andamento bloqueia a turma, pelo índice único `uq_sessao_em_andamento_por_turma` (RN-10). A sessão pausada não impede outra, mas também não volta enquanto a outra estiver em andamento.
+- **Estado no Redis:** cada sessão tem a chave `sessao:<id>:estado`, com status, motivo da pausa, tempo em pausa, ponto de reinício, contador de perguntas e as 20 últimas mensagens da tela. A chave é gravada só depois que a transação é confirmada, e a validade recomeça a cada gravação (`sessoes.estado.validade`, 6 horas por padrão).
+- **Reconstrução:** o PostgreSQL é a fonte da verdade. Os controles (pausar, retomar, reiniciar e encerrar) sempre partem do estado refeito a partir de `sessao`, `evento_sessao` e `mensagem`, com a sessão travada, e nunca da chave do Redis, que pode ainda não ter recebido a gravação do controle anterior. A chave serve à leitura da tela: se ela sumir ou discordar do banco, o estado é refeito e gravado de novo (RNF-04). Falha do Redis não derruba a aula.
+- **Mensagens:** quem gravar mensagens (RF-16) precisa usar o horário da aplicação em `mensagem.criado_em`, porque o ponto de reinício também usa esse relógio.
 
 ## Regras de fronteira
 
