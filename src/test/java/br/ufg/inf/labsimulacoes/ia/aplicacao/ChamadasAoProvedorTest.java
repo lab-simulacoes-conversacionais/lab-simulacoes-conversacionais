@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
+import br.ufg.inf.labsimulacoes.ia.CenariosDeTeste;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeSugestao;
@@ -19,11 +20,11 @@ import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
 import br.ufg.inf.labsimulacoes.ia.SugestaoDeCenario;
 import br.ufg.inf.labsimulacoes.ia.dominio.Geracao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MetadadosDaResposta;
-import br.ufg.inf.labsimulacoes.ia.dominio.MontadorProvisorio;
 import br.ufg.inf.labsimulacoes.ia.dominio.PromptMontado;
 import br.ufg.inf.labsimulacoes.ia.dominio.ProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.dominio.RegistroDeMetadados;
 import br.ufg.inf.labsimulacoes.ia.dominio.TabelaDePrecos;
+import br.ufg.inf.labsimulacoes.ia.dominio.TemplatesDeTeste;
 import br.ufg.inf.labsimulacoes.ia.dominio.UsoDoModelo;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -34,11 +35,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** Caso de uso com o provedor e o registro simulados; o montador e a tabela de preços são os reais. */
+/** Caso de uso com o provedor e o registro simulados; o montador, os templates e a tabela de preços são os reais. */
 class ChamadasAoProvedorTest {
 
-    private static final CenarioDaConversa CENARIO = new CenarioDaConversa("O voo do 14-bis", "Santos Dumont",
-            null, null, null, null, null, null, null, null, null);
+    private static final CenarioDaConversa CENARIO = CenariosDeTeste.VOO_DO_14_BIS;
     private static final PedidoDeFala PEDIDO = new PedidoDeFala(CENARIO, List.of(), "Quem é você?");
     private static final TabelaDePrecos PRECOS = new TabelaDePrecos(new BigDecimal("1.00"), new BigDecimal("5.00"));
 
@@ -52,7 +52,7 @@ class ChamadasAoProvedorTest {
         registro = mock(RegistroDeMetadados.class);
         when(provedor.nome()).thenReturn("openai");
         when(registro.gravar(any())).thenAnswer(gravacao -> gravacao.<MetadadosDaResposta>getArgument(0).comId(42));
-        chamadas = new ChamadasAoProvedor(provedor, new MontadorProvisorio(), registro, PRECOS);
+        chamadas = new ChamadasAoProvedor(provedor, TemplatesDeTeste.montador(), registro, PRECOS);
     }
 
     @Test
@@ -74,7 +74,7 @@ class ChamadasAoProvedorTest {
         assertThat(gravados.provedor()).isEqualTo("openai");
         assertThat(gravados.modelo()).isEqualTo("gpt-6.1-terra-2026-10-01");
         assertThat(gravados.parametros()).containsExactly(Map.entry("reasoning_effort", "low"));
-        assertThat(gravados.versaoPrompt()).isEqualTo(MontadorProvisorio.VERSAO_DA_FALA);
+        assertThat(gravados.versaoPrompt()).isEqualTo(TemplatesDeTeste.PERSONAGEM);
         assertThat(gravados.uso()).isEqualTo(new UsoDoModelo(316, 97));
         assertThat(gravados.custo()).isEqualByComparingTo("0.000801");
         assertThat(gravados.latenciaMs()).isNotNegative();
@@ -132,7 +132,7 @@ class ChamadasAoProvedorTest {
 
         assertThat(sugestao).isEqualTo(new SugestaoDeCenario(roteiro, 42));
         MetadadosDaResposta gravados = gravados();
-        assertThat(gravados.versaoPrompt()).isEqualTo(MontadorProvisorio.VERSAO_DA_SUGESTAO);
+        assertThat(gravados.versaoPrompt()).isEqualTo(TemplatesDeTeste.SUGESTAO);
         assertThat(gravados.custo()).isNull();
     }
 

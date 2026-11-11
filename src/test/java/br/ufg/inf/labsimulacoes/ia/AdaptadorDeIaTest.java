@@ -45,8 +45,7 @@ import reactor.core.publisher.Flux;
 class AdaptadorDeIaTest {
 
     private static final PedidoDeFala PEDIDO = new PedidoDeFala(
-            new CenarioDaConversa("O voo do 14-bis", "Santos Dumont", null, null, null, null, null, null, null,
-                    null, null),
+            CenariosDeTeste.VOO_DO_14_BIS,
             List.of(),
             "Quem é você?");
 
@@ -93,7 +92,7 @@ class AdaptadorDeIaTest {
                 .containsEntry("provedor", "openai")
                 .containsEntry("modelo", "gpt-6.1-terra")
                 .containsEntry("esforco", "low")
-                .containsEntry("versao_prompt", "personagem-provisorio-1")
+                .containsEntry("versao_prompt", "personagem-v1")
                 .containsEntry("tokens_entrada", 316)
                 .containsEntry("tokens_saida", 97);
         assertThat((BigDecimal) linha.get("custo")).isEqualByComparingTo("0.000801");
