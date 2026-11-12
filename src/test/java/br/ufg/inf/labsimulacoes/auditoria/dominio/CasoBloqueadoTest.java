@@ -53,4 +53,14 @@ class CasoBloqueadoTest {
                 .isInstanceOf(NullPointerException.class);
         assertThat(new ConteudoBloqueado(1, 2, origem, "P", "T", null, 5L, MOMENTO).categorias()).isEmpty();
     }
+
+    /** O evento repetido no fim da resposta é a mesma ocorrência, agora com os metadados. */
+    @Test
+    void eventoComMetadadosEAMesmaOcorrencia() {
+        var semMetadados = new ConteudoBloqueado(
+                1, 2, ConteudoBloqueado.Origem.RESPOSTA, "P", "T", List.of("hate"), null, MOMENTO);
+
+        assertThat(semMetadados.comMetadados(5)).isEqualTo(new ConteudoBloqueado(
+                1, 2, ConteudoBloqueado.Origem.RESPOSTA, "P", "T", List.of("hate"), 5L, MOMENTO));
+    }
 }

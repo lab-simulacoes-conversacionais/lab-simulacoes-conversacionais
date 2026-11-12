@@ -11,6 +11,10 @@ import java.util.Objects;
  * <p>O texto vai copiado, como na sinalização (Stack, seção 6), para o caso não depender das
  * mensagens, que a retenção apaga. Uma pergunta bloqueada nem chega a virar mensagem.
  *
+ * <p>No bloqueio da resposta, o evento sai na mesma transação da pausa, ainda sem os metadados, para
+ * o caso nunca se perder depois de a sessão pausar. Quando o restante da resposta termina, sai de novo,
+ * com os metadados; quem escuta reconhece a mesma ocorrência pela sessão e pelo momento.
+ *
  * @param sessaoId sessão pausada pelo bloqueio
  * @param versaoId versão do cenário em uso na sessão
  * @param origem o que foi bloqueado
@@ -49,5 +53,11 @@ public record ConteudoBloqueado(
             throw new IllegalArgumentException("A pergunta bloqueada não chega ao modelo, então não tem metadados");
         }
         categorias = categorias == null ? List.of() : List.copyOf(categorias);
+    }
+
+    /** A mesma ocorrência, agora com os metadados da resposta que terminou depois do bloqueio. */
+    public ConteudoBloqueado comMetadados(long metadadosId) {
+        return new ConteudoBloqueado(
+                sessaoId, versaoId, origem, pergunta, trechoBloqueado, categorias, metadadosId, ocorridoEm);
     }
 }

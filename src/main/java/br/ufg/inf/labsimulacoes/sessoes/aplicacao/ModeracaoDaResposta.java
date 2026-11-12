@@ -4,7 +4,6 @@ import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.AgrupadorDeFrases;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -56,10 +55,6 @@ final class ModeracaoDaResposta {
         if (bloqueio == null) {
             agrupador.terminar().ifPresent(this::moderar);
         }
-    }
-
-    Optional<Bloqueio> bloqueio() {
-        return Optional.ofNullable(bloqueio);
     }
 
     /** @return se a frase foi aprovada */

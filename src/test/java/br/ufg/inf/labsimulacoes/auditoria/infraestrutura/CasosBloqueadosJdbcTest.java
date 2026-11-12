@@ -105,6 +105,32 @@ class CasosBloqueadosJdbcTest {
                 .isEqualTo(1);
     }
 
+    /**
+     * O bloqueio da resposta chega antes dos metadados, que vêm quando a resposta termina; em qualquer
+     * ordem, o caso é um só e fica com os metadados.
+     */
+    @Test
+    void metadadosCompletamOCasoEmQualquerOrdem() {
+        long meta = jdbc.queryForObject(
+                "INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt) VALUES ('openai', 'm', 'v1') RETURNING id",
+                Long.class);
+        var semMetadados = new CasoBloqueado(
+                sessao, versao, ConteudoBloqueado.Origem.RESPOSTA, "Quem é você?", "Frase bloqueada.", List.of(), null,
+                AGORA);
+        var comMetadados = new CasoBloqueado(
+                sessao, versao, ConteudoBloqueado.Origem.RESPOSTA, "Quem é você?", "Frase bloqueada.", List.of(), meta,
+                AGORA);
+
+        assertThat(casos.abrir(semMetadados)).isTrue();
+        assertThat(casos.abrir(comMetadados)).isTrue();
+        assertThat(casos.abrir(semMetadados)).isFalse();
+        assertThat(casos.abrir(comMetadados)).isFalse();
+
+        assertThat(linha()).containsEntry("resposta_ia_meta_id", meta);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM caso_bloqueado WHERE sessao_id = ?", Integer.class, sessao))
+                .isEqualTo(1);
+    }
+
     private Map<String, Object> linha() {
         return jdbc.queryForMap("SELECT * FROM caso_bloqueado WHERE sessao_id = ?", sessao);
     }

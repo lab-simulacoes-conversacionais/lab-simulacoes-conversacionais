@@ -153,9 +153,10 @@ public class ConversaDaSessao {
      * respondida quando o canal for aberto de novo (RNF-04); até lá, a turma não envia outra.
      *
      * <p>Se uma frase for bloqueada (RN-20), ela e as seguintes não chegam à tela. A sessão pausa e a
-     * pergunta deixa de ficar pendente antes de a tela ser avisada; depois disso, o restante da resposta
-     * é consumido sem exibir, para os metadados terem os tokens consumidos (RNF-13). A resposta não é
-     * gravada como mensagem, e o evento {@link ConteudoBloqueado} sai no fim, já com os metadados.
+     * pergunta deixa de ficar pendente e o evento {@link ConteudoBloqueado} sai antes de a tela ser
+     * avisada; depois disso, o restante da resposta é consumido sem exibir, para os metadados terem os
+     * tokens consumidos (RNF-13). A resposta não é gravada como mensagem, e o evento sai de novo no fim,
+     * com os metadados.
      *
      * @return a resposta exibida, ou vazio se não havia pergunta pendente ou se a resposta foi bloqueada
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado se a sessão estiver pausada
@@ -177,9 +178,9 @@ public class ConversaDaSessao {
             }
             sessao.aceitarResposta();
             MensagemExibida pergunta = pendente.get();
-            AtomicReference<Instant> bloqueadaEm = new AtomicReference<>();
+            AtomicReference<ConteudoBloqueado> bloqueado = new AtomicReference<>();
             var moderacao = new ModeracaoDaResposta(adaptador, tela::exibir, bloqueio -> {
-                bloqueadaEm.set(pausarPorBloqueioDaResposta(sessaoId, pergunta));
+                bloqueado.set(pausarPorBloqueioDaResposta(sessaoId, pergunta, bloqueio));
                 avisarBloqueio(tela, sessaoId);
             });
 
@@ -188,18 +189,17 @@ public class ConversaDaSessao {
                 resposta = adaptador.responder(pedido(sessao, estado, pergunta), moderacao::receber);
                 moderacao.terminar();
             } catch (RuntimeException e) {
-                if (moderacao.bloqueio().isEmpty()) {
+                if (bloqueado.get() == null) {
                     throw e;
                 }
-                // A tela já foi avisada e a sessão está pausada: o caso vai ao curador sem os metadados.
+                // A tela já foi avisada, a sessão está pausada e o caso, aberto: ele fica sem os metadados.
                 LOG.warn("O provedor falhou depois do bloqueio na sessão {}", sessaoId, e);
-                publicarBloqueio(sessao, pergunta, moderacao.bloqueio().get(), null, bloqueadaEm.get());
                 return Optional.empty();
             }
 
-            if (moderacao.bloqueio().isPresent()) {
-                publicarBloqueio(
-                        sessao, pergunta, moderacao.bloqueio().get(), resposta.metadadosId(), bloqueadaEm.get());
+            if (bloqueado.get() != null) {
+                ConteudoBloqueado comMetadados = bloqueado.get().comMetadados(resposta.metadadosId());
+                transacao.executeWithoutResult(status -> eventos.publishEvent(comMetadados));
                 return Optional.empty();
             }
             var exibida = new MensagemExibida(MensagemExibida.Autoria.IA, resposta.texto(), relogio.agora());
@@ -211,19 +211,26 @@ public class ConversaDaSessao {
     }
 
     /**
-     * Pausa a sessão e tira a pergunta da espera, numa transação própria, antes de a tela saber do
-     * bloqueio. Se a sessão já tiver sido pausada ou encerrada durante a resposta, só a pergunta muda.
+     * Pausa a sessão, tira a pergunta da espera e publica o {@link ConteudoBloqueado}, numa transação
+     * própria, antes de a tela saber do bloqueio. Com o evento na mesma transação da pausa, o registro de
+     * publicação garante o caso do curador mesmo que a aplicação pare antes do fim da resposta. Se a
+     * sessão já tiver sido pausada ou encerrada durante a resposta, ela fica como está.
      *
-     * @return o momento do bloqueio
+     * @return o evento publicado, ainda sem os metadados da resposta
      */
-    private Instant pausarPorBloqueioDaResposta(long sessaoId, MensagemExibida pergunta) {
+    private ConteudoBloqueado pausarPorBloqueioDaResposta(
+            long sessaoId, MensagemExibida pergunta, ModeracaoDaResposta.Bloqueio bloqueio) {
         return transacao.execute(status -> {
             Sessao sessao = sessoes.buscarParaAlterar(sessaoId).orElseThrow(() -> new SessaoNaoEncontrada(sessaoId));
             Instant agora = relogio.agora();
             sessoes.marcarRespostaBloqueada(sessaoId, pergunta);
             bloquear(sessao, agora);
             estados.gravar(leitura.doBanco(sessaoId));
-            return agora;
+            var evento = new ConteudoBloqueado(
+                    sessaoId, sessao.versaoId(), ConteudoBloqueado.Origem.RESPOSTA, pergunta.texto(), bloqueio.frase(),
+                    bloqueio.categorias(), null, agora);
+            eventos.publishEvent(evento);
+            return evento;
         });
     }
 
@@ -242,14 +249,6 @@ public class ConversaDaSessao {
         } catch (RuntimeException e) {
             LOG.info("Não deu para avisar a tela da sessão {} sobre o bloqueio", sessaoId, e);
         }
-    }
-
-    private void publicarBloqueio(
-            Sessao sessao, MensagemExibida pergunta, ModeracaoDaResposta.Bloqueio bloqueio, Long metadadosId,
-            Instant em) {
-        transacao.executeWithoutResult(status -> eventos.publishEvent(new ConteudoBloqueado(
-                sessao.id(), sessao.versaoId(), ConteudoBloqueado.Origem.RESPOSTA, pergunta.texto(), bloqueio.frase(),
-                bloqueio.categorias(), metadadosId, em)));
     }
 
     /**

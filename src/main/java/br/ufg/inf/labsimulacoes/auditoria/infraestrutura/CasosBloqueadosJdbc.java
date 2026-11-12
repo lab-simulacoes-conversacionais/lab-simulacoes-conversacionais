@@ -16,7 +16,9 @@ class CasosBloqueadosJdbc implements CasosBloqueados {
             INSERT INTO caso_bloqueado (sessao_id, cenario_versao_id, origem, pergunta, trecho_bloqueado, categorias,
                                         resposta_ia_meta_id, status, ocorrido_em)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT ON CONSTRAINT uq_caso_bloqueado_ocorrencia DO NOTHING""";
+            ON CONFLICT ON CONSTRAINT uq_caso_bloqueado_ocorrencia DO UPDATE
+                SET resposta_ia_meta_id = EXCLUDED.resposta_ia_meta_id
+                WHERE caso_bloqueado.resposta_ia_meta_id IS NULL AND EXCLUDED.resposta_ia_meta_id IS NOT NULL""";
 
     private final JdbcTemplate jdbc;
 

@@ -7,7 +7,8 @@ import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Abre o caso na fila do curador quando Sessões bloqueia um conteúdo (RN-20, Stack, seção 4). Roda
+ * Abre o caso na fila do curador quando Sessões bloqueia um conteúdo (RN-20, Stack, seção 4). O mesmo
+ * bloqueio da resposta chega duas vezes, a segunda com os metadados, e o caso é um só. Roda
  * depois da transação de quem publicou, em outra transação; se a gravação falhar, o evento continua
  * pendente no registro de publicação e é reprocessado quando a aplicação reiniciar.
  */

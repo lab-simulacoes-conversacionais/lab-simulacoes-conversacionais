@@ -419,7 +419,7 @@ class ConversaEmSalaTest {
         assertThat(estados.buscar(sessao).orElseThrow().ultimasMensagens())
                 .extracting(MensagemExibida::autoria)
                 .containsExactly(Autoria.TURMA);
-        Map<String, Object> caso = casoAberto();
+        Map<String, Object> caso = casoComMetadados();
         assertThat(caso)
                 .containsEntry("origem", "RESPOSTA")
                 .containsEntry("pergunta", "Quem é você?")
@@ -453,12 +453,36 @@ class ConversaEmSalaTest {
 
         assertThat(tela.eventos).containsExactly(BLOQUEIO);
         assertThat(depoisDoBloqueio).hasSize(1);
-        Map<String, Object> caso = casoAberto();
+        Map<String, Object> caso = casoComMetadados();
         assertThat(jdbc.queryForObject(
                         "SELECT tokens_saida FROM resposta_ia_meta WHERE id = ?",
                         Integer.class,
                         caso.get("resposta_ia_meta_id")))
                 .isEqualTo(45);
+    }
+
+    /**
+     * O caso é aberto na mesma transação da pausa, antes de o restante da resposta terminar, e ganha os
+     * metadados quando ela termina. Se a aplicação parar no meio, a sessão pausada já tem o seu caso.
+     */
+    @Test
+    void casoAbreNaPausaEGanhaOsMetadadosNoFim() {
+        List<Object> casoAntesDoFim = new ArrayList<>();
+        when(adaptador.responder(any(), any())).thenAnswer(chamada -> {
+            Consumer<String> aoReceber = chamada.getArgument(1);
+            aoReceber.accept("Texto impróprio. ");
+            casoAntesDoFim.add(casoAberto().get("resposta_ia_meta_id"));
+            aoReceber.accept("Até o fim.");
+            return new RespostaDoPersonagem("Texto impróprio. Até o fim.", metadados());
+        });
+        when(adaptador.moderar("Texto impróprio.")).thenReturn(SINALIZADO);
+        conversa.enviarPergunta(sessao, "Oi");
+
+        conversa.responderPendente(sessao, new Tela());
+
+        assertThat(casoAntesDoFim).containsExactly((Object) null);
+        assertThat(casoComMetadados().get("resposta_ia_meta_id")).isNotNull();
+        assertThat(contar("SELECT count(*) FROM caso_bloqueado WHERE sessao_id = ?")).isEqualTo(1);
     }
 
     /** RN-20: quem decide é o texto ter sido sinalizado, mesmo sem nenhuma categoria. */
@@ -637,6 +661,14 @@ class ConversaEmSalaTest {
         await().atMost(Duration.ofSeconds(10))
                 .until(() -> contar("SELECT count(*) FROM caso_bloqueado WHERE sessao_id = ?") == 1);
         return jdbc.queryForMap("SELECT * FROM caso_bloqueado WHERE sessao_id = ?", sessao);
+    }
+
+    /** O caso da resposta bloqueada, depois de a Auditoria receber também o evento com os metadados. */
+    private Map<String, Object> casoComMetadados() {
+        await().atMost(Duration.ofSeconds(10)).until(() -> contar(
+                        "SELECT count(*) FROM caso_bloqueado WHERE sessao_id = ? AND resposta_ia_meta_id IS NOT NULL")
+                == 1);
+        return casoAberto();
     }
 
     private static List<String> categoriasDo(Map<String, Object> caso) {
