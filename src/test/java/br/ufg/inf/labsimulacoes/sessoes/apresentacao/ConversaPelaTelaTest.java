@@ -118,6 +118,8 @@ class ConversaPelaTelaTest {
 
         assertThat(resposta.statusCode()).isEqualTo(200);
         assertThat(resposta.headers().firstValue("Content-Type").orElse("")).startsWith("text/event-stream");
+        // O Spring Security manda este cabeçalho em toda resposta; nenhum proxy guarda o canal em cache.
+        assertThat(resposta.headers().firstValue("Cache-Control").orElse("")).contains("no-cache").contains("no-store");
         assertThat(resposta.body())
                 .containsSubsequence(
                         "event:trecho\ndata:Olá, sou \n",
