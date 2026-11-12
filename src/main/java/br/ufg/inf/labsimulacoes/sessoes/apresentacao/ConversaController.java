@@ -4,7 +4,9 @@ import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ConversaDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.PerguntaRecebida;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.TelaDaResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaSemResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada;
@@ -36,12 +38,30 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.util.HtmlUtils;
 
 /**
- * Pergunta da turma pelo painel do professor e resposta do personagem em trechos na tela de projeção
- * (RF-16, Stack, seção 5, passos 1 e 6). A pergunta vai por uma requisição HTMX; a resposta, pelo canal
- * SSE que o fragmento devolvido abre.
+ * Pergunta da turma pelo painel do professor e resposta do personagem em frases moderadas na tela de
+ * projeção (RF-16, RF-22, Stack, seção 5, passos 1, 4, 6 e 7). A pergunta vai por uma requisição HTMX; a
+ * resposta, pelo canal SSE que o fragmento devolvido abre.
  *
  * <p>Uma recusa da pergunta volta com o status HTTP do motivo e o aviso no corpo, com os cabeçalhos do
- * HTMX que o colocam na área de avisos da tela ({@value #AREA_DE_AVISOS}).
+ * HTMX que o colocam na área de avisos da tela ({@value #AREA_DE_AVISOS}). A pergunta bloqueada pelo
+ * filtro de conteúdo também é uma recusa, com o aviso neutro.
+ *
+ * <p><b>Contrato do canal SSE</b>, para a tela de projeção (issue #24):
+ *
+ * <ul>
+ *   <li>{@code trecho}: uma frase já aprovada pela moderação, com o HTML escapado, para acrescentar ao
+ *       fim da resposta.
+ *   <li>{@code bloqueio}: uma frase foi bloqueada (RN-20). Os dados são só o aviso neutro, nunca o texto
+ *       bloqueado. A tela <b>descarta a resposta parcial já exibida</b> e mostra o aviso; a sessão já
+ *       está pausada, e quem retoma é o professor.
+ *   <li>{@code falha}: o provedor ou a moderação falharam. Os dados são o aviso neutro. A tela
+ *       <b>descarta a resposta parcial já exibida</b>; a pergunta continua pendente, e abrir o canal de
+ *       novo tenta outra vez (RNF-04).
+ *   <li>{@code fim}: sempre o último evento; a tela fecha o canal, o que evita a reconexão automática.
+ * </ul>
+ *
+ * <p>Depois de {@code bloqueio} vem {@code fim} na mesma hora, e o canal fecha; o servidor continua
+ * consumindo o resto da resposta só para gravar os tokens (RNF-13).
  */
 @Controller
 @RequestMapping("/sessoes/{id}")
@@ -57,6 +77,13 @@ class ConversaController {
     /** A pergunta continua pendente: tentar de novo é abrir o canal da resposta outra vez (RNF-04). */
     private static final String AVISO_DE_FALHA =
             "Não foi possível obter a resposta do personagem. Tente de novo daqui a pouco.";
+
+    /** RN-20: neutro, sem nada do conteúdo bloqueado. */
+    static final String AVISO_DE_BLOQUEIO = "A resposta do personagem não pôde ser exibida e a sessão foi pausada. "
+            + "O caso foi encaminhado à curadoria. Retome a sessão para continuar.";
+
+    static final String AVISO_DE_PERGUNTA_BLOQUEADA = "A pergunta não pôde ser enviada e a sessão foi pausada. "
+            + "O caso foi encaminhado à curadoria. Retome a sessão para continuar.";
 
     private final ConversaDaSessao conversa;
     private final ControlesDaSessao controles;
@@ -98,11 +125,12 @@ class ConversaController {
     }
 
     private void transmitir(long id, SseEmitter canal) {
+        var tela = new TelaNoCanal(canal);
         try {
-            conversa.responderPendente(id, trecho -> enviar(canal, "trecho", escapar(trecho)));
+            conversa.responderPendente(id, tela);
         } catch (FalhaNoProvedorDeIa e) {
             LOG.warn("O provedor de IA falhou na sessão {}", id, e);
-            enviarSemFalhar(canal, "falha", escapar(AVISO_DE_FALHA));
+            tela.falhar();
         } catch (RespostaEmAndamento e) {
             // A tela reconectou enquanto a resposta anterior ainda chegava: o canal antigo segue com ela.
             LOG.debug("Canal repetido na sessão {}", id);
@@ -113,10 +141,48 @@ class ConversaController {
             return;
         } catch (RuntimeException e) {
             LOG.error("Falha ao responder na sessão {}", id, e);
-            enviarSemFalhar(canal, "falha", escapar(AVISO_DE_FALHA));
+            tela.falhar();
         }
-        enviarSemFalhar(canal, "fim", "");
-        canal.complete();
+        tela.fechar();
+    }
+
+    /** O canal fecha uma vez só: no bloqueio, logo depois do aviso, ou quando a resposta termina. */
+    private static final class TelaNoCanal implements TelaDaResposta {
+
+        private final SseEmitter canal;
+        private boolean fechado;
+
+        TelaNoCanal(SseEmitter canal) {
+            this.canal = canal;
+        }
+
+        @Override
+        public void exibir(String frase) {
+            enviar(canal, "trecho", escapar(frase));
+        }
+
+        @Override
+        public void bloquear() {
+            if (!fechado) {
+                enviarSemFalhar(canal, "bloqueio", escapar(AVISO_DE_BLOQUEIO));
+            }
+            fechar();
+        }
+
+        void falhar() {
+            if (!fechado) {
+                enviarSemFalhar(canal, "falha", escapar(AVISO_DE_FALHA));
+            }
+        }
+
+        void fechar() {
+            if (fechado) {
+                return;
+            }
+            fechado = true;
+            enviarSemFalhar(canal, "fim", "");
+            canal.complete();
+        }
     }
 
     /**
@@ -148,6 +214,19 @@ class ConversaController {
     ModelAndView limiteAtingido(HttpServletResponse resposta) {
         return aviso(resposta, HttpStatus.CONFLICT,
                 "A turma já fez todas as perguntas desta sessão. Que tal passar ao quiz?");
+    }
+
+    /** RN-20: o aviso é neutro e não repete a pergunta. */
+    @ExceptionHandler(PerguntaBloqueada.class)
+    ModelAndView perguntaBloqueada(HttpServletResponse resposta) {
+        return aviso(resposta, HttpStatus.CONFLICT, AVISO_DE_PERGUNTA_BLOQUEADA);
+    }
+
+    /** Só a moderação da pergunta chega aqui; a falha na resposta vai pelo canal SSE. */
+    @ExceptionHandler(FalhaNoProvedorDeIa.class)
+    ModelAndView moderacaoIndisponivel(HttpServletResponse resposta) {
+        return aviso(resposta, HttpStatus.SERVICE_UNAVAILABLE,
+                "Não foi possível conferir a pergunta agora. Tente de novo daqui a pouco.");
     }
 
     @ExceptionHandler(SessaoForaDoEstado.class)

@@ -2,6 +2,7 @@ package br.ufg.inf.labsimulacoes.sessoes.apresentacao;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
@@ -10,6 +11,7 @@ import br.ufg.inf.labsimulacoes.acesso.dominio.Perfil;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
+import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.InicioDeSessao;
@@ -24,6 +26,7 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -43,9 +46,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * Critérios da issue 17 pela tela, com requisições HTTP reais: a pergunta vai pelo HTMX e a resposta
- * chega em trechos pelo SSE (RF-16), e o envio é bloqueado no limite com a sugestão do quiz (RN-18). O
- * adaptador de IA é simulado.
+ * Critérios das issues 17 e 18 pela tela, com requisições HTTP reais: a pergunta vai pelo HTMX e a
+ * resposta chega em frases moderadas pelo SSE (RF-16, RF-22), o conteúdo bloqueado nunca aparece
+ * (RN-20) e o envio é bloqueado no limite com a sugestão do quiz (RN-18). O adaptador de IA, inclusive
+ * a moderação, é simulado.
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -87,6 +91,7 @@ class ConversaPelaTelaTest {
         sessao = comoProfessora(() -> inicio.iniciar(dados.turma(), cenario()).id());
         navegador = new Navegador();
         navegador.entrar(professora);
+        when(adaptador.moderar(anyString())).thenReturn(ResultadoDaModeracao.aprovado());
     }
 
     @AfterEach
@@ -108,10 +113,10 @@ class ConversaPelaTelaTest {
                 .doesNotContain("passar ao quiz");
     }
 
-    /** RF-16: os trechos chegam escapados, na ordem, e o canal termina com o evento que o fecha. */
+    /** RF-16: as frases chegam escapadas, na ordem, e o canal termina com o evento que o fecha. */
     @Test
     void respostaChegaEmTrechosPeloSse() throws Exception {
-        respondeEmTrechos("Olá, sou ", "Santos <b>Dumont</b>.");
+        respondeEmTrechos("Olá, sou ", "Santos <b>Dumont</b>. Voei em ", "1906.");
         navegador.perguntar(sessao, "Quem é você?");
 
         var resposta = navegador.resposta(sessao);
@@ -122,13 +127,14 @@ class ConversaPelaTelaTest {
         assertThat(resposta.headers().firstValue("Cache-Control").orElse("")).contains("no-cache").contains("no-store");
         assertThat(resposta.body())
                 .containsSubsequence(
-                        "event:trecho\ndata:Olá, sou \n",
-                        "event:trecho\ndata:Santos &lt;b&gt;Dumont&lt;/b&gt;.\n",
+                        "event:trecho\ndata:Olá, sou Santos &lt;b&gt;Dumont&lt;/b&gt;. \n",
+                        "event:trecho\ndata:Voei em 1906.\n",
                         "event:fim\n")
-                .doesNotContain("event:falha");
+                .doesNotContain("event:falha")
+                .doesNotContain("event:bloqueio");
         assertThat(jdbc.queryForObject(
                         "SELECT texto FROM mensagem WHERE sessao_id = ? AND autoria = 'IA'", String.class, sessao))
-                .isEqualTo("Olá, sou Santos <b>Dumont</b>.");
+                .isEqualTo("Olá, sou Santos <b>Dumont</b>. Voei em 1906.");
     }
 
     /** A tela reconectou depois da resposta: o canal só fecha, sem chamar o modelo de novo. */
@@ -148,6 +154,71 @@ class ConversaPelaTelaTest {
         assertThat(corpo)
                 .containsSubsequence("event:falha\ndata:Não foi possível obter a resposta do personagem", "event:fim\n")
                 .doesNotContain("503");
+    }
+
+    /**
+     * RN-20: a frase bloqueada e as seguintes nunca chegam pelo SSE, e o evento de bloqueio traz só o
+     * aviso neutro, sem o texto bloqueado. O canal fecha logo depois.
+     */
+    @Test
+    void fraseBloqueadaNaoChegaPeloSse() throws Exception {
+        respondeEmTrechos("Sou Santos Dumont. ", "Frase imprópria aqui. ", "Frase seguinte.");
+        when(adaptador.moderar("Frase imprópria aqui.")).thenReturn(new ResultadoDaModeracao(true, List.of("hate")));
+        navegador.perguntar(sessao, "Quem é você?");
+
+        String corpo = navegador.resposta(sessao).body();
+
+        assertThat(corpo)
+                .containsSubsequence(
+                        "event:trecho\ndata:Sou Santos Dumont. \n",
+                        "event:bloqueio\ndata:" + ConversaController.AVISO_DE_BLOQUEIO + "\n",
+                        "event:fim\n")
+                .doesNotContain("imprópria")
+                .doesNotContain("seguinte")
+                .doesNotContain("hate")
+                .doesNotContain("event:falha");
+        assertThat(corpo.split("event:fim", -1)).hasSize(2);
+    }
+
+    /** RN-20: a pergunta bloqueada volta como aviso neutro, sem repetir o texto, e a sessão pausa. */
+    @Test
+    void perguntaBloqueadaViraAvisoNeutro() throws Exception {
+        when(adaptador.moderar("Pergunta imprópria")).thenReturn(new ResultadoDaModeracao(true, List.of("violence")));
+
+        var resposta = navegador.perguntar(sessao, "Pergunta imprópria");
+
+        assertThat(resposta.statusCode()).isEqualTo(409);
+        assertThat(resposta.headers().firstValue("HX-Retarget")).contains("#aviso-da-sessao");
+        assertThat(resposta.body())
+                .contains(ConversaController.AVISO_DE_PERGUNTA_BLOQUEADA)
+                .doesNotContain("imprópria")
+                .doesNotContain("sse-connect");
+        assertThat(jdbc.queryForObject("SELECT motivo_pausa FROM sessao WHERE id = ?", String.class, sessao))
+                .isEqualTo("CONTEUDO_BLOQUEADO");
+    }
+
+    /** A moderação da pergunta falhou: o professor vê um aviso para tentar de novo, sem detalhes internos. */
+    @Test
+    void falhaDaModeracaoDaPerguntaViraAviso() throws Exception {
+        when(adaptador.moderar("Oi!")).thenThrow(new FalhaNoProvedorDeIa("HTTP 503 do provedor", null));
+
+        var resposta = navegador.perguntar(sessao, "Oi!");
+
+        assertThat(resposta.statusCode()).isEqualTo(503);
+        assertThat(resposta.body()).contains("Tente de novo daqui a pouco").doesNotContain("HTTP 503");
+    }
+
+    /** A moderação da resposta falhou: o canal traz a falha e fecha, sem nenhuma frase. */
+    @Test
+    void falhaDaModeracaoDaRespostaViraFalhaNoSse() throws Exception {
+        respondeEmTrechos("Sou Santos Dumont.");
+        when(adaptador.moderar("Sou Santos Dumont.")).thenThrow(new FalhaNoProvedorDeIa("fora do ar", null));
+        navegador.perguntar(sessao, "Quem é você?");
+
+        assertThat(navegador.resposta(sessao).body())
+                .containsSubsequence("event:falha\n", "event:fim\n")
+                .doesNotContain("event:trecho")
+                .doesNotContain("Santos");
     }
 
     /** RN-18: a última pergunta já sugere o quiz, e a seguinte é bloqueada com o aviso. */
