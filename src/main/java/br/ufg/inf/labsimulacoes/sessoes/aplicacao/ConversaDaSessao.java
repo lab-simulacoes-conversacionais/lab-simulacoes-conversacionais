@@ -13,13 +13,11 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadoDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadosDasSessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
-import br.ufg.inf.labsimulacoes.sessoes.dominio.MudancaNaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoNaoEncontrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessoes;
-import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -129,7 +127,7 @@ public class ConversaDaSessao {
         sessao.aceitarPergunta(antes);
         Instant agora = relogio.agora();
         if (moderacao.sinalizado()) {
-            pausarPorBloqueio(sessao, agora);
+            bloquear(sessao, agora);
             estados.gravar(leitura.doBanco(sessaoId));
             eventos.publishEvent(new ConteudoBloqueado(
                     sessaoId, sessao.versaoId(), ConteudoBloqueado.Origem.PERGUNTA, texto, null,
@@ -222,18 +220,18 @@ public class ConversaDaSessao {
             Sessao sessao = sessoes.buscarParaAlterar(sessaoId).orElseThrow(() -> new SessaoNaoEncontrada(sessaoId));
             Instant agora = relogio.agora();
             sessoes.marcarRespostaBloqueada(sessaoId);
-            if (sessao.status() == StatusDaSessao.EM_ANDAMENTO) {
-                pausarPorBloqueio(sessao, agora);
-            }
+            bloquear(sessao, agora);
             estados.gravar(leitura.doBanco(sessaoId));
             return agora;
         });
     }
 
-    private void pausarPorBloqueio(Sessao sessao, Instant em) {
-        MudancaNaSessao mudanca = sessao.pausar(MotivoDaPausa.CONTEUDO_BLOQUEADO, em);
-        sessoes.salvar(mudanca.sessao());
-        sessoes.registrar(sessao.id(), mudanca.evento());
+    /** RN-20: pausa a sessão se ela ainda estiver em andamento ({@link Sessao#bloquearConteudo}). */
+    private void bloquear(Sessao sessao, Instant em) {
+        sessao.bloquearConteudo(em).ifPresent(mudanca -> {
+            sessoes.salvar(mudanca.sessao());
+            sessoes.registrar(sessao.id(), mudanca.evento());
+        });
     }
 
     /** A tela que fechou não impede o resto: o stream continua para os tokens serem gravados. */
