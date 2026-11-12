@@ -15,24 +15,11 @@ import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.InicioDeSessao;
-import java.io.IOException;
-import java.net.CookieManager;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpRequest.BodyPublishers;
-import java.net.http.HttpResponse;
-import java.net.http.HttpResponse.BodyHandlers;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,7 +45,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 class ConversaPelaTelaTest {
 
     private static final String SENHA = "uma senha de teste";
-    private static final Pattern CAMPO_CSRF = Pattern.compile("name=\"_csrf\"[^>]*value=\"([^\"]+)\"");
     private static final String LIMITE = "limite_perguntas_por_sessao";
 
     @LocalServerPort
@@ -89,8 +75,8 @@ class ConversaPelaTelaTest {
         dados = new DadosDeSessao(jdbc);
         professora = profissional(Perfil.PROFESSOR);
         sessao = comoProfessora(() -> inicio.iniciar(dados.turma(), cenario()).id());
-        navegador = new Navegador();
-        navegador.entrar(professora);
+        navegador = new Navegador(porta);
+        navegador.entrar(professora, SENHA);
         when(adaptador.moderar(anyString())).thenReturn(ResultadoDaModeracao.aprovado());
     }
 
@@ -298,8 +284,8 @@ class ConversaPelaTelaTest {
     /** RN-10: outro professor não conversa nem ouve a sessão de quem a iniciou. */
     @Test
     void outroProfessorNaoUsaASessao() throws Exception {
-        var outro = new Navegador();
-        outro.entrar(profissional(Perfil.PROFESSOR));
+        var outro = new Navegador(porta);
+        outro.entrar(profissional(Perfil.PROFESSOR), SENHA);
 
         assertThat(outro.perguntar(sessao, "Oi!").statusCode()).isEqualTo(403);
         assertThat(outro.resposta(sessao).statusCode()).isEqualTo(403);
@@ -336,72 +322,6 @@ class ConversaPelaTelaTest {
             return acao.get();
         } finally {
             SecurityContextHolder.clearContext();
-        }
-    }
-
-    /** Cliente HTTP que guarda os cookies, não segue redirecionamentos e manda o CSRF como o HTMX. */
-    private final class Navegador {
-
-        private final HttpClient cliente = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .cookieHandler(new CookieManager())
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
-
-        private String tokenCsrf;
-
-        void entrar(String email) throws IOException, InterruptedException {
-            String corpo = "email=" + codificar(email) + "&senha=" + codificar(SENHA)
-                    + "&_csrf=" + codificar(csrfDe(get("/login").body()));
-            var resposta = cliente.send(
-                    requisicao("/login")
-                            .header("Content-Type", "application/x-www-form-urlencoded")
-                            .POST(BodyPublishers.ofString(corpo))
-                            .build(),
-                    BodyHandlers.ofString());
-            assertThat(resposta.headers().firstValue("Location").orElse("")).doesNotContain("/login");
-            // O token muda no login; a tela inicial traz o novo, como as telas que usam o HTMX.
-            tokenCsrf = csrfDe(get("/").body());
-        }
-
-        HttpResponse<String> perguntar(long sessaoId, String texto) throws IOException, InterruptedException {
-            return cliente.send(
-                    requisicao("/sessoes/" + sessaoId + "/perguntas")
-                            .header("Content-Type", "application/x-www-form-urlencoded")
-                            .header("HX-Request", "true")
-                            .header("X-CSRF-TOKEN", tokenCsrf)
-                            .POST(BodyPublishers.ofString("texto=" + codificar(texto)))
-                            .build(),
-                    BodyHandlers.ofString());
-        }
-
-        /** O SSE termina quando o servidor fecha o canal, então o corpo inteiro chega no fim. */
-        HttpResponse<String> resposta(long sessaoId) throws IOException, InterruptedException {
-            return cliente.send(
-                    requisicao("/sessoes/" + sessaoId + "/resposta")
-                            .header("Accept", "text/event-stream")
-                            .timeout(Duration.ofSeconds(20))
-                            .GET()
-                            .build(),
-                    BodyHandlers.ofString());
-        }
-
-        private HttpResponse<String> get(String caminho) throws IOException, InterruptedException {
-            return cliente.send(requisicao(caminho).GET().build(), BodyHandlers.ofString());
-        }
-
-        private HttpRequest.Builder requisicao(String caminho) {
-            return HttpRequest.newBuilder(URI.create("http://localhost:" + porta + caminho));
-        }
-
-        private String csrfDe(String pagina) {
-            Matcher token = CAMPO_CSRF.matcher(pagina);
-            assertThat(token.find()).as("a página traz o token CSRF").isTrue();
-            return token.group(1);
-        }
-
-        private String codificar(String valor) {
-            return URLEncoder.encode(valor, StandardCharsets.UTF_8);
         }
     }
 }
