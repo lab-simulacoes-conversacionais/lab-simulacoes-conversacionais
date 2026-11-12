@@ -116,7 +116,7 @@ public class ConversaDaSessao {
         leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId).aceitarPergunta(leitura.doBanco(sessaoId));
         ResultadoDaModeracao moderacao = adaptador.moderar(pergunta);
         Optional<PerguntaRecebida> recebida = transacao.execute(status -> gravarPergunta(sessaoId, pergunta, moderacao));
-        if (recebida == null || recebida.isEmpty()) {
+        if (recebida.isEmpty()) {
             throw new PerguntaBloqueada(sessaoId);
         }
         return recebida.get();
