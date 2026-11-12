@@ -96,10 +96,13 @@ public class ConversaDaSessao {
      * durante ela. O lock serializa dois envios simultâneos: o segundo já vê a primeira pergunta
      * pendente, e o limite vale mesmo assim (RN-18).
      *
-     * <p>Uma pergunta bloqueada não vira mensagem nem chega ao modelo, e não conta no limite.
+     * <p>Uma pergunta bloqueada não vira mensagem nem chega ao modelo, e não conta no limite. O caso vai
+     * ao curador mesmo que a sessão tenha sido pausada ou chegado ao limite durante a moderação: o
+     * conteúdo sinalizado nunca é descartado como uma recusa comum (RN-20).
      *
      * @throws IllegalArgumentException se a pergunta estiver vazia
-     * @throws PerguntaBloqueada se o filtro bloqueou a pergunta; a sessão já foi pausada
+     * @throws PerguntaBloqueada se o filtro bloqueou a pergunta; a sessão já foi pausada, se ainda estava
+     *     em andamento
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se a moderação falhar; nada é gravado
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido se a turma já fez todas
      *     as perguntas (RN-18)
@@ -126,7 +129,6 @@ public class ConversaDaSessao {
     private Optional<PerguntaRecebida> gravarPergunta(long sessaoId, String texto, ResultadoDaModeracao moderacao) {
         Sessao sessao = leitura.doProfessorLogado(sessoes.buscarParaAlterar(sessaoId), sessaoId);
         EstadoDaSessao antes = leitura.doBanco(sessaoId);
-        sessao.aceitarPergunta(antes);
         Instant agora = relogio.agora();
         if (moderacao.sinalizado()) {
             EstadoDaSessao depois = bloquear(sessao, agora).map(pausa -> antes.aplicar(pausa.evento())).orElse(antes);
@@ -136,6 +138,7 @@ public class ConversaDaSessao {
                     moderacao.categorias(), null, agora));
             return Optional.empty();
         }
+        sessao.aceitarPergunta(antes);
         var pergunta = new MensagemExibida(MensagemExibida.Autoria.TURMA, texto, agora);
         sessoes.registrarMensagem(sessaoId, pergunta, null);
         EstadoDaSessao depois = antes.registrarMensagem(pergunta);

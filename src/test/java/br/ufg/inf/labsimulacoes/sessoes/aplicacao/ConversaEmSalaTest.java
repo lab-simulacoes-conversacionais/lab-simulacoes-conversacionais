@@ -381,6 +381,50 @@ class ConversaEmSalaTest {
         assertThat(contar("SELECT count(*) FROM mensagem WHERE sessao_id = ?")).isZero();
     }
 
+    /**
+     * RN-20: o professor pausou enquanto a pergunta era moderada, e ela veio sinalizada. A pergunta não
+     * é gravada nem pausa de novo, mas o caso vai ao curador em vez de virar uma recusa comum.
+     */
+    @Test
+    void perguntaSinalizadaComASessaoPausadaNaModeracaoAindaAbreOCaso() {
+        when(adaptador.moderar("Pergunta imprópria")).thenAnswer(chamada -> {
+            controles.pausar(sessao);
+            return SINALIZADO;
+        });
+
+        assertThatThrownBy(() -> conversa.enviarPergunta(sessao, "Pergunta imprópria"))
+                .isInstanceOf(PerguntaBloqueada.class);
+
+        assertThat(contar("SELECT count(*) FROM mensagem WHERE sessao_id = ?")).isZero();
+        assertThat(pausa()).isEqualTo(MotivoDaPausa.MANUAL.name());
+        assertThat(contar("SELECT count(*) FROM evento_sessao WHERE sessao_id = ? AND tipo = 'PAUSA'")).isEqualTo(1);
+        assertThat(casoAberto()).containsEntry("origem", "PERGUNTA").containsEntry("pergunta", "Pergunta imprópria");
+    }
+
+    /** RN-18 e RN-20: o limite foi atingido durante a moderação; a pergunta sinalizada vai ao curador. */
+    @Test
+    void perguntaSinalizadaNoLimiteAindaAbreOCaso() {
+        jdbc.update("INSERT INTO parametro (chave, valor) VALUES (?, '1')", LIMITE);
+        long outra = inicio.iniciar(dados.turma(), novoCenario()).id();
+        respondeEmTrechos("Resposta.");
+        when(adaptador.moderar("Pergunta imprópria")).thenAnswer(chamada -> {
+            conversa.enviarPergunta(outra, "Primeira");
+            conversa.responderPendente(outra, new Tela());
+            return SINALIZADO;
+        });
+
+        assertThatThrownBy(() -> conversa.enviarPergunta(outra, "Pergunta imprópria"))
+                .isInstanceOf(PerguntaBloqueada.class);
+
+        assertThat(jdbc.queryForObject("SELECT motivo_pausa FROM sessao WHERE id = ?", String.class, outra))
+                .isEqualTo(MotivoDaPausa.CONTEUDO_BLOQUEADO.name());
+        await().atMost(Duration.ofSeconds(10)).until(() -> jdbc.queryForObject(
+                        "SELECT count(*) FROM caso_bloqueado WHERE sessao_id = ? AND origem = 'PERGUNTA'",
+                        Integer.class,
+                        outra)
+                == 1);
+    }
+
     /** RN-20: só as frases aprovadas chegam à tela, inteiras, na ordem em que o modelo as gerou. */
     @Test
     void frasesAprovadasChegamNaOrdem() {
