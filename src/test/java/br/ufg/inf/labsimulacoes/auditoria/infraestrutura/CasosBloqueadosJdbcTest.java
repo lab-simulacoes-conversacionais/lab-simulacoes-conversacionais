@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.CasoBloqueado;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.CasosBloqueados;
+import br.ufg.inf.labsimulacoes.eventos.ConteudoBloqueado;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import java.sql.Array;
 import java.sql.SQLException;
@@ -60,7 +61,7 @@ class CasosBloqueadosJdbcTest {
                 Long.class);
 
         assertThat(casos.abrir(new CasoBloqueado(
-                        sessao, versao, CasoBloqueado.Origem.RESPOSTA, "Quem é você?", "Frase bloqueada.",
+                        sessao, versao, ConteudoBloqueado.Origem.RESPOSTA, "Quem é você?", "Frase bloqueada.",
                         List.of("violence", "hate"), meta, AGORA)))
                 .isTrue();
 
@@ -81,7 +82,7 @@ class CasosBloqueadosJdbcTest {
     @Test
     void casoDaPerguntaNaoTemTrechoNemMetadados() {
         casos.abrir(new CasoBloqueado(
-                sessao, versao, CasoBloqueado.Origem.PERGUNTA, "Pergunta imprópria", null, List.of(), null, AGORA));
+                sessao, versao, ConteudoBloqueado.Origem.PERGUNTA, "Pergunta imprópria", null, List.of(), null, AGORA));
 
         Map<String, Object> linha = linha();
         assertThat(linha)
@@ -95,7 +96,7 @@ class CasosBloqueadosJdbcTest {
     @Test
     void mesmoBloqueioNaoAbreDoisCasos() {
         var caso = new CasoBloqueado(
-                sessao, versao, CasoBloqueado.Origem.PERGUNTA, "Pergunta imprópria", null, List.of("hate"), null, AGORA);
+                sessao, versao, ConteudoBloqueado.Origem.PERGUNTA, "Pergunta imprópria", null, List.of("hate"), null, AGORA);
 
         assertThat(casos.abrir(caso)).isTrue();
         assertThat(casos.abrir(caso)).isFalse();

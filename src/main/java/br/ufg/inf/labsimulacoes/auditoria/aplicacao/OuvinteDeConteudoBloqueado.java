@@ -25,7 +25,7 @@ class OuvinteDeConteudoBloqueado {
         casos.abrir(new CasoBloqueado(
                 evento.sessaoId(),
                 evento.versaoId(),
-                CasoBloqueado.Origem.valueOf(evento.origem().name()),
+                evento.origem(),
                 evento.pergunta(),
                 evento.trechoBloqueado(),
                 evento.categorias(),

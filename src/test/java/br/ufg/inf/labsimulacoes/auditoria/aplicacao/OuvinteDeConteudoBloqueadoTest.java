@@ -27,7 +27,7 @@ class OuvinteDeConteudoBloqueadoTest {
                 MOMENTO));
 
         assertThat(aberto()).isEqualTo(new CasoBloqueado(
-                7, 30, CasoBloqueado.Origem.RESPOSTA, "Quem é você?", "Frase bloqueada.", List.of("violence"), 99L,
+                7, 30, ConteudoBloqueado.Origem.RESPOSTA, "Quem é você?", "Frase bloqueada.", List.of("violence"), 99L,
                 MOMENTO));
     }
 
@@ -37,7 +37,7 @@ class OuvinteDeConteudoBloqueadoTest {
                 7, 30, ConteudoBloqueado.Origem.PERGUNTA, "Pergunta imprópria", null, List.of(), null, MOMENTO));
 
         CasoBloqueado caso = aberto();
-        assertThat(caso.origem()).isEqualTo(CasoBloqueado.Origem.PERGUNTA);
+        assertThat(caso.origem()).isEqualTo(ConteudoBloqueado.Origem.PERGUNTA);
         assertThat(caso.trechoBloqueado()).isNull();
         assertThat(caso.respostaIaMetaId()).isNull();
         assertThat(caso.categorias()).isEmpty();

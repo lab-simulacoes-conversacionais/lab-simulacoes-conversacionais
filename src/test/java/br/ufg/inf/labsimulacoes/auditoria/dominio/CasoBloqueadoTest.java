@@ -3,7 +3,7 @@ package br.ufg.inf.labsimulacoes.auditoria.dominio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import br.ufg.inf.labsimulacoes.auditoria.dominio.CasoBloqueado.Origem;
+import br.ufg.inf.labsimulacoes.eventos.ConteudoBloqueado.Origem;
 import br.ufg.inf.labsimulacoes.eventos.ConteudoBloqueado;
 import java.time.Instant;
 import java.util.ArrayList;
