@@ -42,11 +42,30 @@ class AgrupadorDeFrasesTest {
         "O Prof. Lima explicou.",
         "No séc. XX tudo mudou.",
         "Foi D. Pedro II quem reinou.",
+        "Era filho de D. Pedro.",
+        "J. R. Silva escreveu.",
+        "Veja a p. 12 do livro.",
         "Isso foi em 300 a.C. no Egito.",
-        "Mede aprox. dez metros."
+        "Mede aprox. dez metros.",
+        "Ele disse: “Sr. Silva chegou.”",
+        "Ele disse: «Dr. Lima chegou.»",
+        "Ele disse: \"Prof. Lima chegou.\"",
+        "(Sra. Lima chegou.)"
     })
     void abreviacaoEInicialNaoFecham(String frase) {
         assertThat(frases(frase + " Depois.")).containsExactly(frase + " ", "Depois.");
+    }
+
+    /** A letra depois de uma palavra comum, ou o numeral depois de um nome, fecha a frase. */
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "Tome vitamina C.",
+        "Era o plano B.",
+        "A resposta certa é a letra a.",
+        "Foi o reinado de D. Pedro I."
+    })
+    void letraQueNaoEInicialFecha(String frase) {
+        assertThat(frases(frase + " Depois descanse.")).containsExactly(frase + " ", "Depois descanse.");
     }
 
     /** O ano no fim da frase fecha; o ponto entre dígitos, não. */
