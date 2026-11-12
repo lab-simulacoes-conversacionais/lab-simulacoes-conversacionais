@@ -21,8 +21,8 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessoes;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,10 +61,11 @@ public class ConversaDaSessao {
     private final ApplicationEventPublisher eventos;
 
     /**
-     * Sessões em que o personagem está respondendo agora. Fica em memória porque a aplicação roda numa
-     * instância só (Stack, seção 4); com mais de uma, precisaria ir para o Redis.
+     * Sessões em que o personagem está respondendo agora, com a marca de quem responde, para uma
+     * resposta só liberar a sua vez. Fica em memória porque a aplicação roda numa instância só (Stack,
+     * seção 4); com mais de uma, precisaria ir para o Redis.
      */
-    private final Set<Long> respondendo = ConcurrentHashMap.newKeySet();
+    private final ConcurrentMap<Long, Object> respondendo = new ConcurrentHashMap<>();
 
     ConversaDaSessao(
             Sessoes sessoes,
@@ -155,19 +156,22 @@ public class ConversaDaSessao {
      * <p>Se uma frase for bloqueada (RN-20), ela e as seguintes não chegam à tela. A sessão pausa e a
      * pergunta deixa de ficar pendente e o evento {@link ConteudoBloqueado} sai antes de a tela ser
      * avisada; depois disso, o restante da resposta é consumido sem exibir, para os metadados terem os
-     * tokens consumidos (RNF-13). A resposta não é gravada como mensagem, e o evento sai de novo no fim,
+     * tokens consumidos (RNF-13). Esse consumo não prende a sessão: depois de retomar, a resposta à
+     * pergunta seguinte já pode ser gerada. A resposta não é gravada como mensagem, e o evento sai de novo no fim,
      * com os metadados.
      *
      * @return a resposta exibida, ou vazio se não havia pergunta pendente ou se a resposta foi bloqueada
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado se a sessão estiver pausada
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada se já estiver encerrada (RN-19)
-     * @throws RespostaEmAndamento se outra resposta estiver sendo gerada nesta sessão
+     * @throws RespostaEmAndamento se outra resposta estiver sendo gerada nesta sessão e ainda não tiver
+     *     sido bloqueada
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se o provedor ou a moderação falharem antes
      *     de um bloqueio
      */
     public Optional<MensagemExibida> responderPendente(long sessaoId, TelaDaResposta tela) {
         Sessao sessao = leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId);
-        if (!respondendo.add(sessaoId)) {
+        Object vez = new Object();
+        if (respondendo.putIfAbsent(sessaoId, vez) != null) {
             throw new RespostaEmAndamento(sessaoId);
         }
         try {
@@ -181,6 +185,8 @@ public class ConversaDaSessao {
             AtomicReference<ConteudoBloqueado> bloqueado = new AtomicReference<>();
             var moderacao = new ModeracaoDaResposta(adaptador, tela::exibir, bloqueio -> {
                 bloqueado.set(pausarPorBloqueioDaResposta(sessaoId, pergunta, bloqueio));
+                // O restante só serve aos metadados: a sessão fica livre para a próxima resposta.
+                respondendo.remove(sessaoId, vez);
                 avisarBloqueio(tela, sessaoId);
             });
 
@@ -206,7 +212,7 @@ public class ConversaDaSessao {
             transacao.executeWithoutResult(status -> gravarResposta(sessaoId, exibida, resposta.metadadosId()));
             return Optional.of(exibida);
         } finally {
-            respondendo.remove(sessaoId);
+            respondendo.remove(sessaoId, vez);
         }
     }
 

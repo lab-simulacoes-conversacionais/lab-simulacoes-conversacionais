@@ -30,6 +30,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida.Autoria;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaSemResposta;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
@@ -39,6 +40,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -483,6 +486,39 @@ class ConversaEmSalaTest {
         assertThat(casoAntesDoFim).containsExactly((Object) null);
         assertThat(casoComMetadados().get("resposta_ia_meta_id")).isNotNull();
         assertThat(contar("SELECT count(*) FROM caso_bloqueado WHERE sessao_id = ?")).isEqualTo(1);
+    }
+
+    /**
+     * Antes do bloqueio, a sessão está ocupada com a resposta. Depois dele, o restante ainda chega só
+     * para os metadados, mas não prende a sessão: retomada, a pergunta seguinte é respondida na hora.
+     */
+    @Test
+    void restoDaRespostaBloqueadaNaoPrendeASessao() {
+        List<Optional<MensagemExibida>> respostaDaSeguinte = new ArrayList<>();
+        AtomicInteger chamadas = new AtomicInteger();
+        when(adaptador.responder(any(), any())).thenAnswer(chamada -> {
+            Consumer<String> aoReceber = chamada.getArgument(1);
+            if (chamadas.incrementAndGet() > 1) {
+                aoReceber.accept("Voou em 1906.");
+                return new RespostaDoPersonagem("Voou em 1906.", metadados());
+            }
+            assertThatThrownBy(() -> conversa.responderPendente(sessao, new Tela()))
+                    .isInstanceOf(RespostaEmAndamento.class);
+            aoReceber.accept("Texto impróprio. ");
+            controles.retomar(sessao);
+            conversa.enviarPergunta(sessao, "E o 14-bis?");
+            respostaDaSeguinte.add(conversa.responderPendente(sessao, new Tela()));
+            aoReceber.accept("Resto que só conta nos tokens.");
+            return new RespostaDoPersonagem("Texto impróprio. Resto que só conta nos tokens.", metadados());
+        });
+        when(adaptador.moderar("Texto impróprio.")).thenReturn(SINALIZADO);
+        conversa.enviarPergunta(sessao, "Oi");
+
+        assertThat(conversa.responderPendente(sessao, new Tela())).isEmpty();
+
+        assertThat(respostaDaSeguinte).hasSize(1);
+        assertThat(respostaDaSeguinte.getFirst()).map(MensagemExibida::texto).contains("Voou em 1906.");
+        assertThat(conversa.responderPendente(sessao, new Tela())).isEmpty();
     }
 
     /** RN-20: quem decide é o texto ter sido sinalizado, mesmo sem nenhuma categoria. */

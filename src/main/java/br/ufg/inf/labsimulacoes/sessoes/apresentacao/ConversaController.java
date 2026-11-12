@@ -61,7 +61,8 @@ import org.springframework.web.util.HtmlUtils;
  * </ul>
  *
  * <p>Depois de {@code bloqueio} vem {@code fim} na mesma hora, e o canal fecha; o servidor continua
- * consumindo o resto da resposta só para gravar os tokens (RNF-13).
+ * consumindo o resto da resposta só para gravar os tokens (RNF-13), sem prender a sessão: depois de
+ * retomar, o canal da pergunta seguinte responde normalmente.
  */
 @Controller
 @RequestMapping("/sessoes/{id}")
@@ -132,7 +133,8 @@ class ConversaController {
             LOG.warn("O provedor de IA falhou na sessão {}", id, e);
             tela.falhar();
         } catch (RespostaEmAndamento e) {
-            // A tela reconectou enquanto a resposta anterior ainda chegava: o canal antigo segue com ela.
+            // A tela reconectou enquanto a resposta anterior ainda chegava, antes de qualquer bloqueio:
+            // o canal antigo segue com ela.
             LOG.debug("Canal repetido na sessão {}", id);
         } catch (UncheckedIOException e) {
             // A tela fechou no meio da resposta; o streaming do provedor já foi cancelado.
