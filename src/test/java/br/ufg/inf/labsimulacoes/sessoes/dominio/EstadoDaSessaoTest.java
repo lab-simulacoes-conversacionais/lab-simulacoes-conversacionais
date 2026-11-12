@@ -47,6 +47,52 @@ class EstadoDaSessaoTest {
         assertThat(EstadoDaSessao.inicial(sessao()).perguntaPendente()).isEmpty();
     }
 
+    /** RN-20: a pergunta cuja resposta foi bloqueada continua na tela, mas não espera mais resposta. */
+    @Test
+    void perguntaComRespostaBloqueadaNaoEstaPendente() {
+        var pergunta = new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10), true);
+
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao()).registrarMensagem(pergunta);
+
+        assertThat(estado.perguntaPendente()).isEmpty();
+        assertThat(estado.ultimasMensagens()).containsExactly(pergunta);
+        assertThat(estado.perguntasDaTurma()).isEqualTo(1);
+    }
+
+    /** A pergunta pendente vai à parte no pedido, então não se repete no histórico. */
+    @Test
+    void historicoParaOModeloNaoRepeteAPerguntaPendente() {
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(turma("Quem é você?", 10))
+                .registrarMensagem(ia("Sou Santos Dumont.", 12))
+                .registrarMensagem(turma("E o 14-bis?", 20));
+
+        assertThat(estado.historicoParaOModelo())
+                .containsExactly(turma("Quem é você?", 10), ia("Sou Santos Dumont.", 12));
+        assertThat(estado.registrarMensagem(ia("Voou em 1906.", 22)).historicoParaOModelo()).hasSize(4);
+    }
+
+    /** RN-20: a pergunta cuja resposta foi bloqueada não volta ao modelo. */
+    @Test
+    void historicoParaOModeloDeixaDeForaAPerguntaBloqueada() {
+        var bloqueada = new MensagemExibida(Autoria.TURMA, "Pergunta que gerou o bloqueio", segundos(20), true);
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(turma("Quem é você?", 10))
+                .registrarMensagem(ia("Sou Santos Dumont.", 12))
+                .registrarMensagem(bloqueada)
+                .registrarMensagem(turma("E o 14-bis?", 30));
+
+        assertThat(estado.historicoParaOModelo())
+                .containsExactly(turma("Quem é você?", 10), ia("Sou Santos Dumont.", 12));
+    }
+
+    @Test
+    void soAPerguntaDaTurmaTemARespostaBloqueada() {
+        assertThatThrownBy(() -> new MensagemExibida(Autoria.IA, "Sou Santos Dumont.", segundos(10), true))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new MensagemExibida(Autoria.IA, "Sou Santos Dumont.", segundos(10)).respostaBloqueada()).isFalse();
+    }
+
     /** RN-19: depois de reiniciar, a tela está limpa e nada fica pendente. */
     @Test
     void reinicioLimpaAPerguntaPendente() {

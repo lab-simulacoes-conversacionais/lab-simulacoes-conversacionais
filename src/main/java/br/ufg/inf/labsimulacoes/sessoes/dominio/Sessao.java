@@ -2,6 +2,7 @@ package br.ufg.inf.labsimulacoes.sessoes.dominio;
 
 import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Sessão coletiva em sala (RF-14, RF-17). Fica ligada ao professor, à turma e à versão do cenário,
@@ -100,6 +101,20 @@ public record Sessao(
         Objects.requireNonNull(motivo, "motivo");
         exigir(StatusDaSessao.EM_ANDAMENTO, "pausar");
         return new MudancaNaSessao(comStatus(StatusDaSessao.PAUSADA, motivo, null), EventoDaSessao.pausa(motivo, em));
+    }
+
+    /**
+     * O filtro de conteúdo bloqueou uma pergunta ou uma frase da resposta (RN-20). A sessão em andamento
+     * pausa com o motivo {@link MotivoDaPausa#CONTEUDO_BLOQUEADO}, e quem retoma é o professor. A que já
+     * foi pausada ou encerrada enquanto a pergunta era moderada ou a resposta chegava fica como está: o
+     * caso vai ao curador do mesmo jeito.
+     *
+     * @return a pausa, ou vazio se a sessão não estava em andamento
+     */
+    public Optional<MudancaNaSessao> bloquearConteudo(Instant em) {
+        return status == StatusDaSessao.EM_ANDAMENTO
+                ? Optional.of(pausar(MotivoDaPausa.CONTEUDO_BLOQUEADO, em))
+                : Optional.empty();
     }
 
     /**

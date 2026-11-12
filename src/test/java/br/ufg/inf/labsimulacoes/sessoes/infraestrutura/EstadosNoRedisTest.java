@@ -103,6 +103,34 @@ class EstadosNoRedisTest {
         assertThat(estados.buscar(sessaoId)).isEmpty();
     }
 
+    /** RN-20: a marca da pergunta com resposta bloqueada sobrevive à ida e volta pelo Redis. */
+    @Test
+    void perguntaComRespostaBloqueadaEhLidaIgual() {
+        EstadoDaSessao estado = inicial()
+                .registrarMensagem(new MensagemExibida(MensagemExibida.Autoria.TURMA, "Oi", INICIO.plusSeconds(5), true));
+
+        estados.gravar(estado);
+
+        EstadoDaSessao lido = estados.buscar(sessaoId).orElseThrow();
+        assertThat(lido).isEqualTo(estado);
+        assertThat(lido.perguntaPendente()).isEmpty();
+    }
+
+    /** Uma chave gravada antes de a marca existir continua legível, sem a marca. */
+    @Test
+    void chaveSemAMarcaDeBloqueioEhLida() {
+        redis.opsForValue().set(EstadosNoRedis.chave(sessaoId), """
+                {"sessaoId": %d, "status": "EM_ANDAMENTO", "motivoDaPausa": null, "iniciadaEm": "2026-11-11T13:00:00Z",
+                 "tempoEmPausaNanos": 0, "pausadaDesde": null, "reiniciadaEm": null, "perguntasDaTurma": 1,
+                 "ultimasMensagens": [{"autoria": "TURMA", "texto": "Oi", "em": "2026-11-11T13:00:05Z"}]}"""
+                .formatted(sessaoId));
+
+        EstadoDaSessao lido = estados.buscar(sessaoId).orElseThrow();
+
+        assertThat(lido.ultimasMensagens()).extracting(MensagemExibida::respostaBloqueada).containsExactly(false);
+        assertThat(lido.perguntaPendente()).isPresent();
+    }
+
     private EstadoDaSessao inicial() {
         return EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, 40, INICIO).comId(sessaoId));
     }

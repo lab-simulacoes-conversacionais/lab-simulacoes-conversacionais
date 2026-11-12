@@ -55,6 +55,26 @@ class SessaoTest {
         assertThatThrownBy(() -> pausada.pausar(MotivoDaPausa.MANUAL, DEPOIS)).isInstanceOf(SessaoForaDoEstado.class);
     }
 
+    /** RN-20: o bloqueio pausa a sessão em andamento, e quem retoma é o professor. */
+    @Test
+    void bloqueioPausaASessaoEmAndamento() {
+        MudancaNaSessao mudanca = emAndamento().bloquearConteudo(DEPOIS).orElseThrow();
+
+        assertThat(mudanca.sessao().status()).isEqualTo(StatusDaSessao.PAUSADA);
+        assertThat(mudanca.sessao().motivoDaPausa()).isEqualTo(MotivoDaPausa.CONTEUDO_BLOQUEADO);
+        assertThat(mudanca.evento()).isEqualTo(EventoDaSessao.pausa(MotivoDaPausa.CONTEUDO_BLOQUEADO, DEPOIS));
+    }
+
+    /** RN-20: pausada ou encerrada no meio da resposta, a sessão fica como está; só o caso é aberto. */
+    @Test
+    void bloqueioNaoMudaASessaoPausadaNemAEncerrada() {
+        Sessao pausada = emAndamento().pausar(MotivoDaPausa.MANUAL, INICIO).sessao();
+        Sessao encerrada = emAndamento().encerrar(INICIO);
+
+        assertThat(pausada.bloquearConteudo(DEPOIS)).isEmpty();
+        assertThat(encerrada.bloquearConteudo(DEPOIS)).isEmpty();
+    }
+
     /** RN-25: até depois de uma suspensão, quem decide continuar é o professor. */
     @ParameterizedTest
     @EnumSource(MotivoDaPausa.class)

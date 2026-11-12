@@ -5,9 +5,14 @@
   Fragmentos da conversa em sala (RF-16), devolvidos às requisições HTMX. A tela de projeção que os
   recebe, com o estilo e a extensão SSE do HTMX, é da issue #24.
 
-  A resposta chega pelo canal SSE em três eventos: "trecho" (texto já escapado, acrescentado ao fim),
-  "falha" (aviso neutro quando o provedor falha) e "fim", que fecha o canal e evita a reconexão
-  automática do navegador.
+  A resposta chega pelo canal SSE em quatro eventos (contrato completo no ConversaController):
+  - "trecho": frase já aprovada pela moderação e escapada, acrescentada ao fim (RN-20);
+  - "bloqueio": o filtro bloqueou uma frase. Traz só o aviso neutro, nunca o texto bloqueado; a tela
+    descarta a resposta parcial já exibida e mostra o aviso. A sessão já está pausada;
+  - "falha": o provedor ou a moderação falharam. A tela descarta a resposta parcial já exibida e mostra
+    o aviso; a pergunta continua pendente (RNF-04);
+  - "fim": sempre o último; fecha o canal e evita a reconexão automática do navegador.
+  O descarte da resposta parcial é da tela de projeção (#24); este fragmento só mostra o aviso.
 -->
 <th:block th:fragment="pergunta">
   <div class="mensagem mensagem-turma">
@@ -18,7 +23,7 @@
        th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})}">
     <span class="mensagem-autoria">Personagem</span>
     <p class="mensagem-texto" sse-swap="trecho" hx-swap="beforeend"></p>
-    <p class="aviso" role="alert" sse-swap="falha"></p>
+    <p class="aviso" role="alert" sse-swap="falha,bloqueio"></p>
   </div>
   <p class="aviso aviso-quiz" th:if="${recebida.perguntasRestantes() == 0}">
     Esta foi a última pergunta da sessão. Ao fim da resposta, que tal passar ao quiz?

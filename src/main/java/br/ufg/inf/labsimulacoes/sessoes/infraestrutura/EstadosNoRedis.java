@@ -133,14 +133,17 @@ class EstadosNoRedis implements EstadosDasSessoes {
         }
     }
 
-    record MensagemJson(String autoria, String texto, Instant em) {
+    /** @param respostaBloqueada nulo nas chaves gravadas antes de o campo existir */
+    record MensagemJson(String autoria, String texto, Instant em, Boolean respostaBloqueada) {
 
         static MensagemJson de(MensagemExibida mensagem) {
-            return new MensagemJson(mensagem.autoria().name(), mensagem.texto(), mensagem.em());
+            return new MensagemJson(
+                    mensagem.autoria().name(), mensagem.texto(), mensagem.em(), mensagem.respostaBloqueada());
         }
 
         MensagemExibida paraDominio() {
-            return new MensagemExibida(MensagemExibida.Autoria.valueOf(autoria), texto, em);
+            return new MensagemExibida(
+                    MensagemExibida.Autoria.valueOf(autoria), texto, em, Boolean.TRUE.equals(respostaBloqueada));
         }
     }
 }

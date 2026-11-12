@@ -178,6 +178,62 @@ class SessoesJdbcTest {
                 .hasMessageContaining("RNF-10");
     }
 
+    /**
+     * RN-20: a marca vai na pergunta que estava sendo respondida, mesmo que outra tenha entrado depois
+     * dela, como quando a sessão é reiniciada durante a resposta (RN-19).
+     */
+    @Test
+    void marcaARespostaBloqueadaNaPerguntaRespondida() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        dados.mensagem(sessao.id(), "TURMA", "Respondida", AGORA.plusSeconds(5));
+        dados.mensagem(sessao.id(), "TURMA", "Depois do reinício", AGORA.plusSeconds(10));
+
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id(), pergunta("Respondida", AGORA.plusSeconds(5)))).isTrue();
+
+        assertThat(jdbc.queryForList(
+                        "SELECT texto FROM mensagem WHERE sessao_id = ? AND resposta_bloqueada", String.class, sessao.id()))
+                .containsExactly("Respondida");
+        assertThat(sessoes.historico(sessao.id(), 20).orElseThrow().mensagensDesdeOReinicio())
+                .filteredOn(MensagemExibida::respostaBloqueada)
+                .extracting(MensagemExibida::texto)
+                .containsExactly("Respondida");
+    }
+
+    /** Duas perguntas iguais no mesmo instante: só a mais recente pelo id é marcada. */
+    @Test
+    void perguntasRepetidasMarcamSoAUltima() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        dados.mensagem(sessao.id(), "TURMA", "Oi", AGORA);
+        dados.mensagem(sessao.id(), "TURMA", "Oi", AGORA);
+
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id(), pergunta("Oi", AGORA))).isTrue();
+
+        assertThat(jdbc.queryForList(
+                        "SELECT resposta_bloqueada FROM mensagem WHERE sessao_id = ? ORDER BY id", Boolean.class, sessao.id()))
+                .containsExactly(false, true);
+    }
+
+    /** Sem a pergunta na sessão, nada é marcado; a resposta da IA nunca é. */
+    @Test
+    void naoMarcaPerguntaQueNaoEstaNaSessao() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id(), pergunta("Pergunta", AGORA))).isFalse();
+        dados.mensagem(sessao.id(), "TURMA", "Pergunta", AGORA);
+
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id(), pergunta("Outra", AGORA))).isFalse();
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id(), pergunta("Pergunta", AGORA.plusSeconds(1)))).isFalse();
+        assertThatThrownBy(() -> sessoes.marcarRespostaBloqueada(
+                        sessao.id(), new MensagemExibida(MensagemExibida.Autoria.IA, "Pergunta", AGORA)))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM mensagem WHERE sessao_id = ? AND resposta_bloqueada", Integer.class, sessao.id()))
+                .isZero();
+    }
+
+    private static MensagemExibida pergunta(String texto, Instant em) {
+        return new MensagemExibida(MensagemExibida.Autoria.TURMA, texto, em);
+    }
+
     /** Só as mais recentes voltam, mas em ordem de exibição. */
     @Test
     void historicoLimitaAsMensagensAsMaisRecentes() {

@@ -33,6 +33,17 @@ public interface Sessoes {
      */
     void registrarMensagem(long sessaoId, MensagemExibida mensagem, Long respostaIaMetaId);
 
+    /**
+     * Marca a pergunta da turma cuja resposta foi bloqueada (RN-20). A pergunta é a que estava sendo
+     * respondida, e não a última da sessão: se a sessão for reiniciada durante a resposta, outra pergunta
+     * pode entrar antes do bloqueio (RN-19). Ela é achada pelo texto e pelo horário com que foi lida do
+     * banco; se houver duas iguais, vale a de maior id.
+     *
+     * @param pergunta a pergunta pendente, como veio de {@link #historico}
+     * @return se a pergunta foi encontrada e marcada
+     */
+    boolean marcarRespostaBloqueada(long sessaoId, MensagemExibida pergunta);
+
     /** Tudo o que reconstrói o estado quente da sessão, com até {@code mensagens} mensagens. */
     Optional<HistoricoDaSessao> historico(long sessaoId, int mensagens);
 }
