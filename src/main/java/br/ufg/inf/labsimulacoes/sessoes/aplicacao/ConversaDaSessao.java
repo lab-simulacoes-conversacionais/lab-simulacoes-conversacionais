@@ -144,8 +144,9 @@ public class ConversaDaSessao {
     /**
      * Gera a resposta do personagem à pergunta pendente e entrega à tela, na ordem, cada frase que a
      * moderação aprovou, enquanto o modelo gera. A resposta completa é gravada com os metadados (RNF-10).
-     * O histórico enviado ao modelo começa no último reinício (RN-19) e tem até
-     * {@link EstadoDaSessao#MENSAGENS_GUARDADAS} mensagens.
+     * O histórico enviado ao modelo começa no último reinício (RN-19), tem até
+     * {@link EstadoDaSessao#MENSAGENS_GUARDADAS} mensagens e deixa de fora as perguntas cuja resposta
+     * foi bloqueada (RN-20).
      *
      * <p>Se não houver pergunta pendente, porque a tela reconectou depois da resposta, não chama o
      * modelo e devolve vazio. Se o provedor ou a moderação falharem, a pergunta continua pendente e é
@@ -265,8 +266,7 @@ public class ConversaDaSessao {
         VersaoAprovada versao = cenarios.versaoAprovada(sessao.versaoId())
                 .orElseThrow(() -> new IllegalStateException(
                         "A versão " + sessao.versaoId() + " da sessão " + sessao.id() + " não está aprovada"));
-        List<MensagemExibida> mensagens = estado.ultimasMensagens();
-        List<MensagemDaConversa> historico = mensagens.subList(0, mensagens.size() - 1).stream()
+        List<MensagemDaConversa> historico = estado.historicoParaOModelo().stream()
                 .map(ConversaDaSessao::paraConversa)
                 .toList();
         return new PedidoDeFala(paraCenario(versao), historico, pendente.texto());

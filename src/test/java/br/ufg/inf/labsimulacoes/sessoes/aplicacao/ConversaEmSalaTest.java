@@ -511,6 +511,28 @@ class ConversaEmSalaTest {
                 .containsExactly(true, false);
     }
 
+    /** RN-20: depois de retomar, a pergunta que gerou o bloqueio não volta ao modelo no histórico. */
+    @Test
+    void perguntaComRespostaBloqueadaNaoVoltaAoModelo() {
+        respondeEmTrechos("Sou Santos Dumont.");
+        conversa.enviarPergunta(sessao, "Quem é você?");
+        conversa.responderPendente(sessao, new Tela());
+        when(adaptador.moderar("Sou Santos Dumont.")).thenReturn(SINALIZADO);
+        conversa.enviarPergunta(sessao, "Pergunta que gerou o bloqueio");
+        conversa.responderPendente(sessao, new Tela());
+        controles.retomar(sessao);
+        when(adaptador.moderar("Sou Santos Dumont.")).thenReturn(ResultadoDaModeracao.aprovado());
+        conversa.enviarPergunta(sessao, "E o 14-bis?");
+
+        conversa.responderPendente(sessao, new Tela());
+
+        PedidoDeFala pedido = ultimoPedido();
+        assertThat(pedido.pergunta()).isEqualTo("E o 14-bis?");
+        assertThat(pedido.historico()).containsExactly(
+                new MensagemDaConversa(MensagemDaConversa.Autor.TURMA, "Quem é você?"),
+                new MensagemDaConversa(MensagemDaConversa.Autor.PERSONAGEM, "Sou Santos Dumont."));
+    }
+
     /** RNF-04: a moderação da resposta falhou como o provedor: nada aparece e a pergunta continua pendente. */
     @Test
     void falhaDaModeracaoDaRespostaDeixaAPerguntaPendente() {

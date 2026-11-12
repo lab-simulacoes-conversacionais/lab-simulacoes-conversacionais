@@ -59,6 +59,33 @@ class EstadoDaSessaoTest {
         assertThat(estado.perguntasDaTurma()).isEqualTo(1);
     }
 
+    /** A pergunta pendente vai à parte no pedido, então não se repete no histórico. */
+    @Test
+    void historicoParaOModeloNaoRepeteAPerguntaPendente() {
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(turma("Quem é você?", 10))
+                .registrarMensagem(ia("Sou Santos Dumont.", 12))
+                .registrarMensagem(turma("E o 14-bis?", 20));
+
+        assertThat(estado.historicoParaOModelo())
+                .containsExactly(turma("Quem é você?", 10), ia("Sou Santos Dumont.", 12));
+        assertThat(estado.registrarMensagem(ia("Voou em 1906.", 22)).historicoParaOModelo()).hasSize(4);
+    }
+
+    /** RN-20: a pergunta cuja resposta foi bloqueada não volta ao modelo. */
+    @Test
+    void historicoParaOModeloDeixaDeForaAPerguntaBloqueada() {
+        var bloqueada = new MensagemExibida(Autoria.TURMA, "Pergunta que gerou o bloqueio", segundos(20), true);
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(turma("Quem é você?", 10))
+                .registrarMensagem(ia("Sou Santos Dumont.", 12))
+                .registrarMensagem(bloqueada)
+                .registrarMensagem(turma("E o 14-bis?", 30));
+
+        assertThat(estado.historicoParaOModelo())
+                .containsExactly(turma("Quem é você?", 10), ia("Sou Santos Dumont.", 12));
+    }
+
     @Test
     void soAPerguntaDaTurmaTemARespostaBloqueada() {
         assertThatThrownBy(() -> new MensagemExibida(Autoria.IA, "Sou Santos Dumont.", segundos(10), true))

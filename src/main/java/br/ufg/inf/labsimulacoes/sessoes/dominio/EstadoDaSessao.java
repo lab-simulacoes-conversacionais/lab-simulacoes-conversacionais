@@ -124,6 +124,18 @@ public record EstadoDaSessao(
                 : Optional.empty();
     }
 
+    /**
+     * O histórico que vai ao modelo junto com a pergunta pendente: as mensagens da tela anteriores a
+     * ela, sem as perguntas cuja resposta foi bloqueada (RN-20). Uma pergunta bloqueada, sem resposta
+     * depois dela, levaria o modelo a responder de novo ao que gerou o conteúdo bloqueado.
+     */
+    public List<MensagemExibida> historicoParaOModelo() {
+        List<MensagemExibida> anteriores = perguntaPendente().isPresent()
+                ? ultimasMensagens.subList(0, ultimasMensagens.size() - 1)
+                : ultimasMensagens;
+        return anteriores.stream().filter(mensagem -> !mensagem.respostaBloqueada()).toList();
+    }
+
     /** Soma das pausas até o momento dado, contando a pausa em curso. */
     public Duration tempoEmPausaAte(Instant momento) {
         return pausadaDesde == null ? tempoEmPausa : tempoEmPausa.plus(Duration.between(pausadaDesde, momento));
