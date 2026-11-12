@@ -1,5 +1,8 @@
 package br.ufg.inf.labsimulacoes.sessoes;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -84,13 +87,22 @@ public final class DadosDeSessao {
         return cenarioId;
     }
 
-    /** Pergunta da turma ou resposta da IA, como o RF-16 vai gravar. */
+    /**
+     * Pergunta da turma ou resposta da IA gravada agora, pelo relógio da aplicação, como o RF-16 grava.
+     * O corte do reinício compara com o horário do reinício, que também vem da aplicação; com o relógio
+     * do banco, um container adiantado deixava a mensagem depois de um reinício feito em seguida.
+     */
     public void mensagem(long sessaoId, String autoria, String texto) {
+        mensagem(sessaoId, autoria, texto, Instant.now().truncatedTo(ChronoUnit.MICROS));
+    }
+
+    public void mensagem(long sessaoId, String autoria, String texto, Instant em) {
         jdbc.update(
-                "INSERT INTO mensagem (sessao_id, autoria, texto, criado_em) VALUES (?, ?, ?, clock_timestamp())",
+                "INSERT INTO mensagem (sessao_id, autoria, texto, criado_em) VALUES (?, ?, ?, ?)",
                 sessaoId,
                 autoria,
-                texto);
+                texto,
+                em.atOffset(ZoneOffset.UTC));
     }
 
     private long cenario(long autorId, String status) {

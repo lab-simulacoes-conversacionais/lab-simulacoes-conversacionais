@@ -14,7 +14,6 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.TurmaComSessaoEmAndamento;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -120,17 +119,14 @@ class SessoesJdbcTest {
     @Test
     void historicoTrazEventosContadorEMensagensDesdeOReinicio() {
         Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
-        dados.mensagem(sessao.id(), "TURMA", "Antes do reinício");
-        dados.mensagem(sessao.id(), "IA", "Resposta antes do reinício");
+        dados.mensagem(sessao.id(), "TURMA", "Antes do reinício", AGORA.minusSeconds(30));
+        dados.mensagem(sessao.id(), "IA", "Resposta antes do reinício", AGORA.minusSeconds(29));
         sessoes.registrar(sessao.id(), EventoDaSessao.pausa(MotivoDaPausa.MANUAL, AGORA.minusSeconds(20)));
         sessoes.registrar(sessao.id(), EventoDaSessao.retomada(AGORA.minusSeconds(10)));
-        // O relógio do banco, e não o da JVM, porque as mensagens usam clock_timestamp().
-        jdbc.execute("SELECT pg_sleep(0.01)");
-        Instant reinicio = jdbc.queryForObject("SELECT clock_timestamp()", Timestamp.class).toInstant();
+        Instant reinicio = AGORA.minusSeconds(5);
         sessoes.registrar(sessao.id(), EventoDaSessao.reinicio(reinicio));
-        jdbc.execute("SELECT pg_sleep(0.01)");
-        dados.mensagem(sessao.id(), "TURMA", "Depois do reinício");
-        dados.mensagem(sessao.id(), "IA", "Resposta depois do reinício");
+        dados.mensagem(sessao.id(), "TURMA", "Depois do reinício", AGORA.minusSeconds(4));
+        dados.mensagem(sessao.id(), "IA", "Resposta depois do reinício", AGORA.minusSeconds(3));
 
         HistoricoDaSessao historico = sessoes.historico(sessao.id(), EstadoDaSessao.MENSAGENS_GUARDADAS).orElseThrow();
 
