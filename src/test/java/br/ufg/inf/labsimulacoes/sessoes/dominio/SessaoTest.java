@@ -3,7 +3,9 @@ package br.ufg.inf.labsimulacoes.sessoes.dominio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -121,8 +123,8 @@ class SessaoTest {
     void perguntaAbaixoDoLimiteEAceita() {
         Sessao sessao = Sessao.iniciar(1, 2, 3, 3, INICIO).comId(10);
 
-        sessao.aceitarPergunta(0);
-        sessao.aceitarPergunta(2);
+        sessao.aceitarPergunta(estado(0, false));
+        sessao.aceitarPergunta(estado(2, false));
 
         assertThat(sessao.perguntasRestantes(2)).isEqualTo(1);
     }
@@ -132,18 +134,25 @@ class SessaoTest {
     void perguntaNoLimiteERecusada() {
         Sessao sessao = Sessao.iniciar(1, 2, 3, 3, INICIO).comId(10);
 
-        assertThatThrownBy(() -> sessao.aceitarPergunta(3))
+        assertThatThrownBy(() -> sessao.aceitarPergunta(estado(3, false)))
                 .isInstanceOf(LimiteDePerguntasAtingido.class)
                 .hasMessageContaining("3 perguntas");
         assertThat(sessao.perguntasRestantes(3)).isZero();
         assertThat(sessao.perguntasRestantes(5)).isZero();
     }
 
+    /** Uma pergunta por vez: duas seguidas deixariam duas perguntas para uma resposta só. */
+    @Test
+    void perguntaComAAnteriorSemRespostaERecusada() {
+        assertThatThrownBy(() -> emAndamento().aceitarPergunta(estado(1, true)))
+                .isInstanceOf(PerguntaSemResposta.class);
+    }
+
     @Test
     void sessaoPausadaNaoRecebePerguntaNemResponde() {
         Sessao pausada = emAndamento().pausar(MotivoDaPausa.MANUAL, DEPOIS).sessao();
 
-        assertThatThrownBy(() -> pausada.aceitarPergunta(0)).isInstanceOf(SessaoForaDoEstado.class);
+        assertThatThrownBy(() -> pausada.aceitarPergunta(estado(0, false))).isInstanceOf(SessaoForaDoEstado.class);
         assertThatThrownBy(pausada::aceitarResposta).isInstanceOf(SessaoForaDoEstado.class);
     }
 
@@ -151,7 +160,7 @@ class SessaoTest {
     void sessaoEncerradaNaoRecebePerguntaNemResponde() {
         Sessao encerrada = emAndamento().encerrar(DEPOIS);
 
-        assertThatThrownBy(() -> encerrada.aceitarPergunta(0)).isInstanceOf(SessaoEncerrada.class);
+        assertThatThrownBy(() -> encerrada.aceitarPergunta(estado(0, false))).isInstanceOf(SessaoEncerrada.class);
         assertThatThrownBy(encerrada::aceitarResposta).isInstanceOf(SessaoEncerrada.class);
     }
 
@@ -173,6 +182,15 @@ class SessaoTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new EventoDaSessao(EventoDaSessao.Tipo.RETOMADA, MotivoDaPausa.MANUAL, INICIO))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** Estado com as perguntas já feitas e, se pedido, a última ainda sem resposta na tela. */
+    private static EstadoDaSessao estado(int perguntasFeitas, boolean ultimaSemResposta) {
+        List<MensagemExibida> tela = ultimaSemResposta
+                ? List.of(new MensagemExibida(MensagemExibida.Autoria.TURMA, "Quem é você?", INICIO))
+                : List.of();
+        return new EstadoDaSessao(
+                10, StatusDaSessao.EM_ANDAMENTO, null, INICIO, Duration.ZERO, null, null, perguntasFeitas, tela);
     }
 
     private static Sessao emAndamento() {

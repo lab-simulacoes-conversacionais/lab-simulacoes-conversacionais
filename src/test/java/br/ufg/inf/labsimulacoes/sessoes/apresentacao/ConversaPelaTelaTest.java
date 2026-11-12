@@ -164,6 +164,18 @@ class ConversaPelaTelaTest {
         assertThat(bloqueada.body()).contains("Que tal passar ao quiz?");
     }
 
+    /** Um Enter repetido não deixa duas perguntas para uma resposta só. */
+    @Test
+    void segundaPerguntaAntesDaRespostaERecusada() throws Exception {
+        navegador.perguntar(sessao, "Quem é você?");
+
+        var repetida = navegador.perguntar(sessao, "Quem é você?");
+
+        assertThat(repetida.statusCode()).isEqualTo(409);
+        assertThat(repetida.headers().firstValue("HX-Retarget")).contains("#aviso-da-sessao");
+        assertThat(repetida.body()).contains("A pergunta anterior ainda não foi respondida");
+    }
+
     @Test
     void sessaoPausadaRecusaAPergunta() throws Exception {
         comoProfessora(() -> controles.pausar(sessao));

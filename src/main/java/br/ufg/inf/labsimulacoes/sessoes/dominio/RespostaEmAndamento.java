@@ -1,8 +1,8 @@
 package br.ufg.inf.labsimulacoes.sessoes.dominio;
 
 /**
- * O personagem ainda está respondendo na sessão: uma nova pergunta ou uma segunda resposta esperam o
- * fim da atual, para as falas não se misturarem na tela.
+ * O personagem ainda está respondendo na sessão: um segundo canal, como o de uma tela que reconectou,
+ * espera o fim da resposta atual, para o modelo não ser chamado duas vezes para a mesma pergunta.
  */
 public class RespostaEmAndamento extends RuntimeException {
 

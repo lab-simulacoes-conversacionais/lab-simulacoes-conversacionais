@@ -23,7 +23,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadosDasSessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida.Autoria;
-import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaSemResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado;
 import java.util.ArrayList;
@@ -208,10 +208,23 @@ class ConversaEmSalaTest {
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM mensagem WHERE sessao_id = ? AND autoria = 'IA'", Integer.class, sessao))
                 .isZero();
+        assertThatThrownBy(() -> conversa.enviarPergunta(sessao, "Outra")).isInstanceOf(PerguntaSemResposta.class);
 
         reset(adaptador);
         respondeEmTrechos("Sou Santos Dumont.");
         assertThat(conversa.responderPendente(sessao, trecho -> {})).isPresent();
+    }
+
+    /** Uma pergunta por vez: duas seguidas, como um Enter repetido, ficariam com uma resposta só. */
+    @Test
+    void segundaPerguntaAntesDaRespostaERecusada() {
+        conversa.enviarPergunta(sessao, "Quem é você?");
+
+        assertThatThrownBy(() -> conversa.enviarPergunta(sessao, "Quem é você?"))
+                .isInstanceOf(PerguntaSemResposta.class);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM mensagem WHERE sessao_id = ? AND autoria = 'TURMA'", Integer.class, sessao))
+                .isEqualTo(1);
     }
 
     /** Enquanto o personagem responde, uma nova pergunta espera, para as falas não se misturarem. */
@@ -221,7 +234,7 @@ class ConversaEmSalaTest {
         when(adaptador.responder(any(), any())).thenAnswer(chamada -> {
             try {
                 conversa.enviarPergunta(sessao, "Outra pergunta");
-            } catch (RespostaEmAndamento e) {
+            } catch (PerguntaSemResposta e) {
                 recusas.add(e);
             }
             return new RespostaDoPersonagem("Olá.", metadados());

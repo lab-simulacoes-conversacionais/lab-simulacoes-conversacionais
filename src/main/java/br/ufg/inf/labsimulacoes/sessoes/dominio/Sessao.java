@@ -57,17 +57,21 @@ public record Sessao(
     }
 
     /**
-     * Confere se a turma pode fazer mais uma pergunta: só com a sessão em andamento e até o limite
-     * guardado no início (RN-18). Reiniciar não zera a contagem (RN-19).
+     * Confere se a turma pode fazer mais uma pergunta: só com a sessão em andamento, depois de a anterior
+     * ser respondida e até o limite guardado no início (RN-18). Reiniciar não zera a contagem (RN-19).
      *
-     * @param perguntasFeitas todas as perguntas da turma nesta sessão, inclusive as de antes de um reinício
+     * @param estado o estado atual da sessão, com as perguntas feitas e a tela
      * @throws SessaoEncerrada se a sessão já terminou (RN-19)
      * @throws SessaoForaDoEstado se ela estiver pausada
+     * @throws PerguntaSemResposta se a pergunta anterior ainda espera a resposta
      * @throws LimiteDePerguntasAtingido se a turma já fez todas as perguntas (RN-18)
      */
-    public void aceitarPergunta(int perguntasFeitas) {
+    public void aceitarPergunta(EstadoDaSessao estado) {
         exigir(StatusDaSessao.EM_ANDAMENTO, "enviar pergunta para");
-        if (perguntasRestantes(perguntasFeitas) == 0) {
+        if (estado.perguntaPendente().isPresent()) {
+            throw new PerguntaSemResposta(id);
+        }
+        if (perguntasRestantes(estado.perguntasDaTurma()) == 0) {
             throw new LimiteDePerguntasAtingido(id, limiteDePerguntas);
         }
     }

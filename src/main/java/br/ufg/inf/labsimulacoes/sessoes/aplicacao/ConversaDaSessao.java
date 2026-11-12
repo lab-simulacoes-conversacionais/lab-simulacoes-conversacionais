@@ -71,14 +71,16 @@ public class ConversaDaSessao {
 
     /**
      * Grava a pergunta com a autoria genérica "Turma" (RN-11) e atualiza o estado da sessão no Redis. O
-     * lock da sessão serializa dois envios simultâneos, para o limite valer mesmo assim (RN-18).
+     * lock da sessão serializa dois envios simultâneos: o segundo já vê a primeira pergunta pendente, e
+     * o limite vale mesmo assim (RN-18).
      *
      * @throws IllegalArgumentException se a pergunta estiver vazia
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido se a turma já fez todas
      *     as perguntas (RN-18)
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado se a sessão estiver pausada
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada se já estiver encerrada (RN-19)
-     * @throws RespostaEmAndamento se o personagem ainda estiver respondendo à pergunta anterior
+     * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaSemResposta se a pergunta anterior ainda
+     *     espera a resposta, porque o personagem está respondendo ou o provedor falhou
      */
     @Transactional
     public PerguntaRecebida enviarPergunta(long sessaoId, String texto) {
@@ -86,11 +88,8 @@ public class ConversaDaSessao {
             throw new IllegalArgumentException("Digite a pergunta da turma");
         }
         Sessao sessao = leitura.doProfessorLogado(sessoes.buscarParaAlterar(sessaoId), sessaoId);
-        if (respondendo.contains(sessaoId)) {
-            throw new RespostaEmAndamento(sessaoId);
-        }
         EstadoDaSessao antes = leitura.doBanco(sessaoId);
-        sessao.aceitarPergunta(antes.perguntasDaTurma());
+        sessao.aceitarPergunta(antes);
         var pergunta = new MensagemExibida(MensagemExibida.Autoria.TURMA, texto.strip(), relogio.agora());
         sessoes.registrarMensagem(sessaoId, pergunta, null);
         EstadoDaSessao depois = antes.registrarMensagem(pergunta);
@@ -105,8 +104,8 @@ public class ConversaDaSessao {
      * mensagens.
      *
      * <p>Se não houver pergunta pendente, porque a tela reconectou depois da resposta, não chama o
-     * modelo e devolve vazio. Se o provedor falhar, a pergunta continua pendente e pode ser respondida
-     * de novo (RNF-04).
+     * modelo e devolve vazio. Se o provedor falhar, a pergunta continua pendente e é respondida quando o
+     * canal for aberto de novo (RNF-04); até lá, a turma não envia outra.
      *
      * @return a resposta exibida, ou vazio se não havia pergunta pendente
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado se a sessão estiver pausada

@@ -5,6 +5,7 @@ import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ConversaDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.PerguntaRecebida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaSemResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado;
@@ -53,8 +54,9 @@ class ConversaController {
     /** Bem acima dos 10 s da resposta completa (RNF-03), para só cortar uma resposta travada. */
     private static final Duration TEMPO_MAXIMO_DA_RESPOSTA = Duration.ofSeconds(60);
 
+    /** A pergunta continua pendente: tentar de novo é abrir o canal da resposta outra vez (RNF-04). */
     private static final String AVISO_DE_FALHA =
-            "Não foi possível obter a resposta do personagem. Tente enviar de novo daqui a pouco.";
+            "Não foi possível obter a resposta do personagem. Tente de novo daqui a pouco.";
 
     private final ConversaDaSessao conversa;
     private final ControlesDaSessao controles;
@@ -159,9 +161,10 @@ class ConversaController {
                 "A sessão foi encerrada. Para continuar o tema, inicie uma nova sessão.");
     }
 
-    @ExceptionHandler(RespostaEmAndamento.class)
-    ModelAndView respostaEmAndamento(HttpServletResponse resposta) {
-        return aviso(resposta, HttpStatus.CONFLICT, "Aguarde o personagem terminar de responder.");
+    @ExceptionHandler(PerguntaSemResposta.class)
+    ModelAndView perguntaSemResposta(HttpServletResponse resposta) {
+        return aviso(resposta, HttpStatus.CONFLICT,
+                "A pergunta anterior ainda não foi respondida. Aguarde a resposta do personagem.");
     }
 
     /** A única recusa por argumento é a pergunta vazia; a mensagem é fixa para não expor detalhes internos. */
