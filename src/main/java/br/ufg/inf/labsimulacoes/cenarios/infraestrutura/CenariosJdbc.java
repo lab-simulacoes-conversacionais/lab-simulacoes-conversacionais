@@ -12,6 +12,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDoAcervo;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoAprovadaDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -97,6 +98,12 @@ class CenariosJdbc implements Cenarios {
             SELECT %s
             %s AND c.id = ?""".formatted(COLUNAS_DA_VERSAO, APROVADOS_COM_VERSAO_VIGENTE);
 
+    /** RN-08: a versão aprovada não muda mais, então não importa se ainda é a vigente. */
+    private static final String VERSAO_APROVADA = "SELECT v.cenario_id, " + COLUNAS_DA_VERSAO + """
+
+            FROM cenario_versao v
+            WHERE v.id = ? AND v.status = 'APROVADA'""";
+
     /**
      * RF-12, mesmo critério da versão vigente. O id desempata títulos iguais, para que a ordem não
      * mude de uma consulta para a outra e nenhuma página repita ou pule cenário.
@@ -151,6 +158,16 @@ class CenariosJdbc implements Cenarios {
     @Override
     public Optional<VersaoDoCenario> versaoVigente(long cenarioId) {
         return jdbc.query(VERSAO_VIGENTE, (linha, numero) -> paraVersao(linha), cenarioId).stream().findFirst();
+    }
+
+    @Override
+    public Optional<VersaoAprovadaDoCenario> versaoAprovada(long versaoId) {
+        return jdbc.query(
+                        VERSAO_APROVADA,
+                        (linha, numero) -> new VersaoAprovadaDoCenario(linha.getLong("cenario_id"), paraVersao(linha)),
+                        versaoId)
+                .stream()
+                .findFirst();
     }
 
     /** Pede um item a mais que a página, só para saber se existe a próxima, sem contar a tabela. */

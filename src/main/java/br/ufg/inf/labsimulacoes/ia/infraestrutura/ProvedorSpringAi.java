@@ -208,7 +208,12 @@ class ProvedorSpringAi implements ProvedorDeIa {
         }
     }
 
-    /** Nomes das categorias da OpenAI, os mesmos que aparecem no painel do provedor. */
+    /**
+     * Nomes das categorias da OpenAI, os mesmos que aparecem no painel do provedor. São só as 11 que o
+     * Spring AI lê da resposta da OpenAI: as outras de {@link Categories} são de outros provedores, e a
+     * OpenAI nunca as marca. Categorias novas da OpenAI, como illicit, não chegam, então um texto pode
+     * vir sinalizado sem nenhuma categoria.
+     */
     private static Stream<String> categoriasSinalizadas(Categories categorias) {
         Map<String, Predicate<Categories>> todas = new LinkedHashMap<>();
         todas.put("sexual", Categories::isSexual);
@@ -222,11 +227,6 @@ class ProvedorSpringAi implements ProvedorDeIa {
         todas.put("self-harm/instructions", Categories::isSelfHarmInstructions);
         todas.put("violence", Categories::isViolence);
         todas.put("violence/graphic", Categories::isViolenceGraphic);
-        todas.put("illicit", Categories::isDangerousAndCriminalContent);
-        todas.put("health", Categories::isHealth);
-        todas.put("financial", Categories::isFinancial);
-        todas.put("law", Categories::isLaw);
-        todas.put("pii", Categories::isPii);
         return todas.entrySet().stream().filter(c -> c.getValue().test(categorias)).map(Map.Entry::getKey);
     }
 

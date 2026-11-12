@@ -14,7 +14,6 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.TurmaComSessaoEmAndamento;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -55,18 +54,19 @@ class SessoesJdbcTest {
 
     @Test
     void sessaoGravadaEhLidaIgual() {
-        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 25, AGORA));
 
         assertThat(salva.id()).isNotNull();
         assertThat(sessoes.buscar(salva.id())).contains(salva);
         assertThat(sessoes.buscarParaAlterar(salva.id())).contains(salva);
+        assertThat(sessoes.buscar(salva.id()).orElseThrow().limiteDePerguntas()).isEqualTo(25);
         assertThat(jdbc.queryForObject("SELECT tipo FROM sessao WHERE id = ?", String.class, salva.id()))
                 .isEqualTo("SIMULACAO");
     }
 
     @Test
     void mudancaDeEstadoEhGravada() {
-        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao salva = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
 
         Sessao pausada = sessoes.salvar(salva.pausar(MotivoDaPausa.CENARIO_SUSPENSO, AGORA).sessao());
         assertThat(sessoes.buscar(salva.id())).contains(pausada);
@@ -85,21 +85,21 @@ class SessoesJdbcTest {
     /** RN-10: o índice único recusa a segunda sessão em andamento da turma. */
     @Test
     void indiceDoBancoImpedeDuasSessoesEmAndamentoNaTurma() {
-        sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
 
         assertThat(sessoes.temSessaoEmAndamento(turma)).isTrue();
-        assertThatThrownBy(() -> sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA)))
+        assertThatThrownBy(() -> sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA)))
                 .isInstanceOf(TurmaComSessaoEmAndamento.class);
     }
 
     /** Pausada e encerrada não contam como em andamento (RN-10, decisão da issue #12). */
     @Test
     void pausadaEEncerradaNaoContamComoEmAndamento() {
-        Sessao primeira = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao primeira = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
         sessoes.salvar(primeira.pausar(MotivoDaPausa.MANUAL, AGORA).sessao());
 
         assertThat(sessoes.temSessaoEmAndamento(turma)).isFalse();
-        Sessao segunda = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao segunda = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
         sessoes.salvar(segunda.encerrar(AGORA));
         assertThat(sessoes.temSessaoEmAndamento(turma)).isFalse();
     }
@@ -108,8 +108,8 @@ class SessoesJdbcTest {
     @Test
     void retomarComOutraEmAndamentoERecusadoPeloBanco() {
         Sessao pausada = sessoes.salvar(
-                sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA)).pausar(MotivoDaPausa.MANUAL, AGORA).sessao());
-        sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+                sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA)).pausar(MotivoDaPausa.MANUAL, AGORA).sessao());
+        sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
 
         assertThatThrownBy(() -> sessoes.salvar(pausada.retomar(AGORA).sessao()))
                 .isInstanceOf(TurmaComSessaoEmAndamento.class);
@@ -118,18 +118,15 @@ class SessoesJdbcTest {
     /** RNF-04: eventos, contador e mensagens desde o último reinício reconstroem o estado. */
     @Test
     void historicoTrazEventosContadorEMensagensDesdeOReinicio() {
-        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
-        dados.mensagem(sessao.id(), "TURMA", "Antes do reinício");
-        dados.mensagem(sessao.id(), "IA", "Resposta antes do reinício");
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        dados.mensagem(sessao.id(), "TURMA", "Antes do reinício", AGORA.minusSeconds(30));
+        dados.mensagem(sessao.id(), "IA", "Resposta antes do reinício", AGORA.minusSeconds(29));
         sessoes.registrar(sessao.id(), EventoDaSessao.pausa(MotivoDaPausa.MANUAL, AGORA.minusSeconds(20)));
         sessoes.registrar(sessao.id(), EventoDaSessao.retomada(AGORA.minusSeconds(10)));
-        // O relógio do banco, e não o da JVM, porque as mensagens usam clock_timestamp().
-        jdbc.execute("SELECT pg_sleep(0.01)");
-        Instant reinicio = jdbc.queryForObject("SELECT clock_timestamp()", Timestamp.class).toInstant();
+        Instant reinicio = AGORA.minusSeconds(5);
         sessoes.registrar(sessao.id(), EventoDaSessao.reinicio(reinicio));
-        jdbc.execute("SELECT pg_sleep(0.01)");
-        dados.mensagem(sessao.id(), "TURMA", "Depois do reinício");
-        dados.mensagem(sessao.id(), "IA", "Resposta depois do reinício");
+        dados.mensagem(sessao.id(), "TURMA", "Depois do reinício", AGORA.minusSeconds(4));
+        dados.mensagem(sessao.id(), "IA", "Resposta depois do reinício", AGORA.minusSeconds(3));
 
         HistoricoDaSessao historico = sessoes.historico(sessao.id(), EstadoDaSessao.MENSAGENS_GUARDADAS).orElseThrow();
 
@@ -145,10 +142,46 @@ class SessoesJdbcTest {
                 .containsExactly(MensagemExibida.Autoria.TURMA, MensagemExibida.Autoria.IA);
     }
 
+    /** RN-11 e RNF-10: autoria genérica, e a resposta da IA aponta para os metadados dela. */
+    @Test
+    void mensagensGravadasVoltamNoHistorico() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        long metadados = jdbc.queryForObject("""
+                INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt) VALUES ('openai', 'm', 'v1')
+                RETURNING id""", Long.class);
+        var pergunta = new MensagemExibida(MensagemExibida.Autoria.TURMA, "Quem é você?", AGORA.plusSeconds(1));
+        var resposta = new MensagemExibida(MensagemExibida.Autoria.IA, "Sou Santos Dumont.", AGORA.plusSeconds(3));
+
+        sessoes.registrarMensagem(sessao.id(), pergunta, null);
+        sessoes.registrarMensagem(sessao.id(), resposta, metadados);
+
+        HistoricoDaSessao historico = sessoes.historico(sessao.id(), EstadoDaSessao.MENSAGENS_GUARDADAS).orElseThrow();
+        assertThat(historico.mensagensDesdeOReinicio()).containsExactly(pergunta, resposta);
+        assertThat(historico.perguntasDaTurma()).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT resposta_ia_meta_id FROM mensagem WHERE sessao_id = ? AND autoria = 'IA'", Long.class, sessao.id()))
+                .isEqualTo(metadados);
+    }
+
+    @Test
+    void soARespostaDaIaTemMetadados() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        var pergunta = new MensagemExibida(MensagemExibida.Autoria.TURMA, "Quem é você?", AGORA);
+        var resposta = new MensagemExibida(MensagemExibida.Autoria.IA, "Sou Santos Dumont.", AGORA);
+
+        // O @Repository traduz a IllegalArgumentException para a hierarquia de exceções do Spring.
+        assertThatThrownBy(() -> sessoes.registrarMensagem(sessao.id(), pergunta, 1L))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("RNF-10");
+        assertThatThrownBy(() -> sessoes.registrarMensagem(sessao.id(), resposta, null))
+                .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("RNF-10");
+    }
+
     /** Só as mais recentes voltam, mas em ordem de exibição. */
     @Test
     void historicoLimitaAsMensagensAsMaisRecentes() {
-        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, AGORA));
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
         for (int i = 1; i <= 5; i++) {
             dados.mensagem(sessao.id(), "TURMA", "P" + i);
         }

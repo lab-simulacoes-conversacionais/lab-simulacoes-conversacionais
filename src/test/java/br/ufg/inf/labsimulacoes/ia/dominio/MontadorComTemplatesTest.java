@@ -138,6 +138,18 @@ class MontadorComTemplatesTest {
         assertThat(prompt.mensagens()).containsExactly(MensagemDoPrompt.doUsuario("Oi! Quem é você?"));
     }
 
+    /** RN-14: a primeira resposta falhou ou foi bloqueada, e a turma perguntou de novo. */
+    @Test
+    void historicoSoComPerguntasDaTurmaAindaTrazAAbertura() {
+        var semResposta = List.of(new MensagemDaConversa(MensagemDaConversa.Autor.TURMA, "Quem é você?"));
+
+        PromptMontado prompt = montador.daFala(new PedidoDeFala(VOO, semResposta, "Você inventou o avião?"));
+
+        assertThat(prompt.instrucoes()).contains("Esta é a primeira fala da sessão.");
+        assertThat(prompt.mensagens()).containsExactly(
+                MensagemDoPrompt.doUsuario("Quem é você?"), MensagemDoPrompt.doUsuario("Você inventou o avião?"));
+    }
+
     @Test
     void comHistoricoNaoHaAbertura() {
         String instrucoes = montador.daFala(new PedidoDeFala(VOO, HISTORICO, "E depois?")).instrucoes();

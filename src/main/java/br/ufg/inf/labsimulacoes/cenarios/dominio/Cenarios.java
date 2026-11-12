@@ -27,6 +27,12 @@ public interface Cenarios {
     Optional<VersaoDoCenario> versaoVigente(long cenarioId);
 
     /**
+     * Uma versão aprovada pelo id, seja ou não a vigente, qualquer que seja o status atual do cenário.
+     * Vazio se a versão não existir ou não tiver sido aprovada.
+     */
+    Optional<VersaoAprovadaDoCenario> versaoAprovada(long versaoId);
+
+    /**
      * Biblioteca (RF-12): os cenários Aprovados com a versão vigente, de todos os autores, pelo mesmo
      * critério de {@link #versaoVigente}. Em ordem de título, com desempate pelo id do cenário, para
      * que a mesma página traga sempre os mesmos cenários.

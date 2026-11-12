@@ -33,6 +33,12 @@ public class ConsultaDaVersaoVigente implements CenariosAprovados {
         return cenarios.versaoVigente(cenarioId).map(versao -> paraApi(cenarioId, versao));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<VersaoAprovada> versaoAprovada(long versaoId) {
+        return cenarios.versaoAprovada(versaoId).map(aprovada -> paraApi(aprovada.cenarioId(), aprovada.versao()));
+    }
+
     private static VersaoAprovada paraApi(long cenarioId, VersaoDoCenario versao) {
         ConteudoDoCenario conteudo = versao.conteudo();
         RoteiroDoCenario roteiro = conteudo.roteiro();

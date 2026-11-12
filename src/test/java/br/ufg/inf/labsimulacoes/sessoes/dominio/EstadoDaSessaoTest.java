@@ -29,8 +29,37 @@ class EstadoDaSessaoTest {
     }
 
     @Test
+    void ultimaPerguntaDaTurmaSemRespostaEstaPendente() {
+        var pergunta = new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10));
+
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao()).registrarMensagem(pergunta);
+
+        assertThat(estado.perguntaPendente()).contains(pergunta);
+    }
+
+    @Test
+    void perguntaRespondidaNaoEstaPendente() {
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10)))
+                .registrarMensagem(new MensagemExibida(Autoria.IA, "Sou Santos Dumont.", segundos(12)));
+
+        assertThat(estado.perguntaPendente()).isEmpty();
+        assertThat(EstadoDaSessao.inicial(sessao()).perguntaPendente()).isEmpty();
+    }
+
+    /** RN-19: depois de reiniciar, a tela está limpa e nada fica pendente. */
+    @Test
+    void reinicioLimpaAPerguntaPendente() {
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao())
+                .registrarMensagem(new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10)))
+                .aplicar(EventoDaSessao.reinicio(segundos(20)));
+
+        assertThat(estado.perguntaPendente()).isEmpty();
+    }
+
+    @Test
     void sessaoAindaNaoGravadaNaoTemEstado() {
-        assertThatThrownBy(() -> EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, INICIO)))
+        assertThatThrownBy(() -> EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, 40, INICIO)))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -107,7 +136,7 @@ class EstadoDaSessaoTest {
             atualizado = atualizado.aplicar(evento);
         }
         atualizado = atualizado.registrarMensagem(turma("Depois do reinício", 200));
-        Sessao pausada = new Sessao(10L, 1, 2, 3, StatusDaSessao.PAUSADA, MotivoDaPausa.LIMITE_50_MINUTOS, INICIO, null);
+        Sessao pausada = new Sessao(10L, 1, 2, 3, 40, StatusDaSessao.PAUSADA, MotivoDaPausa.LIMITE_50_MINUTOS, INICIO, null);
 
         EstadoDaSessao reconstruido = EstadoDaSessao.reconstruir(
                 new HistoricoDaSessao(pausada, eventos, 1, List.of(turma("Depois do reinício", 200))));
@@ -117,7 +146,7 @@ class EstadoDaSessaoTest {
 
     @Test
     void reconstrucaoDaSessaoEncerradaFechaAPausa() {
-        Sessao encerrada = new Sessao(10L, 1, 2, 3, StatusDaSessao.ENCERRADA, null, INICIO, segundos(500));
+        Sessao encerrada = new Sessao(10L, 1, 2, 3, 40, StatusDaSessao.ENCERRADA, null, INICIO, segundos(500));
 
         EstadoDaSessao estado = EstadoDaSessao.reconstruir(new HistoricoDaSessao(
                 encerrada, List.of(EventoDaSessao.pausa(MotivoDaPausa.MANUAL, segundos(400))), 0, List.of()));
@@ -146,7 +175,7 @@ class EstadoDaSessaoTest {
     }
 
     private static Sessao sessao() {
-        return Sessao.iniciar(1, 2, 3, INICIO).comId(10);
+        return Sessao.iniciar(1, 2, 3, 40, INICIO).comId(10);
     }
 
     private static Instant segundos(long s) {

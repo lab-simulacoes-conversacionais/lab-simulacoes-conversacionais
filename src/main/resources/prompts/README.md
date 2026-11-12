@@ -36,8 +36,9 @@ Texto acrescentado às instruções só na primeira fala da sessão.
 - Cada linha `## nome` abre uma seção. Por isso, o texto de uma seção não pode ter linhas começando
   por `## `. Não pode haver texto fora das seções.
 - O personagem precisa das seções `instrucoes` e `abertura`. A sugestão precisa só de `instrucoes`.
-- A seção `abertura` entra na mensagem de sistema só quando o histórico está vazio: no início da
-  sessão e depois de reiniciar. Assim, a primeira fala apresenta o personagem como simulação (RN-14).
+- A seção `abertura` entra na mensagem de sistema enquanto o personagem ainda não falou: no início
+  da sessão e depois de reiniciar. Assim, a primeira fala apresenta o personagem como simulação (RN-14).
+  Uma pergunta que ficou sem resposta (falha do provedor ou resposta bloqueada) não muda isso.
 
 ## Marcadores do personagem
 

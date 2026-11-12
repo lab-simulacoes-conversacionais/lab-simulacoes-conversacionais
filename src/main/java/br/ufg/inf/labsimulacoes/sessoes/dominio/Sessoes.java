@@ -24,6 +24,15 @@ public interface Sessoes {
     /** Grava pausa, retomada ou reinício em evento_sessao. */
     void registrar(long sessaoId, EventoDaSessao evento);
 
+    /**
+     * Grava uma pergunta da turma ou uma resposta da IA, com a autoria genérica (RN-11) e o horário da
+     * mensagem, que vem da aplicação.
+     *
+     * @param respostaIaMetaId metadados da resposta em resposta_ia_meta (RNF-10); obrigatório na resposta
+     *     da IA e ausente na pergunta da turma
+     */
+    void registrarMensagem(long sessaoId, MensagemExibida mensagem, Long respostaIaMetaId);
+
     /** Tudo o que reconstrói o estado quente da sessão, com até {@code mensagens} mensagens. */
     Optional<HistoricoDaSessao> historico(long sessaoId, int mensagens);
 }

@@ -3,7 +3,9 @@ package br.ufg.inf.labsimulacoes.sessoes.dominio;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -16,7 +18,7 @@ class SessaoTest {
 
     @Test
     void sessaoComecaEmAndamentoLigadaAProfessorTurmaEVersao() {
-        Sessao sessao = Sessao.iniciar(1, 2, 3, INICIO);
+        Sessao sessao = Sessao.iniciar(1, 2, 3, 40, INICIO);
 
         assertThat(sessao.id()).isNull();
         assertThat(sessao.professorId()).isEqualTo(1);
@@ -106,14 +108,72 @@ class SessaoTest {
 
     @Test
     void estadoIncoerenteERecusado() {
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.PAUSADA, null, INICIO, null))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.PAUSADA, null, INICIO, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.EM_ANDAMENTO, MotivoDaPausa.MANUAL, INICIO, null))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.EM_ANDAMENTO, MotivoDaPausa.MANUAL, INICIO, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.ENCERRADA, null, INICIO, null))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.ENCERRADA, null, INICIO, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, StatusDaSessao.EM_ANDAMENTO, null, INICIO, DEPOIS))
+        assertThatThrownBy(() -> new Sessao(1L, 1, 2, 3, 40, StatusDaSessao.EM_ANDAMENTO, null, INICIO, DEPOIS))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** RN-18: até o limite a pergunta é aceita; a última possível também. */
+    @Test
+    void perguntaAbaixoDoLimiteEAceita() {
+        Sessao sessao = Sessao.iniciar(1, 2, 3, 3, INICIO).comId(10);
+
+        sessao.aceitarPergunta(estado(0, false));
+        sessao.aceitarPergunta(estado(2, false));
+
+        assertThat(sessao.perguntasRestantes(2)).isEqualTo(1);
+    }
+
+    /** RN-18: atingido o limite, o envio é bloqueado; reiniciar não zera a contagem (RN-19). */
+    @Test
+    void perguntaNoLimiteERecusada() {
+        Sessao sessao = Sessao.iniciar(1, 2, 3, 3, INICIO).comId(10);
+
+        assertThatThrownBy(() -> sessao.aceitarPergunta(estado(3, false)))
+                .isInstanceOf(LimiteDePerguntasAtingido.class)
+                .hasMessageContaining("3 perguntas");
+        assertThat(sessao.perguntasRestantes(3)).isZero();
+        assertThat(sessao.perguntasRestantes(5)).isZero();
+    }
+
+    /** Uma pergunta por vez: duas seguidas deixariam duas perguntas para uma resposta só. */
+    @Test
+    void perguntaComAAnteriorSemRespostaERecusada() {
+        assertThatThrownBy(() -> emAndamento().aceitarPergunta(estado(1, true)))
+                .isInstanceOf(PerguntaSemResposta.class);
+    }
+
+    @Test
+    void sessaoPausadaNaoRecebePerguntaNemResponde() {
+        Sessao pausada = emAndamento().pausar(MotivoDaPausa.MANUAL, DEPOIS).sessao();
+
+        assertThatThrownBy(() -> pausada.aceitarPergunta(estado(0, false))).isInstanceOf(SessaoForaDoEstado.class);
+        assertThatThrownBy(pausada::aceitarResposta).isInstanceOf(SessaoForaDoEstado.class);
+    }
+
+    @Test
+    void sessaoEncerradaNaoRecebePerguntaNemResponde() {
+        Sessao encerrada = emAndamento().encerrar(DEPOIS);
+
+        assertThatThrownBy(() -> encerrada.aceitarPergunta(estado(0, false))).isInstanceOf(SessaoEncerrada.class);
+        assertThatThrownBy(encerrada::aceitarResposta).isInstanceOf(SessaoEncerrada.class);
+    }
+
+    @Test
+    void sessaoEmAndamentoResponde() {
+        emAndamento().aceitarResposta();
+    }
+
+    /** RN-18: o limite vem dos parâmetros, que já exigem ao menos uma pergunta. */
+    @Test
+    void sessaoAceitaAoMenosUmaPergunta() {
+        assertThatThrownBy(() -> Sessao.iniciar(1, 2, 3, 0, INICIO)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(Sessao.iniciar(1, 2, 3, 1, INICIO).limiteDePerguntas()).isEqualTo(1);
     }
 
     @Test
@@ -124,7 +184,16 @@ class SessaoTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    /** Estado com as perguntas já feitas e, se pedido, a última ainda sem resposta na tela. */
+    private static EstadoDaSessao estado(int perguntasFeitas, boolean ultimaSemResposta) {
+        List<MensagemExibida> tela = ultimaSemResposta
+                ? List.of(new MensagemExibida(MensagemExibida.Autoria.TURMA, "Quem é você?", INICIO))
+                : List.of();
+        return new EstadoDaSessao(
+                10, StatusDaSessao.EM_ANDAMENTO, null, INICIO, Duration.ZERO, null, null, perguntasFeitas, tela);
+    }
+
     private static Sessao emAndamento() {
-        return Sessao.iniciar(1, 2, 3, INICIO).comId(10);
+        return Sessao.iniciar(1, 2, 3, 40, INICIO).comId(10);
     }
 }

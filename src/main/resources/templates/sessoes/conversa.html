@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Fragmentos da conversa em sala (RF-16), devolvidos às requisições HTMX. A tela de projeção que os
+  recebe, com o estilo e a extensão SSE do HTMX, é da issue #24.
+
+  A resposta chega pelo canal SSE em três eventos: "trecho" (texto já escapado, acrescentado ao fim),
+  "falha" (aviso neutro quando o provedor falha) e "fim", que fecha o canal e evita a reconexão
+  automática do navegador.
+-->
+<th:block th:fragment="pergunta">
+  <div class="mensagem mensagem-turma">
+    <span class="mensagem-autoria">Turma</span>
+    <p th:text="${recebida.pergunta().texto()}">Pergunta da turma</p>
+  </div>
+  <div class="mensagem mensagem-ia" hx-ext="sse" sse-close="fim"
+       th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})}">
+    <span class="mensagem-autoria">Personagem</span>
+    <p class="mensagem-texto" sse-swap="trecho" hx-swap="beforeend"></p>
+    <p class="aviso" role="alert" sse-swap="falha"></p>
+  </div>
+  <p class="aviso aviso-quiz" th:if="${recebida.perguntasRestantes() == 0}">
+    Esta foi a última pergunta da sessão. Ao fim da resposta, que tal passar ao quiz?
+  </p>
+</th:block>
+
+<p th:fragment="aviso" class="aviso" role="alert" th:text="${aviso}">Aviso ao professor</p>
+</body>
+</html>

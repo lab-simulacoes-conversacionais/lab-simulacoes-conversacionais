@@ -15,6 +15,8 @@ public record TemplateDePrompt(String versao, Map<String, String> secoes) {
 
     private static final String DELIMITADOR = "---";
     private static final String INICIO_DE_SECAO = "## ";
+    /** Marca de ordem de bytes que alguns editores põem no início de arquivos UTF-8. */
+    private static final String BOM = "\uFEFF";
 
     public TemplateDePrompt {
         if (versao == null || versao.isBlank()) {
@@ -45,7 +47,7 @@ public record TemplateDePrompt(String versao, Map<String, String> secoes) {
      */
     public static TemplateDePrompt ler(String versaoEsperada, String conteudo) {
         String texto = conteudo.replace("\r\n", "\n");
-        if (texto.startsWith("﻿")) {
+        if (texto.startsWith(BOM)) {
             texto = texto.substring(1);
         }
         List<String> linhas = texto.lines().toList();

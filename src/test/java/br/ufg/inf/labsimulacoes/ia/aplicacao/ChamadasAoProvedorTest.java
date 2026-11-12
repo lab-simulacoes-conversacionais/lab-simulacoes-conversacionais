@@ -100,6 +100,17 @@ class ChamadasAoProvedorTest {
     }
 
     @Test
+    void respostaVaziaFalhaDepoisDeGravarOsMetadados() {
+        when(provedor.conversar(any(), any())).thenReturn(
+                new Geracao<>(" ", "gpt-6.1-terra", Map.of(), new UsoDoModelo(316, 2048)));
+
+        assertThatThrownBy(() -> chamadas.responder(PEDIDO, trecho -> {}))
+                .isInstanceOf(FalhaNoProvedorDeIa.class)
+                .hasMessageContaining("vazia");
+        assertThat(gravados().uso()).isEqualTo(new UsoDoModelo(316, 2048));
+    }
+
+    @Test
     void erroDeQuemRecebeOsTrechosChegaSemMudancaESemMetadados() {
         var desconectou = new IllegalStateException("a tela fechou");
         when(provedor.conversar(any(), any())).thenAnswer(chamada -> {

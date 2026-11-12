@@ -260,6 +260,20 @@ class CuradoriaDeCenariosTest {
         assertThat(vigente.aprovadaEm()).isEqualTo(aprovado.versao().aprovacao().em());
     }
 
+    /** RN-08: a sessão busca a versão com que começou pelo id. */
+    @Test
+    void professorConsultaUmaVersaoAprovadaPeloId() {
+        long id = enviadoPor(PROFESSORA);
+        logar(CURADORA, "ROLE_CURADOR");
+        Cenario aprovado = aprovacao.aprovar(id);
+
+        logar(OUTRA_PROFESSORA, "ROLE_PROFESSOR");
+        VersaoAprovada versao = aprovados.versaoAprovada(aprovado.versao().id()).orElseThrow();
+
+        assertThat(versao).isEqualTo(aprovados.versaoVigente(id).orElseThrow());
+        assertThat(aprovados.versaoAprovada(-1)).isEmpty();
+    }
+
     /** RN-01: rascunho, em curadoria e devolvido não vão para a sala. */
     @Test
     void cenarioNaoAprovadoNaoTemVersaoVigente() {
@@ -297,6 +311,7 @@ class CuradoriaDeCenariosTest {
         assertThatThrownBy(() -> aprovacao.aprovar(id)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> devolucao.devolver(id, "Corrigir")).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> aprovados.versaoVigente(id)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> aprovados.versaoAprovada(id)).isInstanceOf(AccessDeniedException.class);
     }
 
     @Test

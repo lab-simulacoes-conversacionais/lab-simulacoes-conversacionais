@@ -51,7 +51,7 @@ class EstadosNoRedisTest {
 
     @Test
     void estadoGravadoEhLidoIgual() {
-        EstadoDaSessao estado = EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, INICIO).comId(sessaoId))
+        EstadoDaSessao estado = EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, 40, INICIO).comId(sessaoId))
                 .registrarMensagem(new MensagemExibida(MensagemExibida.Autoria.TURMA, "Por que voar?", INICIO.plusSeconds(5)))
                 .aplicar(EventoDaSessao.pausa(MotivoDaPausa.CONTEUDO_BLOQUEADO, INICIO.plusSeconds(10)))
                 .aplicar(EventoDaSessao.retomada(INICIO.plusSeconds(12)))
@@ -104,6 +104,6 @@ class EstadosNoRedisTest {
     }
 
     private EstadoDaSessao inicial() {
-        return EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, INICIO).comId(sessaoId));
+        return EstadoDaSessao.inicial(Sessao.iniciar(1, 2, 3, 40, INICIO).comId(sessaoId));
     }
 }
