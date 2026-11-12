@@ -15,7 +15,7 @@ Precisa de Java 21, Docker (para o PostgreSQL e o Redis dos testes) e da variáv
 terminal. Leva uns 7 minutos e gasta poucos centavos de dólar.
 
 ```sh
-export OPENAI_API_KEY=...
+export OPENAI_API_KEY='<a chave da OpenAI>'
 ./mvnw test -Dtest=PrimeiraFraseAprovadaComOpenAiTest -Dia.spike-primeira-frase=true -Djacoco.skip=true
 ```
 
@@ -53,7 +53,10 @@ enquanto roda.
   relatório.
 - Se uma pergunta ou resposta for bloqueada, a sessão é retomada e a medição segue. Uma resposta
   bloqueada antes da primeira frase fica fora da conta, porque por regra nada aparece (RN-20). Uma falha
-  do provedor conta como acima da meta.
+  do provedor no meio da resposta conta como acima da meta.
+- Se o aquecimento não chegar à tela, ou se uma pergunta for recusada por outro motivo que não o
+  bloqueio, como a chave errada ou a moderação fora do ar, o teste falha na hora e não grava o
+  `resultados.md`. O motivo aparece no erro do teste e no log do provedor de IA.
 
 ## Perguntas de referência
 

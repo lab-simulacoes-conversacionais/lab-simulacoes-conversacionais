@@ -113,8 +113,12 @@ class PrimeiraFraseAprovadaComOpenAiTest {
         navegador = new Navegador(porta);
         navegador.entrar(professora, SENHA);
 
-        // Aquecimento numa sessão à parte, para a medição não pegar a primeira chamada da JVM.
+        // Aquecimento numa sessão à parte, para a medição não pegar a primeira chamada da JVM. Se ele não
+        // chega à tela, a chave, o crédito ou o modelo estão errados, e medir as 30 não diria nada.
         Medicao aquecimento = medir(novaSessao(dados), 0, "Oi! Tudo bem?");
+        assertThat(aquecimento.resultado)
+                .as("aquecimento (confira a OPENAI_API_KEY e o log do provedor de IA)")
+                .isEqualTo(Resultado.EXIBIDA);
 
         long sessao = novaSessao(dados);
         List<Medicao> medicoes = new ArrayList<>();
@@ -152,6 +156,9 @@ class PrimeiraFraseAprovadaComOpenAiTest {
     /**
      * Envia a pergunta e lê a resposta como a tela: o fragmento do HTMX volta e só então o canal SSE é
      * aberto. Se a pergunta ou a resposta forem bloqueadas, a sessão é retomada para seguir a medição.
+     *
+     * @throws IllegalStateException se a pergunta for recusada por outro motivo, como a moderação fora do
+     *     ar: o relatório não é gravado, porque não houve medição
      */
     private Medicao medir(long sessao, int numero, String pergunta) throws Exception {
         Rodada rodada = CRONOMETRO.nova();
@@ -160,13 +167,20 @@ class PrimeiraFraseAprovadaComOpenAiTest {
         long fimDoEnvio = System.nanoTime();
         var medicao = new Medicao(numero, pergunta, inicioDoEnvio, fimDoEnvio, rodada);
         if (envio.statusCode() != 200) {
-            medicao.resultado = retomarSePausada(sessao) ? Resultado.PERGUNTA_BLOQUEADA : Resultado.RECUSADA;
+            if (!retomarSePausada(sessao)) {
+                throw new IllegalStateException(String.format(
+                        "Pergunta %d recusada com HTTP %d: %s", numero, envio.statusCode(), envio.body().strip()));
+            }
+            medicao.resultado = Resultado.PERGUNTA_BLOQUEADA;
             medicao.detalhe = "HTTP " + envio.statusCode();
             return medicao;
         }
 
         int status = navegador.resposta(sessao, medicao::receber);
-        medicao.resultado = medicao.resultadoDoCanal(status);
+        if (status != 200) {
+            throw new IllegalStateException(String.format("Canal da pergunta %d recusado com HTTP %d", numero, status));
+        }
+        medicao.resultado = medicao.resultadoDoCanal();
         if (medicao.resultado == Resultado.RESPOSTA_BLOQUEADA) {
             retomarSePausada(sessao);
         } else if (medicao.resultado == Resultado.FALHA) {
@@ -206,7 +220,7 @@ class PrimeiraFraseAprovadaComOpenAiTest {
 
     private String relatorio(List<Medicao> medicoes, Medicao aquecimento, long intervaloS, long sessao) {
         // Resposta bloqueada antes da primeira frase não aparece por regra (RN-20): fica fora da conta.
-        // Falha ou recusa conta como acima da meta, porque a turma ficou sem resposta.
+        // Falha do provedor no meio da resposta conta como acima da meta: a turma ficou sem resposta.
         List<Medicao> consideradas = medicoes.stream()
                 .filter(m -> m.primeiraFraseNaTela() != null || !m.resultado.bloqueio())
                 .toList();
@@ -335,8 +349,7 @@ class PrimeiraFraseAprovadaComOpenAiTest {
         EXIBIDA("exibida"),
         PERGUNTA_BLOQUEADA("pergunta bloqueada"),
         RESPOSTA_BLOQUEADA("resposta bloqueada"),
-        FALHA("falha"),
-        RECUSADA("recusada");
+        FALHA("falha");
 
         private final String descricao;
 
@@ -388,11 +401,7 @@ class PrimeiraFraseAprovadaComOpenAiTest {
             }
         }
 
-        Resultado resultadoDoCanal(int status) {
-            if (status != 200) {
-                detalhe = "HTTP " + status;
-                return Resultado.RECUSADA;
-            }
+        Resultado resultadoDoCanal() {
             if (bloqueio) {
                 detalhe = frases.isEmpty() ? null : "depois de " + frases.size() + " frase(s)";
                 return Resultado.RESPOSTA_BLOQUEADA;
