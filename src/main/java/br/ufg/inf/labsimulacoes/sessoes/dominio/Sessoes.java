@@ -33,6 +33,16 @@ public interface Sessoes {
      */
     void registrarMensagem(long sessaoId, MensagemExibida mensagem, Long respostaIaMetaId);
 
+    /**
+     * Marca a última mensagem da sessão, se for uma pergunta da turma, como pergunta cuja resposta foi
+     * bloqueada (RN-20). A última é a de maior id, e não a de horário mais recente, para a marca não
+     * depender de relógio. Quem chama trava a sessão antes, e a pergunta pendente impede outra de entrar
+     * no meio.
+     *
+     * @return se havia pergunta para marcar
+     */
+    boolean marcarRespostaBloqueada(long sessaoId);
+
     /** Tudo o que reconstrói o estado quente da sessão, com até {@code mensagens} mensagens. */
     Optional<HistoricoDaSessao> historico(long sessaoId, int mensagens);
 }

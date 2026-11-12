@@ -178,6 +178,45 @@ class SessoesJdbcTest {
                 .hasMessageContaining("RNF-10");
     }
 
+    /**
+     * RN-20: a marca vai na última mensagem pelo id, e não pelo horário: aqui a pergunta tem horário
+     * anterior ao da resposta já gravada, e mesmo assim a marca só pega a última inserida.
+     */
+    @Test
+    void marcaARespostaBloqueadaNaUltimaPerguntaPeloId() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        dados.mensagem(sessao.id(), "TURMA", "Primeira", AGORA.plusSeconds(10));
+        dados.mensagem(sessao.id(), "TURMA", "Segunda", AGORA.plusSeconds(5));
+
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id())).isTrue();
+
+        assertThat(jdbc.queryForList(
+                        "SELECT texto FROM mensagem WHERE sessao_id = ? AND resposta_bloqueada", String.class, sessao.id()))
+                .containsExactly("Segunda");
+        assertThat(sessoes.historico(sessao.id(), 20).orElseThrow().mensagensDesdeOReinicio())
+                .filteredOn(MensagemExibida::respostaBloqueada)
+                .extracting(MensagemExibida::texto)
+                .containsExactly("Segunda");
+    }
+
+    /** Se a última mensagem já é uma resposta da IA, não há pergunta esperando, e nada é marcado. */
+    @Test
+    void naoMarcaQuandoAUltimaMensagemEDaIa() {
+        Sessao sessao = sessoes.salvar(Sessao.iniciar(professor, turma, versao, 40, AGORA));
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id())).isFalse();
+        dados.mensagem(sessao.id(), "TURMA", "Pergunta", AGORA);
+        long meta = jdbc.queryForObject(
+                "INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt) VALUES ('openai', 'm', 'v1') RETURNING id",
+                Long.class);
+        sessoes.registrarMensagem(
+                sessao.id(), new MensagemExibida(MensagemExibida.Autoria.IA, "Resposta", AGORA.plusSeconds(1)), meta);
+
+        assertThat(sessoes.marcarRespostaBloqueada(sessao.id())).isFalse();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM mensagem WHERE sessao_id = ? AND resposta_bloqueada", Integer.class, sessao.id()))
+                .isZero();
+    }
+
     /** Só as mais recentes voltam, mas em ordem de exibição. */
     @Test
     void historicoLimitaAsMensagensAsMaisRecentes() {

@@ -41,8 +41,8 @@ class SessoesJdbc implements Sessoes {
 
     /** As mais recentes depois do último reinício, devolvidas da mais antiga para a mais nova. */
     private static final String MENSAGENS_DESDE_O_REINICIO = """
-            SELECT autoria, texto, criado_em FROM (
-                SELECT id, autoria, texto, criado_em FROM mensagem
+            SELECT autoria, texto, criado_em, resposta_bloqueada FROM (
+                SELECT id, autoria, texto, criado_em, resposta_bloqueada FROM mensagem
                 WHERE sessao_id = ?
                   AND criado_em > COALESCE(
                       (SELECT max(ocorrido_em) FROM evento_sessao WHERE sessao_id = ? AND tipo = 'REINICIO'),
@@ -109,6 +109,16 @@ class SessoesJdbc implements Sessoes {
                 mensagem.texto(),
                 respostaIaMetaId,
                 utc(mensagem.em()));
+    }
+
+    @Override
+    public boolean marcarRespostaBloqueada(long sessaoId) {
+        return jdbc.update(
+                        """
+                        UPDATE mensagem SET resposta_bloqueada = true
+                        WHERE id = (SELECT max(id) FROM mensagem WHERE sessao_id = ?) AND autoria = 'TURMA'""",
+                        sessaoId)
+                == 1;
     }
 
     @Override
@@ -188,7 +198,8 @@ class SessoesJdbc implements Sessoes {
         return new MensagemExibida(
                 MensagemExibida.Autoria.valueOf(linha.getString("autoria")),
                 linha.getString("texto"),
-                instante(linha, "criado_em"));
+                instante(linha, "criado_em"),
+                linha.getBoolean("resposta_bloqueada"));
     }
 
     private static String nome(MotivoDaPausa motivo) {

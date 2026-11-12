@@ -47,6 +47,25 @@ class EstadoDaSessaoTest {
         assertThat(EstadoDaSessao.inicial(sessao()).perguntaPendente()).isEmpty();
     }
 
+    /** RN-20: a pergunta cuja resposta foi bloqueada continua na tela, mas não espera mais resposta. */
+    @Test
+    void perguntaComRespostaBloqueadaNaoEstaPendente() {
+        var pergunta = new MensagemExibida(Autoria.TURMA, "Quem é você?", segundos(10), true);
+
+        EstadoDaSessao estado = EstadoDaSessao.inicial(sessao()).registrarMensagem(pergunta);
+
+        assertThat(estado.perguntaPendente()).isEmpty();
+        assertThat(estado.ultimasMensagens()).containsExactly(pergunta);
+        assertThat(estado.perguntasDaTurma()).isEqualTo(1);
+    }
+
+    @Test
+    void soAPerguntaDaTurmaTemARespostaBloqueada() {
+        assertThatThrownBy(() -> new MensagemExibida(Autoria.IA, "Sou Santos Dumont.", segundos(10), true))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new MensagemExibida(Autoria.IA, "Sou Santos Dumont.", segundos(10)).respostaBloqueada()).isFalse();
+    }
+
     /** RN-19: depois de reiniciar, a tela está limpa e nada fica pendente. */
     @Test
     void reinicioLimpaAPerguntaPendente() {

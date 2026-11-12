@@ -110,14 +110,18 @@ public record EstadoDaSessao(
     /**
      * A pergunta da turma que ainda espera a resposta do personagem: a última mensagem na tela, se for
      * da turma. Vazio se a tela estiver limpa ou a última fala for da IA. Uma pergunta que ficou sem
-     * resposta, porque o provedor falhou, continua pendente e pode ser respondida de novo (RNF-04).
+     * resposta, porque o provedor falhou, continua pendente e pode ser respondida de novo (RNF-04). Já a
+     * pergunta cuja resposta o filtro bloqueou não fica pendente: depois de retomar, a turma faz outra
+     * (RN-20).
      */
     public Optional<MensagemExibida> perguntaPendente() {
         if (ultimasMensagens.isEmpty()) {
             return Optional.empty();
         }
         MensagemExibida ultima = ultimasMensagens.getLast();
-        return ultima.autoria() == MensagemExibida.Autoria.TURMA ? Optional.of(ultima) : Optional.empty();
+        return ultima.autoria() == MensagemExibida.Autoria.TURMA && !ultima.respostaBloqueada()
+                ? Optional.of(ultima)
+                : Optional.empty();
     }
 
     /** Soma das pausas até o momento dado, contando a pausa em curso. */
