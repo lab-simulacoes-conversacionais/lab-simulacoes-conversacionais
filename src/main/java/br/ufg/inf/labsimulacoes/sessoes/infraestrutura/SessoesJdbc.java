@@ -112,12 +112,18 @@ class SessoesJdbc implements Sessoes {
     }
 
     @Override
-    public boolean marcarRespostaBloqueada(long sessaoId) {
+    public boolean marcarRespostaBloqueada(long sessaoId, MensagemExibida pergunta) {
+        if (pergunta.autoria() != MensagemExibida.Autoria.TURMA) {
+            throw new IllegalArgumentException("Só a pergunta da turma tem a resposta bloqueada");
+        }
         return jdbc.update(
                         """
                         UPDATE mensagem SET resposta_bloqueada = true
-                        WHERE id = (SELECT max(id) FROM mensagem WHERE sessao_id = ?) AND autoria = 'TURMA'""",
-                        sessaoId)
+                        WHERE id = (SELECT max(id) FROM mensagem
+                                    WHERE sessao_id = ? AND autoria = 'TURMA' AND criado_em = ? AND texto = ?)""",
+                        sessaoId,
+                        utc(pergunta.em()),
+                        pergunta.texto())
                 == 1;
     }
 

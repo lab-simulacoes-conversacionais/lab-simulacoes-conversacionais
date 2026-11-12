@@ -179,7 +179,7 @@ public class ConversaDaSessao {
             MensagemExibida pergunta = pendente.get();
             AtomicReference<Instant> bloqueadaEm = new AtomicReference<>();
             var moderacao = new ModeracaoDaResposta(adaptador, tela::exibir, bloqueio -> {
-                bloqueadaEm.set(pausarPorBloqueioDaResposta(sessaoId));
+                bloqueadaEm.set(pausarPorBloqueioDaResposta(sessaoId, pergunta));
                 avisarBloqueio(tela, sessaoId);
             });
 
@@ -216,11 +216,11 @@ public class ConversaDaSessao {
      *
      * @return o momento do bloqueio
      */
-    private Instant pausarPorBloqueioDaResposta(long sessaoId) {
+    private Instant pausarPorBloqueioDaResposta(long sessaoId, MensagemExibida pergunta) {
         return transacao.execute(status -> {
             Sessao sessao = sessoes.buscarParaAlterar(sessaoId).orElseThrow(() -> new SessaoNaoEncontrada(sessaoId));
             Instant agora = relogio.agora();
-            sessoes.marcarRespostaBloqueada(sessaoId);
+            sessoes.marcarRespostaBloqueada(sessaoId, pergunta);
             bloquear(sessao, agora);
             estados.gravar(leitura.doBanco(sessaoId));
             return agora;

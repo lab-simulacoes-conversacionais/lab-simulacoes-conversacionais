@@ -533,6 +533,33 @@ class ConversaEmSalaTest {
                 new MensagemDaConversa(MensagemDaConversa.Autor.PERSONAGEM, "Sou Santos Dumont."));
     }
 
+    /**
+     * RN-19 e RN-20: a sessão foi reiniciada durante a resposta e outra pergunta entrou. O bloqueio
+     * marca a pergunta que estava sendo respondida, e a nova continua esperando a resposta dela.
+     */
+    @Test
+    void bloqueioDepoisDoReinicioMarcaAPerguntaRespondida() {
+        when(adaptador.responder(any(), any())).thenAnswer(chamada -> {
+            controles.reiniciar(sessao);
+            conversa.enviarPergunta(sessao, "Depois do reinício");
+            Consumer<String> aoReceber = chamada.getArgument(1);
+            aoReceber.accept("Texto impróprio.");
+            return new RespostaDoPersonagem("Texto impróprio.", metadados());
+        });
+        when(adaptador.moderar("Texto impróprio.")).thenReturn(SINALIZADO);
+        conversa.enviarPergunta(sessao, "Respondida");
+
+        conversa.responderPendente(sessao, new Tela());
+
+        assertThat(jdbc.queryForList(
+                        "SELECT texto FROM mensagem WHERE sessao_id = ? AND resposta_bloqueada", String.class, sessao))
+                .containsExactly("Respondida");
+        controles.retomar(sessao);
+        assertThat(controles.estado(sessao).perguntaPendente())
+                .map(MensagemExibida::texto)
+                .contains("Depois do reinício");
+    }
+
     /** RNF-04: a moderação da resposta falhou como o provedor: nada aparece e a pergunta continua pendente. */
     @Test
     void falhaDaModeracaoDaRespostaDeixaAPerguntaPendente() {
