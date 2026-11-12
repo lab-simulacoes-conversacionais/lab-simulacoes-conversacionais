@@ -664,17 +664,22 @@ class ConversaEmSalaTest {
                 .contains("Depois do reinício");
     }
 
-    /** RNF-04: a moderação da resposta falhou como o provedor: nada aparece e a pergunta continua pendente. */
+    /**
+     * RNF-04: a moderação da resposta falhou como o provedor: nada mais aparece e a pergunta continua
+     * pendente. A resposta vai até o fim antes, para o adaptador gravar os metadados (RNF-13).
+     */
     @Test
     void falhaDaModeracaoDaRespostaDeixaAPerguntaPendente() {
-        respondeEmTrechos("Sou Santos Dumont. ", "Voei em 1906.");
-        when(adaptador.moderar("Sou Santos Dumont.")).thenThrow(new FalhaNoProvedorDeIa("fora do ar", null));
+        List<Long> metadados = respondeEmTrechos("Sou Santos Dumont. ", "Voei em 1906. ", "Até logo.");
+        when(adaptador.moderar("Voei em 1906.")).thenThrow(new FalhaNoProvedorDeIa("fora do ar", null));
         var tela = new Tela();
         conversa.enviarPergunta(sessao, "Quem é você?");
 
         assertThatThrownBy(() -> conversa.responderPendente(sessao, tela)).isInstanceOf(FalhaNoProvedorDeIa.class);
 
-        assertThat(tela.eventos).isEmpty();
+        assertThat(tela.eventos).containsExactly("Sou Santos Dumont. ");
+        assertThat(metadados).hasSize(1);
+        verify(adaptador, never()).moderar("Até logo.");
         assertThat(contar("SELECT count(*) FROM mensagem WHERE sessao_id = ? AND autoria = 'IA'")).isZero();
         assertThat(controles.estado(sessao).status()).isEqualTo(StatusDaSessao.EM_ANDAMENTO);
         assertThat(controles.estado(sessao).perguntaPendente()).isPresent();

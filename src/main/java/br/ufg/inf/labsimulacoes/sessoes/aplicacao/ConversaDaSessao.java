@@ -155,7 +155,9 @@ public class ConversaDaSessao {
      *
      * <p>Se não houver pergunta pendente, porque a tela reconectou depois da resposta, não chama o
      * modelo e devolve vazio. Se o provedor ou a moderação falharem, a pergunta continua pendente e é
-     * respondida quando o canal for aberto de novo (RNF-04); até lá, a turma não envia outra.
+     * respondida quando o canal for aberto de novo (RNF-04); até lá, a turma não envia outra. Na falha
+     * da moderação, a resposta é consumida até o fim sem exibir mais nada antes de a falha sair, para os
+     * metadados terem os tokens consumidos (RNF-13).
      *
      * <p>Se uma frase for bloqueada (RN-20), ela e as seguintes não chegam à tela. A sessão pausa e a
      * pergunta deixa de ficar pendente e o evento {@link ConteudoBloqueado} sai antes de a tela ser
@@ -207,6 +209,9 @@ public class ConversaDaSessao {
                 return Optional.empty();
             }
 
+            if (moderacao.falha().isPresent()) {
+                throw moderacao.falha().get();
+            }
             if (bloqueado.get() != null) {
                 ConteudoBloqueado comMetadados = bloqueado.get().comMetadados(resposta.metadadosId());
                 transacao.executeWithoutResult(status -> eventos.publishEvent(comMetadados));
