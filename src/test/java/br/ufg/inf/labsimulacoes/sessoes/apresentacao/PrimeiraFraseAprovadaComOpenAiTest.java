@@ -19,6 +19,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -33,6 +34,9 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -72,6 +76,7 @@ class PrimeiraFraseAprovadaComOpenAiTest {
 
     static final Path PASTA = Path.of("docs/spikes/primeira-frase-aprovada");
     static final int PERGUNTAS_DE_REFERENCIA = 30;
+    private static final Pattern RELATORIO_NUMERADO = Pattern.compile("resultados(\\d+)\\.md");
 
     /** RNF-03: primeiro trecho em até 3 s e resposta completa em até 10 s, em 95% das interações. */
     static final double META_PRIMEIRA_FRASE_S = 3.0;
@@ -132,9 +137,29 @@ class PrimeiraFraseAprovadaComOpenAiTest {
         }
 
         String relatorio = relatorio(medicoes, aquecimento, intervaloS, sessao);
-        Files.writeString(PASTA.resolve("resultados.md"), relatorio);
-        System.out.printf("%n%s%n", relatorio);
+        // CREATE_NEW: nunca sobrescreve uma execução anterior, nem se duas rodarem ao mesmo tempo.
+        Path arquivo = proximoRelatorio();
+        Files.writeString(arquivo, relatorio, StandardOpenOption.CREATE_NEW);
+        System.out.printf("%n%s%nRelatório gravado em %s%n", relatorio, arquivo);
         assertThat(medicoes).hasSize(PERGUNTAS_DE_REFERENCIA);
+    }
+
+    /**
+     * Cada execução ganha o próprio arquivo, numerado depois do maior que já existe: resultados01.md,
+     * resultados02.md e assim por diante. Assim dá para comparar estratégias de latência sem perder as
+     * medições anteriores, mesmo que alguma seja apagada.
+     */
+    static Path proximoRelatorio() throws IOException {
+        int maior = 0;
+        try (Stream<Path> arquivos = Files.list(PASTA)) {
+            for (Path arquivo : arquivos.toList()) {
+                Matcher numero = RELATORIO_NUMERADO.matcher(arquivo.getFileName().toString());
+                if (numero.matches()) {
+                    maior = Math.max(maior, Integer.parseInt(numero.group(1)));
+                }
+            }
+        }
+        return PASTA.resolve(String.format("resultados%02d.md", maior + 1));
     }
 
     private List<String> perguntasDeReferencia() throws IOException {

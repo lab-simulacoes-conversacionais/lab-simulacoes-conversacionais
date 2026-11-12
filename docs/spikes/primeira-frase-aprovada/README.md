@@ -24,8 +24,12 @@ propriedade e a chave, ele não roda, então não entra no `verify` nem no CI. O
 resposta e a próxima pergunta é de 10 s, para imitar o professor digitando. Ele pode ser trocado com
 `-Dspike.intervalo-s=<segundos>`.
 
-O resultado vai para `resultados.md`, nesta pasta, e o resumo de cada pergunta aparece no terminal
-enquanto roda.
+Cada execução grava um relatório novo nesta pasta, numerado depois do maior que já existe:
+`resultados01.md`, `resultados02.md` e assim por diante. Nenhuma execução sobrescreve outra, então dá
+para comparar estratégias para reduzir a latência. O resumo de cada pergunta aparece no terminal enquanto
+roda, e o nome do arquivo gravado aparece no fim.
+
+O `resultados01.md` é a medição registrada na issue #19, com o modelo `gpt-6.1-terra` e o esforço `low`.
 
 ## O que o teste faz
 
@@ -56,7 +60,7 @@ enquanto roda.
   do provedor no meio da resposta conta como acima da meta.
 - Se o aquecimento não chegar à tela, ou se uma pergunta for recusada por outro motivo que não o
   bloqueio, como a chave errada ou a moderação fora do ar, o teste falha na hora e não grava o
-  `resultados.md`. O motivo aparece no erro do teste e no log do provedor de IA.
+  relatório. O motivo aparece no erro do teste e no log do provedor de IA.
 
 ## Perguntas de referência
 
