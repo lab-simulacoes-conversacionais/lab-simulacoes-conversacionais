@@ -13,6 +13,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadoDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadosDasSessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.MudancaNaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
@@ -128,8 +129,8 @@ public class ConversaDaSessao {
         sessao.aceitarPergunta(antes);
         Instant agora = relogio.agora();
         if (moderacao.sinalizado()) {
-            bloquear(sessao, agora);
-            estados.gravar(leitura.doBanco(sessaoId));
+            EstadoDaSessao depois = bloquear(sessao, agora).map(pausa -> antes.aplicar(pausa.evento())).orElse(antes);
+            estados.gravar(depois);
             eventos.publishEvent(new ConteudoBloqueado(
                     sessaoId, sessao.versaoId(), ConteudoBloqueado.Origem.PERGUNTA, texto, null,
                     moderacao.categorias(), null, agora));
@@ -240,12 +241,18 @@ public class ConversaDaSessao {
         });
     }
 
-    /** RN-20: pausa a sessão se ela ainda estiver em andamento ({@link Sessao#bloquearConteudo}). */
-    private void bloquear(Sessao sessao, Instant em) {
-        sessao.bloquearConteudo(em).ifPresent(mudanca -> {
+    /**
+     * RN-20: pausa a sessão se ela ainda estiver em andamento ({@link Sessao#bloquearConteudo}).
+     *
+     * @return a pausa gravada, ou vazio se a sessão não estava em andamento
+     */
+    private Optional<MudancaNaSessao> bloquear(Sessao sessao, Instant em) {
+        Optional<MudancaNaSessao> pausa = sessao.bloquearConteudo(em);
+        pausa.ifPresent(mudanca -> {
             sessoes.salvar(mudanca.sessao());
             sessoes.registrar(sessao.id(), mudanca.evento());
         });
+        return pausa;
     }
 
     /** A tela que fechou não impede o resto: o stream continua para os tokens serem gravados. */
