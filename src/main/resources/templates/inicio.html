@@ -30,9 +30,16 @@
         <p>Encontre cenários aprovados e acompanhe os seus na curadoria.</p>
       </section>
       <section class="card">
-        <div class="card-top"><span class="subject-tag">Cenários</span><span class="badge badge-pending">Em breve</span></div>
+        <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Criar cenário</h3>
         <p>Monte um novo cenário com personagem, objetivos e vínculo à BNCC.</p>
+        <a class="btn btn-secondary" th:href="@{/cenarios/novo}">Abrir <span aria-hidden="true">→</span></a>
+      </section>
+      <section class="card">
+        <div class="card-top"><span class="subject-tag">Cenários</span></div>
+        <h3>Meus cenários</h3>
+        <p>Continue seus rascunhos e veja o que a curadoria pediu para mudar.</p>
+        <a class="btn btn-secondary" th:href="@{/cenarios}">Abrir <span aria-hidden="true">→</span></a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Comparação</span><span class="badge badge-pending">Em breve</span></div>
@@ -57,6 +64,13 @@
         <div class="card-top"><span class="subject-tag">Curadoria</span><span class="badge badge-pending">Em breve</span></div>
         <h3>Fila do curador</h3>
         <p>Teste, aprove ou devolva cenários e trate as sinalizações no prazo.</p>
+      </section>
+      <!-- O curador também cria cenários (RF-06); quem tem os dois perfis vê o atalho uma vez só. -->
+      <section class="card" th:unless="${professor}">
+        <div class="card-top"><span class="subject-tag">Cenários</span></div>
+        <h3>Meus cenários</h3>
+        <p>Crie cenários e acompanhe os seus na curadoria de outro curador.</p>
+        <a class="btn btn-secondary" th:href="@{/cenarios}">Abrir <span aria-hidden="true">→</span></a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Cenários</span><span class="badge badge-pending">Em breve</span></div>
