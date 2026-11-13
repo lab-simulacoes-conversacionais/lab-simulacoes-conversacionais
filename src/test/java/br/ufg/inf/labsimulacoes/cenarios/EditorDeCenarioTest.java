@@ -8,15 +8,8 @@ import br.ufg.inf.labsimulacoes.acesso.dominio.Perfil;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
 import java.io.IOException;
-import java.net.CookieManager;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpRequest.BodyPublishers;
 import java.net.http.HttpResponse;
-import java.net.http.HttpResponse.BodyHandlers;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -39,7 +32,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class EditorDeCenarioTest {
 
     private static final String SENHA = "uma senha de teste";
-    private static final Pattern CAMPO_CSRF = Pattern.compile("name=\"_csrf\"[^>]*value=\"([^\"]+)\"");
     private static final Pattern ID_NO_EDITOR = Pattern.compile("/cenarios/(\\d+)/editar");
     private static final AtomicInteger SEQUENCIA = new AtomicInteger();
 
@@ -89,7 +81,7 @@ class EditorDeCenarioTest {
     /** O HTMX vem da própria aplicação, sem CDN, e abre sem login, como o CSS. */
     @Test
     void htmxEServidoPelaAplicacao() throws Exception {
-        var resposta = new Navegador().get("/webjars/htmx.org/dist/htmx.min.js");
+        var resposta = new Navegador(porta).get("/webjars/htmx.org/dist/htmx.min.js");
 
         assertThat(resposta.statusCode()).isEqualTo(200);
         assertThat(resposta.body()).contains("htmx");
@@ -325,13 +317,11 @@ class EditorDeCenarioTest {
     }
 
     private Navegador logado(String email) throws IOException, InterruptedException {
-        var navegador = new Navegador();
-        navegador.entrar(email);
-        return navegador;
+        return Navegador.logado(porta, email, SENHA);
     }
 
     private static String local(HttpResponse<String> resposta) {
-        return resposta.headers().firstValue("Location").orElse("");
+        return Navegador.local(resposta);
     }
 
     private String caminho(String endereco) {
@@ -339,52 +329,6 @@ class EditorDeCenarioTest {
     }
 
     private static String cod(String valor) {
-        return URLEncoder.encode(valor, StandardCharsets.UTF_8);
-    }
-
-    /** Cliente HTTP que guarda os cookies, não segue redirecionamentos e reaproveita o token CSRF. */
-    private final class Navegador {
-
-        private final HttpClient cliente = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
-                .cookieHandler(new CookieManager())
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
-        private String csrf;
-
-        void entrar(String email) throws IOException, InterruptedException {
-            String token = tokenDe("/login");
-            var resposta = postBruto("/login",
-                    "email=" + cod(email) + "&senha=" + cod(SENHA) + "&_csrf=" + cod(token));
-            assertThat(local(resposta)).doesNotContain("/login");
-            csrf = tokenDe("/login");
-        }
-
-        HttpResponse<String> get(String caminho) throws IOException, InterruptedException {
-            return cliente.send(requisicao(caminho).GET().build(), BodyHandlers.ofString());
-        }
-
-        HttpResponse<String> postForm(String caminho, String corpo) throws IOException, InterruptedException {
-            return postBruto(caminho, corpo + "&_csrf=" + cod(csrf));
-        }
-
-        private HttpResponse<String> postBruto(String caminho, String corpo) throws IOException, InterruptedException {
-            return cliente.send(
-                    requisicao(caminho)
-                            .header("Content-Type", "application/x-www-form-urlencoded")
-                            .POST(BodyPublishers.ofString(corpo))
-                            .build(),
-                    BodyHandlers.ofString());
-        }
-
-        private String tokenDe(String caminho) throws IOException, InterruptedException {
-            var token = CAMPO_CSRF.matcher(get(caminho).body());
-            assertThat(token.find()).as("token CSRF na página " + caminho).isTrue();
-            return token.group(1);
-        }
-
-        private HttpRequest.Builder requisicao(String caminho) {
-            return HttpRequest.newBuilder(URI.create("http://localhost:" + porta + caminho));
-        }
+        return Navegador.cod(valor);
     }
 }
