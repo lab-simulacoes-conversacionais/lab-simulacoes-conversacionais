@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca(${conteudo.titulo} + ' · Biblioteca')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!-- Detalhe de um cenário da biblioteca (RF-12): a versão aprovada vigente, como no protótipo. -->
+<main class="page detail-page">
+  <a class="back-link" th:href="@{/biblioteca}">← Voltar à biblioteca</a>
+  <div class="library-heading">
+    <div>
+      <div class="heading-badges">
+        <span class="subject-tag" th:text="${conteudo.componente}">História</span>
+        <span class="badge badge-positive"><span aria-hidden="true">✓</span>Aprovado</span>
+      </div>
+      <h1 th:text="${conteudo.titulo}">Título</h1>
+      <p th:text="|${conteudo.resumoCurricular()} · aprovado em ${aprovadaEm}|">8º ano · EF08HI03</p>
+    </div>
+  </div>
+
+  <div th:replace="~{cenarios/fragmentos :: conteudo(${conteudo})}"></div>
+</main>
+</body>
+</html>
