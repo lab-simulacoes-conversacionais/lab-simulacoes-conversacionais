@@ -56,6 +56,12 @@
   </nav>
 </div>
 
+<!--
+  HTMX servido pela aplicação (WebJar no pom.xml), sem CDN. A tela que o usa também declara o
+  cabeçalho X-CSRF-TOKEN no <body>, como explica o README.
+-->
+<script th:fragment="htmx" th:src="@{/webjars/htmx.org/dist/htmx.min.js}" defer></script>
+
 <!-- Ícone de confirmação (check) usado nas telas de cadastro concluído. -->
 <svg th:fragment="iconeCheck" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
 </body>
