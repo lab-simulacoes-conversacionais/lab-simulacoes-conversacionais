@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Cenário enviado · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!-- Confirmação do envio à curadoria (RF-08), como no protótipo. -->
+<main class="end-page">
+  <div class="success-mark"><svg th:replace="~{fragmentos/base :: iconeCheck}"></svg></div>
+  <p class="eyebrow">ENVIADO À CURADORIA</p>
+  <h1>Cenário enviado</h1>
+  <p>A equipe pedagógica vai revisar o conteúdo. Se algo precisar mudar, o cenário volta como rascunho com o comentário da curadoria.</p>
+  <section class="card summary-card">
+    <div class="summary-head">
+      <div>
+        <span class="badge badge-pending"><span aria-hidden="true">◷</span>Em curadoria</span>
+        <h2 th:text="${enviado.titulo}">Título</h2>
+        <p th:text="|${enviado.personagem} · ${#strings.listJoin(enviado.habilidades, ', ')}|">Personagem · EF08HI03</p>
+      </div>
+    </div>
+  </section>
+  <a class="btn btn-primary" th:href="@{/cenarios}">Voltar aos meus cenários</a>
+</main>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Meus cenários · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Cenários de quem está logado, em qualquer status (RN-37), os mais novos primeiro. É por aqui que o
+  autor volta ao rascunho e lê o comentário da devolução (RN-07). Os cartões seguem a biblioteca do
+  protótipo.
+-->
+<main class="page">
+  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">CONTEÚDO PEDAGÓGICO</p>
+      <h1>Meus cenários</h1>
+      <p>Continue seus rascunhos e acompanhe o que está na curadoria.</p>
+    </div>
+    <a class="btn btn-primary" th:href="@{/cenarios/novo}">Criar cenário <span aria-hidden="true">+</span></a>
+  </div>
+
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <div class="library-grid" th:unless="${cenarios.isEmpty()}">
+    <section class="card" th:each="c : ${cenarios}">
+      <div class="card-top">
+        <span class="subject-tag" th:text="${c.componente} ?: 'Sem componente'">História</span>
+        <span class="badge" th:classappend="${c.classeDoStatus}">
+          <span aria-hidden="true" th:text="${c.iconeDoStatus}">•</span><th:block th:text="${c.rotuloDoStatus}">Rascunho</th:block>
+        </span>
+      </div>
+      <h2 th:text="${c.titulo}">Título do cenário</h2>
+      <p th:text="${c.personagem} ?: 'Personagem ainda não definido.'">Personagem</p>
+      <div class="danger-callout card-callout" th:if="${c.devolucao}">
+        <span aria-hidden="true">!</span>
+        <div><strong>Comentário da curadoria</strong><p th:text="${c.devolucao}">Comentário</p></div>
+      </div>
+      <div class="meta">
+        <span th:if="${c.ano}" th:text="|${c.ano}º ano|">8º ano</span>
+        <span th:each="h : ${c.habilidades}" th:text="${h}">EF08HI03</span>
+      </div>
+      <div class="library-card-footer">
+        <small th:text="${c.editavel} ? 'Rascunho editável' : 'Bloqueado para edição'">Rascunho editável</small>
+        <a class="btn btn-secondary" th:if="${c.editavel}" th:href="@{/cenarios/{id}/editar(id=${c.id})}">
+          Continuar edição <span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </section>
+  </div>
+
+  <div class="empty-state" th:if="${cenarios.isEmpty()}">
+    <div class="empty-shapes" aria-hidden="true"><span></span><span></span></div>
+    <h2 th:text="${pagina == 0} ? 'Você ainda não criou cenários' : 'Não há mais cenários'">Você ainda não criou cenários</h2>
+    <p>Monte um cenário com personagem, objetivos e vínculo à BNCC.</p>
+    <a class="btn btn-secondary" th:href="@{/cenarios/novo}">Criar cenário</a>
+  </div>
+
+  <nav class="results-bar" aria-label="Páginas" th:if="${pagina > 0 or temProxima}">
+    <a class="text-button" th:if="${pagina > 0}" th:href="@{/cenarios(pagina=${pagina - 1})}">← Mais recentes</a>
+    <span th:unless="${pagina > 0}"></span>
+    <a class="text-button" th:if="${temProxima}" th:href="@{/cenarios(pagina=${pagina + 1})}">Mais antigos →</a>
+  </nav>
+</main>
+</body>
+</html>

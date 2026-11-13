@@ -7,6 +7,8 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadesForaDoCatalogo;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.Pagina;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDoAcervo;
 import java.util.List;
 import java.util.Set;
 import org.springframework.security.access.AccessDeniedException;
@@ -45,6 +47,19 @@ public class AutoriaDeCenarios {
     @PostAuthorize("hasRole('CURADOR') or returnObject.temAutor(@usuarioLogado.id())")
     public Cenario buscar(long id) {
         return cenarios.buscar(id).orElseThrow(() -> new CenarioNaoEncontrado(id));
+    }
+
+    /**
+     * Os cenários de quem está logado, em qualquer status, os mais novos primeiro (RN-37). É por aqui
+     * que o autor volta ao rascunho e lê a devolução do curador (RN-07).
+     *
+     * @param pagina a partir de 0
+     * @param tamanho de 1 a {@link Pagina#TAMANHO_MAXIMO}
+     * @throws IllegalArgumentException se a página for negativa ou o tamanho estiver fora da faixa
+     */
+    @Transactional(readOnly = true)
+    public TrechoDoAcervo meusCenarios(int pagina, int tamanho) {
+        return cenarios.listarDoAutor(usuarioLogado.id(), new Pagina(pagina, tamanho));
     }
 
     /** Só o autor edita o próprio rascunho (Figura 3 dos requisitos). */

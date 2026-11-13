@@ -54,6 +54,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-thymeleaf</artifactId>
         </dependency>
+        <!--
+          HTMX servido pela própria aplicação, sem CDN: a tela não depende de site de terceiros na rede da
+          escola, e a versão fica só aqui. O locator deixa as telas pedirem /webjars/htmx.org/dist/htmx.min.js,
+          sem repetir a versão.
+        -->
+        <dependency>
+            <groupId>org.webjars.npm</groupId>
+            <artifactId>htmx.org</artifactId>
+            <version>2.0.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.webjars</groupId>
+            <artifactId>webjars-locator-lite</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-core</artifactId>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Fragmentos do editor de cenário (RF-06). Os dois são devolvidos às requisições HTMX e também
+  entram na primeira montagem da tela.
+-->
+
+<!--
+  "Pronto para curadoria?" (RN-02, RN-03). Fica dentro do formulário: a cada alteração o HTMX manda o
+  formulário inteiro para /cenarios/pendencias, que só confere e devolve este mesmo bloco, sem gravar.
+  Cada item leva à etapa e ao campo onde é preenchido.
+-->
+<aside th:fragment="requisitos" id="requisitos" class="requirements-card"
+       th:hx-post="@{/cenarios/pendencias}"
+       hx-trigger="input delay:500ms from:#editor-cenario, change from:#editor-cenario"
+       hx-swap="outerHTML" hx-sync="this:replace">
+  <h3>Pronto para curadoria?</h3>
+  <div aria-live="polite">
+    <th:block th:unless="${pendencias.isEmpty()}">
+      <p th:text="${pendencias.size() == 1} ? 'Ainda falta 1 item obrigatório:' : |Ainda faltam ${pendencias.size()} itens obrigatórios:|">
+        Ainda faltam 3 itens obrigatórios:
+      </p>
+      <ul>
+        <li th:each="item : ${pendencias}">
+          <span aria-hidden="true">!</span>
+          <a th:href="|#${item.campo}|" th:attr="data-ir-para=${item.etapa}" th:text="${item.descricao}">Personagem</a>
+        </li>
+      </ul>
+    </th:block>
+    <div th:if="${pendencias.isEmpty()}" class="ready-callout">
+      <span aria-hidden="true">✓</span>
+      <p>Todos os itens obrigatórios foram preenchidos.</p>
+    </div>
+  </div>
+  <button class="btn btn-primary full" type="submit" name="acao" value="enviar"
+          th:disabled="${!pendencias.isEmpty()}">Enviar à curadoria</button>
+  <button class="btn btn-secondary full" type="submit" name="acao" value="salvar">Salvar rascunho</button>
+  <small>O cenário fica bloqueado para edição durante a análise da curadoria.</small>
+</aside>
+
+<!--
+  Resultado da busca na BNCC (RF-05). "Vincular" acrescenta a habilidade à lista do cenário pelo
+  cenario-editor.js, que guarda o código num campo oculto do formulário.
+-->
+<div th:fragment="resultadosDaBncc" th:remove="tag">
+  <th:block th:if="${buscou}">
+    <p class="field-description" th:if="${encontradas.isEmpty()}">
+      Nenhuma habilidade encontrada. Confira o código ou tente outra palavra.
+    </p>
+    <ul class="bncc-results" th:unless="${encontradas.isEmpty()}">
+      <li th:each="h : ${encontradas}">
+        <div>
+          <strong th:text="${h.codigo}">EF08HI03</strong>
+          <span th:text="${h.descricao}">Descrição da habilidade</span>
+          <small th:text="|${h.componente} · ${#strings.listJoin(h.anos, 'º, ')}º ano|">História · 8º ano</small>
+        </div>
+        <button class="btn btn-secondary" type="button"
+                th:attr="data-vincular=${h.codigo},data-descricao=${h.descricao},aria-label=|Vincular ${h.codigo}|">
+          Vincular
+        </button>
+      </li>
+    </ul>
+  </th:block>
+</div>
+</body>
+</html>

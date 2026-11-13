@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca(${id == null} ? 'Novo cenário · Laboratório' : 'Editar cenário · Laboratório')}"></head>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Editor de cenário (RF-06) em quatro etapas, como no protótipo. Sem JavaScript, as quatro etapas
+  aparecem juntas e o formulário funciona igual; com ele, o cenario-editor.js mostra uma por vez.
+  A sugestão pela IA e o quiz do protótipo chegam com as issues #33 e #53.
+-->
+<main class="page editor-page">
+  <a class="back-link" th:href="@{/cenarios}">← Voltar aos meus cenários</a>
+  <div class="editor-heading">
+    <div>
+      <div class="heading-badges">
+        <span class="subject-tag" th:text="${id == null} ? 'Novo cenário' : 'Editando rascunho'">Novo cenário</span>
+      </div>
+      <h1 data-titulo-do-cenario data-vazio="Cenário sem título"
+          th:text="${#strings.isEmpty(formulario.titulo)} ? 'Cenário sem título' : ${formulario.titulo}">Cenário sem título</h1>
+      <p>Salve o rascunho quando quiser. O conteúdo mínimo só é exigido no envio à curadoria.</p>
+    </div>
+  </div>
+
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+  <div th:if="${devolucao}" class="danger-callout editor-callout" role="note">
+    <span aria-hidden="true">!</span>
+    <div>
+      <strong>Devolvido pela curadoria</strong>
+      <p th:text="${devolucao.comentario}">Comentário do curador.</p>
+    </div>
+  </div>
+
+  <form id="editor-cenario" class="editor-layout" method="post" data-editor-cenario
+        th:action="${id == null} ? @{/cenarios} : @{/cenarios/{id}(id=${id})}">
+
+    <nav class="editor-steps" aria-label="Etapas do editor" data-etapas hidden>
+      <button type="button" th:each="nome, i : ${ {'Personagem', 'Intenção pedagógica', 'Segurança e formato', 'Perguntas disparadoras'} }"
+              th:attr="data-ir-para=${i.count}">
+        <span th:text="${i.count}">1</span><strong th:text="${nome}">Personagem</strong>
+      </button>
+    </nav>
+
+    <div class="card editor-form">
+      <!-- Etapa 1: personagem (RN-03) -->
+      <fieldset class="editor-step" data-etapa="1" aria-labelledby="etapa-1">
+        <p class="eyebrow">ETAPA 1 DE 4</p>
+        <h2 id="etapa-1">Personagem</h2>
+        <div class="form-stack">
+          <label for="titulo">Título do cenário *</label>
+          <input id="titulo" name="titulo" required maxlength="200" th:value="${formulario.titulo}"
+                 placeholder="Ex.: Ada Lovelace e a máquina de imaginar">
+          <div class="form-grid">
+            <div>
+              <label for="personagem">Personagem *</label>
+              <input id="personagem" name="personagem" th:value="${formulario.personagem}" placeholder="Ex.: Ada Lovelace">
+            </div>
+            <div>
+              <label for="papelDaIa">Papel do personagem *</label>
+              <input id="papelDaIa" name="papelDaIa" th:value="${formulario.papelDaIa}" placeholder="Como deve agir na conversa">
+            </div>
+          </div>
+          <label for="contexto">Contexto da simulação *</label>
+          <textarea id="contexto" name="contexto" rows="5" th:text="${formulario.contexto}"
+                    placeholder="Onde e quando a conversa acontece, e o que a turma já sabe"></textarea>
+        </div>
+      </fieldset>
+
+      <!-- Etapa 2: vínculo com a BNCC e objetivos (RN-02, RF-05) -->
+      <fieldset class="editor-step" data-etapa="2" aria-labelledby="etapa-2">
+        <p class="eyebrow">ETAPA 2 DE 4</p>
+        <h2 id="etapa-2">Intenção pedagógica</h2>
+        <div class="form-stack">
+          <div class="form-grid">
+            <div>
+              <label for="componente">Componente curricular *</label>
+              <select id="componente" name="componente">
+                <option value="" th:selected="${#strings.isEmpty(formulario.componente)}">Selecione</option>
+                <option th:each="c : ${componentes}" th:value="${c}" th:text="${c}"
+                        th:selected="${formulario.componente == c}">História</option>
+              </select>
+            </div>
+            <div>
+              <label for="ano">Ano escolar *</label>
+              <select id="ano" name="ano">
+                <option value="" th:selected="${formulario.ano == null}">Selecione</option>
+                <option th:each="a : ${anos}" th:value="${a}" th:text="|${a}º ano|"
+                        th:selected="${formulario.ano == a}">8º ano</option>
+              </select>
+            </div>
+          </div>
+          <small class="field-description">Etapa: Ensino Fundamental.</small>
+
+          <label for="objetivos">Objetivos de aprendizagem *</label>
+          <textarea id="objetivos" name="objetivos" rows="4" th:text="${formulario.objetivos}"
+                    placeholder="Um objetivo por linha, escrito a partir da habilidade da BNCC"></textarea>
+
+          <label for="bncc-busca">Habilidade BNCC: busque por código ou palavra *</label>
+          <input id="bncc-busca" name="bncc-busca" type="search" autocomplete="off"
+                 placeholder="Ex.: EF08HI03 ou revolução industrial"
+                 aria-describedby="bncc-ajuda" aria-controls="bncc-resultados"
+                 th:hx-get="@{/cenarios/bncc}"
+                 hx-trigger="input changed delay:350ms, search"
+                 hx-include="#componente, #ano" hx-target="#bncc-resultados" hx-sync="this:replace">
+          <small id="bncc-ajuda" class="field-description">O componente e o ano escolhidos acima restringem a busca.</small>
+          <div id="bncc-resultados" aria-live="polite"></div>
+
+          <h3 class="skills-title">Habilidades vinculadas</h3>
+          <ul class="skill-list" data-habilidades>
+            <li class="skill-result" th:each="h : ${habilidadesEscolhidas}" th:attr="data-habilidade=${h.codigo}">
+              <input type="hidden" name="habilidades" th:value="${h.codigo}">
+              <strong th:text="${h.codigo}">EF08HI03</strong>
+              <span th:text="${h.descricao}">Descrição</span>
+              <button type="button" class="text-button" data-remover th:attr="aria-label=|Remover ${h.codigo}|">Remover</button>
+            </li>
+          </ul>
+          <p class="field-description" data-sem-habilidade th:hidden="${!habilidadesEscolhidas.isEmpty()}">
+            Nenhuma habilidade vinculada. Todo cenário precisa de ao menos uma para ir à curadoria.
+          </p>
+          <template data-modelo-habilidade>
+            <li class="skill-result">
+              <input type="hidden" name="habilidades">
+              <strong></strong>
+              <span></span>
+              <button type="button" class="text-button" data-remover>Remover</button>
+            </li>
+          </template>
+        </div>
+      </fieldset>
+
+      <!-- Etapa 3: limites, fontes e formato (RN-03, RN-17) -->
+      <fieldset class="editor-step" data-etapa="3" aria-labelledby="etapa-3">
+        <p class="eyebrow">ETAPA 3 DE 4</p>
+        <h2 id="etapa-3">Segurança e formato</h2>
+        <div class="form-stack">
+          <label for="limitesDeAssunto">Limites de assunto *</label>
+          <textarea id="limitesDeAssunto" name="limitesDeAssunto" rows="3" th:text="${formulario.limitesDeAssunto}"
+                    placeholder="O que o personagem não deve abordar ou afirmar, um por linha"></textarea>
+          <label for="fontes">Fontes de referência *</label>
+          <textarea id="fontes" name="fontes" rows="3" th:text="${formulario.fontes}"
+                    placeholder="Uma fonte por linha"></textarea>
+          <div class="form-grid">
+            <div>
+              <label for="faixaEtaria">Faixa etária *</label>
+              <input id="faixaEtaria" name="faixaEtaria" th:value="${formulario.faixaEtaria}" placeholder="Ex.: 13 a 15 anos">
+            </div>
+            <div>
+              <label for="duracaoPrevistaMin">Duração: <output for="duracaoPrevistaMin" data-duracao
+                     th:text="${formulario.duracaoPrevistaMin ?: 20}">20</output> min *</label>
+              <input id="duracaoPrevistaMin" name="duracaoPrevistaMin" type="range" step="5"
+                     th:min="${duracaoMinima}" th:max="${duracaoMaxima}"
+                     th:value="${formulario.duracaoPrevistaMin ?: 20}">
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Etapa 4: perguntas disparadoras (opcionais pelo RN-03) -->
+      <fieldset class="editor-step" data-etapa="4" aria-labelledby="etapa-4">
+        <p class="eyebrow">ETAPA 4 DE 4</p>
+        <h2 id="etapa-4">Perguntas disparadoras</h2>
+        <div class="form-stack">
+          <label for="perguntasDisparadoras">Perguntas disparadoras</label>
+          <textarea id="perguntasDisparadoras" name="perguntasDisparadoras" rows="5" th:text="${formulario.perguntasDisparadoras}"
+                    placeholder="Uma pergunta por linha"></textarea>
+          <small class="field-description">Opcional. Ajudam o professor a puxar a conversa com a turma.</small>
+        </div>
+      </fieldset>
+
+      <div class="editor-nav" data-navegacao hidden>
+        <button class="btn btn-ghost" type="button" data-anterior>Anterior</button>
+        <button class="btn btn-primary" type="button" data-proxima>Continuar <span aria-hidden="true">→</span></button>
+        <span class="all-steps-note" data-ultima hidden>Revise os itens antes de enviar.</span>
+      </div>
+    </div>
+
+    <aside th:replace="~{cenarios/fragmentos :: requisitos}"></aside>
+  </form>
+</main>
+<script th:replace="~{fragmentos/base :: htmx}"></script>
+<script th:src="@{/js/cenario-editor.js}" defer></script>
+</body>
+</html>

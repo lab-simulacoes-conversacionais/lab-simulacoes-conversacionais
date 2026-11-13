@@ -37,10 +37,13 @@ class ConfiguracaoDeSeguranca {
                         // Fonte única de liberação: o matcher Ant de "/login" cobre a página, o
                         // processamento (POST) e as variações de query (?error, ?logout, ?expirada),
                         // o que o permitAll() por URL exata do formLogin não faria.
-                        .requestMatchers("/login", "/css/**", "/js/**", "/img/**", "/favicon.*").permitAll()
+                        .requestMatchers("/login", "/css/**", "/js/**", "/img/**", "/webjars/**", "/favicon.*")
+                        .permitAll()
                         // Os casos de uso já exigem o perfil, mas os formulários vazios não chamam
                         // nenhum; assim nenhuma tela da administração abre para outro perfil (RN-37).
                         .requestMatchers("/admin/**").hasRole("ADMINISTRADOR")
+                        // Pelo mesmo motivo: o administrador não edita conteúdo pedagógico (RN-37).
+                        .requestMatchers("/cenarios/**").hasAnyRole("PROFESSOR", "CURADOR")
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage("/login")
