@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Sessão encerrada · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Resumo depois do encerramento, como no protótipo. A participação da turma e o relatório chegam com o
+  registro de engajamento (#53) e o painel de métricas (#54).
+-->
+<main class="end-page">
+  <div class="success-mark"><svg th:replace="~{fragmentos/base :: iconeCheck}"></svg></div>
+  <p class="eyebrow">SESSÃO CONCLUÍDA</p>
+  <h1>Boa conversa!</h1>
+  <p>A sessão foi encerrada, e a conversa ficou registrada.</p>
+  <section class="card summary-card">
+    <div class="summary-head">
+      <div>
+        <span class="subject-tag" th:text="${versao.componente}">História</span>
+        <h2 th:text="${versao.titulo}">Santos Dumont e o voo do 14-bis</h2>
+        <p th:text="|${turma} · ${data}|">8º A · 19 de junho de 2026</p>
+      </div>
+    </div>
+    <div class="summary-stats">
+      <div><strong th:text="${perguntas}">16</strong><span>Perguntas</span></div>
+      <div><strong th:text="${duracao}">28 min</strong><span>De conversa</span></div>
+      <div><strong th:text="${emPausa}">3 min</strong><span>Em pausa</span></div>
+    </div>
+  </section>
+  <div class="end-actions">
+    <a class="btn btn-secondary" th:href="@{/sessoes/nova}">Nova sessão</a>
+    <a class="btn btn-primary" th:href="@{/}">Voltar ao início</a>
+  </div>
+</main>
+</body>
+</html>

@@ -60,6 +60,7 @@ class BibliotecaController {
                 .map(versao -> {
                     modelo.addAttribute("conteudo", ConteudoExibido.de(versao, descricoes));
                     modelo.addAttribute("aprovadaEm", data(versao.aprovadaEm()));
+                    modelo.addAttribute("cenarioId", id);
                     return "biblioteca/detalhe";
                 })
                 .orElseGet(() -> {

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Painel do professor (RF-17). Volta a cada controle e depois de cada resposta, porque o bloqueio pausa
+  a sessão e a pergunta conta no limite (RN-18).
+-->
+<aside th:fragment="painel" id="painel" class="teacher-panel"
+       th:attr="data-status=${tela.status},data-pode-perguntar=${!tela.pausada() and !tela.noLimite()}"
+       th:hx-get="@{/sessoes/{id}/painel(id=${tela.id})}" hx-trigger="sessao-mudou from:body" hx-swap="outerHTML">
+  <div class="panel-title">
+    <div>
+      <p>PAINEL DO PROFESSOR</p>
+      <span th:if="${tela.pausada()}" class="badge badge-pending"><span aria-hidden="true">❚❚</span>Pausada</span>
+      <span th:unless="${tela.pausada()}" class="badge badge-positive"><span aria-hidden="true">●</span>Em andamento</span>
+    </div>
+    <h2>Condução da sessão</h2>
+    <p class="panel-turma" th:text="|Turma ${tela.turma}|">Turma 8º A</p>
+  </div>
+
+  <p class="aviso" role="alert" th:if="${tela.avisoDaPausa()}" th:text="${tela.avisoDaPausa()}">Aviso da pausa</p>
+
+  <section class="card timer-card" data-cronometro
+           th:attr="data-decorrido=${tela.decorridoSegundos},data-rodando=${!tela.pausada()}">
+    <div class="timer-top">
+      <span>Tempo de conversa</span>
+      <strong data-tempo th:text="${tela.decorridoFormatado()}">18:42</strong>
+    </div>
+    <div class="progress" th:if="${tela.previstoMinutos}" aria-hidden="true">
+      <span th:style="|width: ${tela.progresso()}%|"></span>
+    </div>
+    <div class="timer-meta">
+      <span th:text="${tela.previstoMinutos} ? |Previsto: ${tela.previstoMinutos} min| : ''">Previsto: 20 min</span>
+      <strong th:text="|${tela.perguntas}/${tela.limiteDePerguntas} perguntas|">12/40 perguntas</strong>
+    </div>
+  </section>
+
+  <p class="aviso" role="status" th:if="${tela.noLimite()}">
+    A turma já fez todas as perguntas desta sessão. Que tal encerrar e conversar sobre o que aprenderam?
+  </p>
+
+  <div class="controls">
+    <button th:if="${tela.pausada()}" class="btn btn-secondary" type="button" data-atalho="p"
+            th:hx-post="@{/sessoes/{id}/retomar(id=${tela.id})}" hx-target="#painel" hx-swap="outerHTML">
+      <svg th:replace="~{fragmentos/base :: iconePlay}"></svg> Retomar <kbd>P</kbd>
+    </button>
+    <button th:unless="${tela.pausada()}" class="btn btn-secondary" type="button" data-atalho="p"
+            th:hx-post="@{/sessoes/{id}/pausar(id=${tela.id})}" hx-target="#painel" hx-swap="outerHTML">
+      <svg th:replace="~{fragmentos/base :: iconePausa}"></svg> Pausar <kbd>P</kbd>
+    </button>
+    <button class="btn btn-ghost" type="button" data-atalho="r"
+            th:hx-post="@{/sessoes/{id}/reiniciar(id=${tela.id})}" hx-target="#painel" hx-swap="outerHTML"
+            hx-confirm="Limpar a conversa da tela? As perguntas e respostas continuam registradas.">
+      <svg th:replace="~{fragmentos/base :: iconeReiniciar}"></svg> Reiniciar <kbd>R</kbd>
+    </button>
+    <button class="btn btn-danger" type="button" data-atalho="e" data-abrir-encerramento>
+      <svg th:replace="~{fragmentos/base :: iconeParar}"></svg> Encerrar <kbd>E</kbd>
+    </button>
+  </div>
+  <p class="atalhos-nota">Atalhos funcionam fora do campo da pergunta.</p>
+</aside>
+
+<!-- Resposta ao reiniciar: o painel atualizado e a conversa limpa na tela (RN-19). -->
+<th:block th:fragment="reiniciada">
+  <aside th:replace="~{sessoes/painel :: painel}"></aside>
+  <div id="conversa" class="chat" aria-live="polite" hx-swap-oob="true"
+       data-vazio="Conversa reiniciada. Faça a próxima pergunta da turma."></div>
+</th:block>
+
+<th:block th:fragment="vazio"></th:block>
+</body>
+</html>

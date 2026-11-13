@@ -9,14 +9,14 @@
   com a #34. Só cenários Aprovados, na versão vigente (RN-01), de todos os autores.
 -->
 <main class="page">
-  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
+  <a class="back-link" th:href="@{/}">Voltar ao início</a>
   <div class="library-heading">
     <div>
       <p class="eyebrow">CONTEÚDO PEDAGÓGICO</p>
       <h1>Biblioteca de cenários</h1>
       <p>Cenários aprovados pela curadoria, prontos para levar à sala.</p>
     </div>
-    <a class="btn btn-primary" th:href="@{/cenarios/novo}">Criar cenário <span aria-hidden="true">+</span></a>
+    <a class="btn btn-primary" th:href="@{/cenarios/novo}"><svg th:replace="~{fragmentos/base :: iconeMais}"></svg> Criar cenário</a>
   </div>
 
   <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
@@ -39,8 +39,12 @@
       </div>
       <div class="library-card-footer">
         <small th:text="|v${c.numeroDaVersao} · aprovado em ${item.aprovadoEm}|">v1 · aprovado em 13/11/2026</small>
-        <a class="btn btn-secondary" th:href="@{/biblioteca/{id}(id=${c.cenarioId})}"
-           th:attr="aria-label=|Ver cenário ${c.titulo}|">Ver cenário <span aria-hidden="true">→</span></a>
+        <span class="card-actions">
+          <a class="btn btn-secondary" th:href="@{/biblioteca/{id}(id=${c.cenarioId})}"
+             th:attr="aria-label=|Ver cenário ${c.titulo}|">Ver cenário</a>
+          <a class="btn btn-primary" th:if="${professor}" th:href="@{/sessoes/nova(cenario=${c.cenarioId})}"
+             th:attr="aria-label=|Usar em sala ${c.titulo}|">Usar em sala</a>
+        </span>
       </div>
     </section>
   </div>
@@ -53,9 +57,9 @@
   </div>
 
   <nav class="results-bar" aria-label="Páginas" th:if="${pagina > 0 or temProxima}">
-    <a class="text-button" th:if="${pagina > 0}" th:href="@{/biblioteca(pagina=${pagina - 1})}">← Anteriores</a>
+    <a class="btn btn-ghost btn-sm pagina-anterior" th:if="${pagina > 0}" th:href="@{/biblioteca(pagina=${pagina - 1})}">Anteriores</a>
     <span th:unless="${pagina > 0}"></span>
-    <a class="text-button" th:if="${temProxima}" th:href="@{/biblioteca(pagina=${pagina + 1})}">Próximos →</a>
+    <a class="btn btn-ghost btn-sm pagina-proxima" th:if="${temProxima}" th:href="@{/biblioteca(pagina=${pagina + 1})}">Próximos</a>
   </nav>
 </main>
 </body>
