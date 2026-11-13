@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Biblioteca de cenários · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Biblioteca de cenários aprovados (RF-12), lista simples da E1: busca e filtros do protótipo chegam
+  com a #34. Só cenários Aprovados, na versão vigente (RN-01), de todos os autores.
+-->
+<main class="page">
+  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">CONTEÚDO PEDAGÓGICO</p>
+      <h1>Biblioteca de cenários</h1>
+      <p>Cenários aprovados pela curadoria, prontos para levar à sala.</p>
+    </div>
+    <a class="btn btn-primary" th:href="@{/cenarios/novo}">Criar cenário <span aria-hidden="true">+</span></a>
+  </div>
+
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <div class="results-bar" th:unless="${cenarios.isEmpty()}">
+    <strong th:text="${cenarios.size() == 1} ? '1 cenário nesta página' : |${cenarios.size()} cenários nesta página|">3 cenários</strong>
+  </div>
+
+  <div class="library-grid" th:unless="${cenarios.isEmpty()}">
+    <section class="card" th:each="item : ${cenarios}" th:with="c=${item.cenario}">
+      <div class="card-top">
+        <span class="subject-tag" th:text="${c.componente}">História</span>
+        <span class="badge badge-positive"><span aria-hidden="true">✓</span>Aprovado</span>
+      </div>
+      <h2 th:text="${c.titulo}">Título</h2>
+      <p th:text="|${c.faixaEtaria} · ${c.duracaoPrevistaMin} minutos|">13 a 15 anos · 20 minutos</p>
+      <div class="meta">
+        <span th:if="${c.ano}" th:text="|${c.ano}º ano|">8º ano</span>
+        <span th:each="h : ${c.habilidades}" th:text="${h}">EF08HI03</span>
+      </div>
+      <div class="library-card-footer">
+        <small th:text="|v${c.numeroDaVersao} · aprovado em ${item.aprovadoEm}|">v1 · aprovado em 13/11/2026</small>
+        <a class="btn btn-secondary" th:href="@{/biblioteca/{id}(id=${c.cenarioId})}"
+           th:attr="aria-label=|Ver cenário ${c.titulo}|">Ver cenário <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+  </div>
+
+  <div class="empty-state" th:if="${cenarios.isEmpty()}">
+    <div class="empty-shapes" aria-hidden="true"><span></span><span></span></div>
+    <h2 th:text="${pagina == 0} ? 'Nenhum cenário aprovado ainda' : 'Não há mais cenários'">Nenhum cenário aprovado ainda</h2>
+    <p>Os cenários aparecem aqui depois de aprovados pela curadoria.</p>
+    <a class="btn btn-secondary" th:href="@{/cenarios/novo}">Criar cenário</a>
+  </div>
+
+  <nav class="results-bar" aria-label="Páginas" th:if="${pagina > 0 or temProxima}">
+    <a class="text-button" th:if="${pagina > 0}" th:href="@{/biblioteca(pagina=${pagina - 1})}">← Anteriores</a>
+    <span th:unless="${pagina > 0}"></span>
+    <a class="text-button" th:if="${temProxima}" th:href="@{/biblioteca(pagina=${pagina + 1})}">Próximos →</a>
+  </nav>
+</main>
+</body>
+</html>

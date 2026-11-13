@@ -40,6 +40,58 @@
 </aside>
 
 <!--
+  Conteúdo de uma versão do cenário (ConteudoExibido), como no detalhe do protótipo. Serve à fila do
+  curador, que revisa a versão em curadoria, e ao detalhe da biblioteca, que mostra a aprovada vigente.
+-->
+<div th:fragment="conteudo(c)" class="detail-layout">
+  <div>
+    <div class="section-title"><div class="section-title-main"><span>1</span><h2>Intenção pedagógica</h2></div></div>
+    <section class="card detail-card">
+      <dl>
+        <div><dt>Personagem e papel</dt>
+          <dd><strong th:text="${c.personagem} ?: 'Não informado'">Ada Lovelace</strong>
+            <th:block th:if="${c.papelDaIa}"> · <span th:text="${c.papelDaIa}">papel</span></th:block></dd></div>
+        <div><dt>Contexto</dt><dd class="texto-longo" th:text="${c.contexto} ?: 'Não informado'">Contexto</dd></div>
+        <div><dt>Objetivos de aprendizagem</dt>
+          <dd><ul class="detail-list"><li th:each="o : ${c.objetivos}" th:text="${o}">Objetivo</li></ul></dd></div>
+        <div><dt>Habilidades BNCC</dt>
+          <dd><ul class="detail-list">
+            <li th:each="h : ${c.habilidades}"><strong th:text="${h.codigo}">EF08HI03</strong> · <span th:text="${h.descricao}">Descrição</span></li>
+          </ul></dd></div>
+      </dl>
+    </section>
+    <div class="section-title"><div class="section-title-main"><span>2</span><h2>Segurança e referências</h2></div></div>
+    <section class="card detail-card">
+      <dl>
+        <div><dt>Limites de assunto</dt>
+          <dd><ul class="detail-list"><li th:each="l : ${c.limitesDeAssunto}" th:text="${l}">Limite</li></ul></dd></div>
+        <div><dt>Fontes de referência</dt>
+          <dd><ul class="detail-list"><li th:each="f : ${c.fontes}" th:text="${f}">Fonte</li></ul></dd></div>
+      </dl>
+    </section>
+  </div>
+  <aside>
+    <section class="card detail-summary">
+      <h3>Resumo</h3>
+      <dl>
+        <div><dt>Componente</dt><dd th:text="${c.componente} ?: 'Não informado'">História</dd></div>
+        <div><dt>Ano</dt><dd th:text="${c.ano} ? |${c.ano}º ano · Ensino Fundamental| : 'Não informado'">8º ano</dd></div>
+        <div><dt>Faixa etária</dt><dd th:text="${c.faixaEtaria} ?: 'Não informada'">13 a 15 anos</dd></div>
+        <div><dt>Duração prevista</dt><dd th:text="${c.duracaoPrevistaMin} ? |${c.duracaoPrevistaMin} minutos| : 'Não informada'">20 minutos</dd></div>
+        <div><dt>Versão</dt><dd th:text="|v${c.numeroDaVersao}|">v1</dd></div>
+      </dl>
+    </section>
+    <section class="card detail-prompts">
+      <h3>Perguntas disparadoras</h3>
+      <ol th:unless="${c.perguntasDisparadoras.isEmpty()}">
+        <li th:each="p : ${c.perguntasDisparadoras}" th:text="${p}">Pergunta</li>
+      </ol>
+      <p class="field-description" th:if="${c.perguntasDisparadoras.isEmpty()}">Nenhuma pergunta cadastrada.</p>
+    </section>
+  </aside>
+</div>
+
+<!--
   Resultado da busca na BNCC (RF-05). "Vincular" acrescenta a habilidade à lista do cenário pelo
   cenario-editor.js, que guarda o código num campo oculto do formulário.
 -->

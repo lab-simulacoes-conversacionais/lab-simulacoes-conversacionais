@@ -296,6 +296,56 @@ a.btn { text-decoration: none; }
 .ready-callout { background: #e1f6e9; border-radius: 10px; padding: 12px; display: flex; gap: 9px; align-items: flex-start; color: #075d33; }
 .ready-callout p { margin: 0; font-size: 12px; font-weight: 700; color: #075d33; }
 
+/* Curadoria e biblioteca (RF-08, RF-12): fila, detalhe do cenário e diálogo de devolução. */
+.queue-stats { display: flex; gap: 10px; }
+.queue-stats span { background: var(--surface); border-radius: 12px; padding: 10px 14px; font-size: 12px; }
+.queue-stats strong { color: var(--blue); font-size: 18px; margin-right: 4px; }
+.review-layout { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }
+.review-list { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; position: sticky; top: 16px; }
+.review-list h2 { font-size: 14px; padding: 17px; margin: 0; background: var(--surface); }
+.review-list > a { border-top: 1px solid var(--line); border-left: 5px solid transparent; background: white; padding: 15px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; color: var(--ink); text-decoration: none; }
+.review-list > a:hover { background: #f8f9ff; }
+.review-list > a.active { border-left-color: var(--blue); background: #f8f9ff; }
+.review-list > a strong { font-size: 13px; line-height: 1.35; }
+.review-list > a small { color: var(--muted); }
+.review-list-more { margin: 0; padding: 13px 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.review-main { min-width: 0; }
+.review-summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.review-summary h2 { margin: 10px 0 5px; font-size: 22px; }
+.review-summary p { margin: 0; color: var(--muted); font-size: 12px; }
+.conflict-warning { margin-top: 16px; }
+.review-actions { position: sticky; bottom: 0; z-index: 2; background: white; border: 1px solid var(--line); border-radius: 14px; padding: 13px; margin-top: 18px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; box-shadow: 0 -8px 25px rgba(26,64,255,.08); }
+.review-actions > div { margin-right: auto; }
+.review-actions > div strong, .review-actions > div span { display: block; font-size: 11px; }
+.review-actions > div span { color: var(--muted); margin-top: 3px; }
+.review-actions form { margin: 0; }
+
+.detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.detail-card { border-radius: 0 0 16px 16px; }
+.detail-card dl, .detail-summary dl { margin: 0; }
+.detail-card dl > div { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.detail-card dl > div:last-child { border-bottom: 0; }
+.detail-summary dl > div { border-bottom: 1px solid var(--line); padding: 11px 0; }
+.detail-card dt, .detail-summary dt { color: var(--muted); font-size: 10px; font-weight: 700; }
+.detail-card dd, .detail-summary dd { margin: 4px 0 0; font-size: 12px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.detail-list { margin: 0; padding-left: 18px; }
+.detail-list li + li { margin-top: 4px; }
+.texto-longo { white-space: pre-line; }
+.detail-summary, .detail-prompts { margin-bottom: 14px; }
+.detail-summary h3, .detail-prompts h3 { font-size: 17px; }
+.detail-prompts ol { padding-left: 20px; margin: 0; }
+.detail-prompts li { font-size: 12px; line-height: 1.5; margin-bottom: 10px; }
+
+dialog.modal { border: 0; padding: 0; border-radius: 18px; width: min(560px, calc(100% - 32px)); box-shadow: 0 25px 70px rgba(0,0,0,.25); }
+dialog.modal::backdrop { background: rgba(8,12,30,.66); }
+.modal-head { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.modal-head h2 { margin: 0; font-size: 22px; }
+.modal-body { padding: 20px 24px; }
+.modal-body > label { display: block; font-size: 13px; font-weight: 800; margin: 16px 0 7px; }
+.modal-body textarea { width: 100%; resize: vertical; }
+.modal-intro { color: var(--muted); font-size: 14px; }
+.modal-footer { padding: 16px 24px; background: #f7f8fc; border-radius: 0 0 18px 18px; display: flex; justify-content: flex-end; gap: 10px; }
+
 /* Por último, para valer sobre as regras de cada tela, como no protótipo. */
 @media (max-width: 900px) {
   .scenario-grid { grid-template-columns: 1fr; }
@@ -306,6 +356,8 @@ a.btn { text-decoration: none; }
   .editor-layout { grid-template-columns: 1fr; }
   .editor-steps { display: grid; grid-template-columns: 1fr 1fr; }
   .requirements-card { position: static; }
+  .review-layout, .detail-layout { grid-template-columns: 1fr; }
+  .review-list { position: static; }
   .profile-selector { grid-template-columns: 1fr; }
 }
 
@@ -318,6 +370,8 @@ a.btn { text-decoration: none; }
   .library-heading, .admin-section-head, .editor-heading { align-items: stretch; flex-direction: column; }
   .library-grid, .editor-steps { grid-template-columns: 1fr; }
   .bncc-results li { align-items: stretch; flex-direction: column; }
+  .review-summary, .review-actions, .queue-stats { align-items: stretch; flex-direction: column; }
+  .review-actions > div { margin-right: 0; }
   .form-grid, .parameter-grid { grid-template-columns: 1fr; }
   .admin-tabs { grid-template-columns: 1fr 1fr; }
   .period-options { align-items: stretch; flex-direction: column; }
