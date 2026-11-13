@@ -46,4 +46,11 @@ public interface Cenarios {
      * @param status só os cenários com este status; {@code null} traz todos
      */
     TrechoDoAcervo listarTodos(StatusDoCenario status, Pagina pagina);
+
+    /**
+     * Os cenários de um autor (RN-37), em qualquer status, cada um com a versão mais recente e a última
+     * devolução, para o autor continuar o rascunho e ler o que o curador pediu (RN-07). Os mais novos
+     * primeiro.
+     */
+    TrechoDoAcervo listarDoAutor(long autorId, Pagina pagina);
 }

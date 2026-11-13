@@ -161,6 +161,49 @@ class AcervoNoBancoTest {
         assertThat(trecho.temProxima()).isFalse();
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Cenários de um autor (RN-37, RN-07)
+    // ---------------------------------------------------------------------------------------------
+
+    /** Só os do autor, em qualquer status, os mais novos primeiro. */
+    @Test
+    void doAutorTrazSoOsDeleEmQualquerStatusDoMaisNovoAoMaisAntigo() {
+        long rascunho = rascunho("Z", autora);
+        rascunho("De outra", outraAutora);
+        long emCuradoria = emCuradoria("A", autora).id();
+        long aprovado = aprovado("M", autora);
+
+        assertThat(ids(cenarios.listarDoAutor(autora, new Pagina(0, 20))))
+                .containsExactly(aprovado, emCuradoria, rascunho);
+        assertThat(cenarios.listarDoAutor(curadora.id(), new Pagina(0, 20)).itens()).isEmpty();
+    }
+
+    /** O autor precisa ler o comentário da devolução para corrigir o rascunho (RN-07). */
+    @Test
+    void doAutorTrazAUltimaDevolucao() {
+        long devolvido = devolvido("Devolvido");
+
+        Cenario item = cenarios.listarDoAutor(autora, new Pagina(0, 20)).itens().get(0);
+
+        assertThat(item).isEqualTo(cenarios.buscar(devolvido).orElseThrow());
+        assertThat(item.ultimaDevolucao().comentario()).isEqualTo("Corrigir");
+    }
+
+    @Test
+    void doAutorPaginaSemRepetir() {
+        long primeiro = rascunho("A", autora);
+        long segundo = rascunho("B", autora);
+        long terceiro = rascunho("C", autora);
+
+        TrechoDoAcervo inicio = cenarios.listarDoAutor(autora, new Pagina(0, 2));
+        TrechoDoAcervo fim = cenarios.listarDoAutor(autora, new Pagina(1, 2));
+
+        assertThat(inicio.temProxima()).isTrue();
+        assertThat(ids(inicio)).containsExactly(terceiro, segundo);
+        assertThat(fim.temProxima()).isFalse();
+        assertThat(ids(fim)).containsExactly(primeiro);
+    }
+
     private static List<Long> ids(TrechoDoAcervo trecho) {
         return trecho.itens().stream().map(Cenario::id).toList();
     }

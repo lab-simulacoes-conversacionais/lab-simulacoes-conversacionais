@@ -88,6 +88,25 @@ class CenariosJdbc implements Cenarios {
             ORDER BY v.titulo, c.id
             LIMIT ? OFFSET ?""";
 
+    /**
+     * RN-37: o autor vê os próprios cenários, em qualquer status, com a versão mais recente e a última
+     * devolução, como em {@link #ACERVO}. Os mais novos primeiro, porque é o que o autor está editando;
+     * o id é único, então a ordem não muda entre as páginas.
+     */
+    private static final String DO_AUTOR = "SELECT " + COLUNAS_DO_CENARIO + """
+
+            FROM cenario c
+            JOIN LATERAL (
+                SELECT * FROM cenario_versao
+                WHERE cenario_id = c.id
+                ORDER BY numero DESC
+                LIMIT 1) v ON true
+            """ + ULTIMA_DEVOLUCAO + """
+
+            WHERE c.autor_id = ?
+            ORDER BY c.id DESC
+            LIMIT ? OFFSET ?""";
+
     /** RN-01: só cenário Aprovado. Suspenso e arquivado guardam a versão vigente, mas não vão à sala. */
     private static final String APROVADOS_COM_VERSAO_VIGENTE = """
             FROM cenario c
@@ -188,6 +207,14 @@ class CenariosJdbc implements Cenarios {
         String filtro = status == null ? null : status.name();
         List<Cenario> lidos = jdbc.query(
                 ACERVO, this::paraCenario, filtro, filtro, pagina.tamanho() + 1, pagina.deslocamento());
+        boolean temProxima = lidos.size() > pagina.tamanho();
+        return new TrechoDoAcervo(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
+    }
+
+    @Override
+    public TrechoDoAcervo listarDoAutor(long autorId, Pagina pagina) {
+        List<Cenario> lidos = jdbc.query(
+                DO_AUTOR, this::paraCenario, autorId, pagina.tamanho() + 1, pagina.deslocamento());
         boolean temProxima = lidos.size() > pagina.tamanho();
         return new TrechoDoAcervo(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
     }
