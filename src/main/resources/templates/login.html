@@ -3,7 +3,7 @@
 <head th:replace="~{fragmentos/base :: cabeca('Entrar · Laboratório de Simulações')}"></head>
 <body>
 <main class="login-page">
-  <div class="login-shapes"><span></span><span></span><span></span></div>
+  <div class="login-shapes" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
   <section class="card login-card">
     <div class="login-brand">
       <span class="brand-mark"><span></span></span>
@@ -38,6 +38,7 @@
     </p>
   </section>
 </main>
+<script th:src="@{/js/login.js}" defer></script>
 </body>
 </html>
 

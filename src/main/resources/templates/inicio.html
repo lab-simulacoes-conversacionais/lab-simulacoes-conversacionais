@@ -20,27 +20,28 @@
     </div>
     <div class="scenario-grid">
       <section class="card">
-        <div class="card-top"><span class="subject-tag">Sessão</span><span class="badge badge-pending">Em breve</span></div>
+        <div class="card-top"><span class="subject-tag">Sessão</span></div>
         <h3>Iniciar sessão</h3>
         <p>Escolha a turma e um cenário aprovado e conduza a conversa no projetor.</p>
+        <a class="btn btn-primary" th:href="@{/sessoes/nova}"><svg th:replace="~{fragmentos/base :: iconePlay}"></svg> Iniciar sessão</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Biblioteca de cenários</h3>
         <p>Encontre cenários aprovados pela curadoria para levar à sala.</p>
-        <a class="btn btn-secondary" th:href="@{/biblioteca}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/biblioteca}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Criar cenário</h3>
         <p>Monte um novo cenário com personagem, objetivos e vínculo à BNCC.</p>
-        <a class="btn btn-secondary" th:href="@{/cenarios/novo}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/cenarios/novo}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Meus cenários</h3>
         <p>Continue seus rascunhos e veja o que a curadoria pediu para mudar.</p>
-        <a class="btn btn-secondary" th:href="@{/cenarios}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/cenarios}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Comparação</span><span class="badge badge-pending">Em breve</span></div>
@@ -65,20 +66,20 @@
         <div class="card-top"><span class="subject-tag">Curadoria</span></div>
         <h3>Fila do curador</h3>
         <p>Revise, aprove ou devolva os cenários enviados pelos autores.</p>
-        <a class="btn btn-secondary" th:href="@{/curadoria}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/curadoria}">Abrir</a>
       </section>
       <!-- O curador também cria cenários (RF-06); quem tem os dois perfis vê o atalho uma vez só. -->
       <section class="card" th:unless="${professor}">
         <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Meus cenários</h3>
         <p>Crie cenários e acompanhe os seus na curadoria de outro curador.</p>
-        <a class="btn btn-secondary" th:href="@{/cenarios}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/cenarios}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Biblioteca de cenários</h3>
         <p>Veja os cenários aprovados da escola.</p>
-        <a class="btn btn-secondary" th:href="@{/biblioteca}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/biblioteca}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Dados</span><span class="badge badge-pending">Em breve</span></div>
@@ -98,19 +99,19 @@
         <div class="card-top"><span class="subject-tag">Acesso</span></div>
         <h3>Usuários</h3>
         <p>Cadastre profissionais e defina os perfis acumuláveis de cada um.</p>
-        <a class="btn btn-secondary" th:href="@{/admin/usuarios}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/admin/usuarios}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Acesso</span></div>
         <h3>Turmas</h3>
         <p>Cadastre turmas só com escola, ano, turno e rótulo, sem estudantes.</p>
-        <a class="btn btn-secondary" th:href="@{/admin/turmas}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/admin/turmas}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Parâmetros</span></div>
         <h3>Parâmetros</h3>
         <p>Defina o limite de perguntas por sessão e o custo diário máximo.</p>
-        <a class="btn btn-secondary" th:href="@{/admin/parametros}">Abrir <span aria-hidden="true">→</span></a>
+        <a class="btn btn-secondary" th:href="@{/admin/parametros}">Abrir</a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Auditoria</span><span class="badge badge-pending">Em breve</span></div>
