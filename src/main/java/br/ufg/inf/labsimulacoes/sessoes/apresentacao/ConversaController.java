@@ -259,7 +259,7 @@ class ConversaController {
         return aviso(resposta, HttpStatus.NOT_FOUND, "Sessão não encontrada.");
     }
 
-    private static ModelAndView aviso(HttpServletResponse resposta, HttpStatus status, String texto) {
+    static ModelAndView aviso(HttpServletResponse resposta, HttpStatus status, String texto) {
         resposta.setHeader("HX-Retarget", AREA_DE_AVISOS);
         resposta.setHeader("HX-Reswap", "innerHTML");
         var aviso = new ModelAndView("sessoes/conversa :: aviso", status);

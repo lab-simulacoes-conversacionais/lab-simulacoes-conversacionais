@@ -126,7 +126,9 @@ class CuradoriaEBibliotecaTest {
         assertThat(curador.get("/curadoria").body()).contains("foi aprovado e já está na biblioteca")
                 .doesNotContain("cenario=" + id + "\"");
         var professor = logado(novoUsuario(Perfil.PROFESSOR));
-        assertThat(professor.get("/biblioteca?pagina=0").body()).contains("/biblioteca/" + id);
+        assertThat(professor.get("/biblioteca?pagina=0").body())
+                .contains("/biblioteca/" + id)
+                .contains("/sessoes/nova?cenario=" + id);
         assertThat(professor.get("/biblioteca/" + id).body())
                 .contains(titulo)
                 .contains("Aprovado")

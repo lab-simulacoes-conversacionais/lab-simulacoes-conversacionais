@@ -44,6 +44,15 @@ public class ControlesDaSessao {
     }
 
     /**
+     * A sessão do professor logado, com a turma, a versão do cenário e o limite de perguntas, para o
+     * cabeçalho e o painel da tela de projeção (RN-10).
+     */
+    @Transactional(readOnly = true)
+    public Sessao sessao(long id) {
+        return leitura.doProfessorLogado(sessoes.buscar(id), id);
+    }
+
+    /**
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado se já estiver pausada
      * @throws br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada se já estiver encerrada (RN-19)
      */

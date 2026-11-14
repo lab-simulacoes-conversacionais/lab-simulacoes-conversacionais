@@ -6,7 +6,7 @@
 
 <!-- Detalhe de um cenário da biblioteca (RF-12): a versão aprovada vigente, como no protótipo. -->
 <main class="page detail-page">
-  <a class="back-link" th:href="@{/biblioteca}">← Voltar à biblioteca</a>
+  <a class="back-link" th:href="@{/biblioteca}">Voltar à biblioteca</a>
   <div class="library-heading">
     <div>
       <div class="heading-badges">
@@ -16,6 +16,9 @@
       <h1 th:text="${conteudo.titulo}">Título</h1>
       <p th:text="|${conteudo.resumoCurricular()} · aprovado em ${aprovadaEm}|">8º ano · EF08HI03</p>
     </div>
+    <a class="btn btn-primary" th:if="${professor}" th:href="@{/sessoes/nova(cenario=${cenarioId})}">
+      <svg th:replace="~{fragmentos/base :: iconePlay}"></svg> Usar em sala
+    </a>
   </div>
 
   <div th:replace="~{cenarios/fragmentos :: conteudo(${conteudo})}"></div>

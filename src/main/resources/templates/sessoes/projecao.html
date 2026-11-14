@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca(${tela.titulo} + ' · Modo projeção')}"></head>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+
+<!--
+  Modo projeção (RF-15, Figura 2 dos requisitos): a conversa em fonte grande à esquerda, projetada para
+  a turma, e o painel do professor à direita. O aviso de IA fica sempre visível (RN-14). A pergunta vai
+  pelo HTMX e a resposta chega pelo SSE (ConversaController). Os controles têm atalhos de teclado
+  (RNF-05): P pausa ou retoma, R reinicia, E encerra. A sinalização de erro e o quiz chegam com as
+  issues #43 e #53.
+-->
+<main class="projection" data-projecao>
+  <section class="projected-area">
+    <header class="projection-header">
+      <div class="immersive-heading">
+        <a class="immersive-home" th:href="@{/}" aria-label="Voltar ao início"><span class="brand-mark"><span></span></span></a>
+        <div>
+          <p class="projection-kicker" th:text="${tela.cabecalho}">HISTÓRIA · 8º ANO · EF08HI03</p>
+          <h1 th:text="${tela.titulo}">Santos Dumont e o voo do 14-bis</h1>
+        </div>
+      </div>
+      <button class="panel-toggle" type="button" data-alternar-painel aria-controls="painel" aria-expanded="true">Ocultar painel</button>
+    </header>
+
+    <div class="ai-banner" role="note">
+      <strong>SIMULAÇÃO POR IA</strong>
+      <span>Personagem simulado por Inteligência Artificial · pode conter erros</span>
+    </div>
+
+    <div id="conversa" class="chat" aria-live="polite" th:attr="data-personagem=${tela.personagem}"
+         data-vazio="Faça a primeira pergunta da turma para começar a conversa."><th:block
+        th:each="m : ${tela.mensagens}"><div class="mensagem" th:classappend="${tela.daTurma(m)} ? 'mensagem-turma' : 'mensagem-ia'">
+        <span class="mensagem-autoria" th:text="${tela.daTurma(m)} ? 'Turma' : 'Personagem'">Turma</span>
+        <p th:class="${tela.daTurma(m)} ? null : 'mensagem-texto'" th:text="${m.texto}">Texto</p>
+      </div><p class="aviso" role="note" th:if="${m.respostaBloqueada}">A resposta a esta pergunta não pôde ser exibida.</p></th:block><th:block
+        th:if="${tela.pendente}"><div th:replace="~{sessoes/conversa :: resposta(${tela.id})}"></div></th:block></div>
+
+    <form class="composer" data-pergunta
+          th:hx-post="@{/sessoes/{id}/perguntas(id=${tela.id})}" hx-target="#conversa" hx-swap="beforeend">
+      <div id="aviso-da-sessao" aria-live="assertive"></div>
+      <label for="texto">Pergunta da turma</label>
+      <div class="composer-row">
+        <input id="texto" name="texto" autocomplete="off" required maxlength="1000"
+               placeholder="Digite a pergunta da turma…" th:disabled="${tela.pausada() or tela.noLimite()}">
+        <button class="btn btn-primary" type="submit" th:disabled="${tela.pausada() or tela.noLimite()}">
+          Enviar
+        </button>
+      </div>
+      <small>Não inclua nomes ou dados pessoais de estudantes.</small>
+    </form>
+  </section>
+
+  <aside th:replace="~{sessoes/painel :: painel}"></aside>
+
+  <dialog class="modal" id="encerramento" aria-labelledby="encerramento-titulo" data-encerramento>
+    <div class="modal-head">
+      <h2 id="encerramento-titulo">Encerrar esta sessão?</h2>
+      <button class="icon-button" type="button" data-fechar aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="danger-callout">
+        <span aria-hidden="true">!</span>
+        <div>
+          <strong>Esta ação é irreversível.</strong>
+          <p>Depois de encerrar, a turma não pode fazer novas perguntas. A conversa continua registrada.</p>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" type="button" data-fechar>Continuar conversa</button>
+      <button class="btn btn-danger" type="button" th:hx-post="@{/sessoes/{id}/encerrar(id=${tela.id})}" hx-swap="none">
+        Encerrar sessão
+      </button>
+    </div>
+  </dialog>
+</main>
+
+<script th:replace="~{fragmentos/base :: htmx}"></script>
+<script th:replace="~{fragmentos/base :: htmxSse}"></script>
+<script th:src="@{/js/projecao.js}" defer></script>
+</body>
+</html>

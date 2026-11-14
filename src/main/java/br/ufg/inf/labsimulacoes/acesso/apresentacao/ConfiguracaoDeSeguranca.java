@@ -46,6 +46,8 @@ class ConfiguracaoDeSeguranca {
                         .requestMatchers("/cenarios/**", "/biblioteca/**").hasAnyRole("PROFESSOR", "CURADOR")
                         // Aprovar e devolver é só do curador (RN-05).
                         .requestMatchers("/curadoria/**").hasRole("CURADOR")
+                        // Só o professor conduz sessões em sala (RN-10).
+                        .requestMatchers("/sessoes/**").hasRole("PROFESSOR")
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage("/login")

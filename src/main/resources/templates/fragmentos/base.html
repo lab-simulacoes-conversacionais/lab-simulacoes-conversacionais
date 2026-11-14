@@ -8,25 +8,53 @@
   <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
-<!-- Cabeçalho comum das telas dos profissionais: marca, perfis de quem entrou, e-mail e saída. -->
+<!--
+  Cabeçalho comum das telas dos profissionais: a marca e o menu de quem entrou. Na barra ficam só o
+  avatar, o e-mail e os perfis; o menu abre com a identificação completa e o Sair, separado para não
+  ser clicado por engano. É um <details>, que funciona sem JavaScript; o cabecalho.js só o fecha ao
+  clicar fora ou com Esc.
+-->
 <header th:fragment="topo(email, perfis)">
   <div class="header">
     <a class="brand" th:href="@{/}" aria-label="Ir para o início">
       <span class="brand-mark"><span></span></span>
       <span><strong>Laboratório</strong><small>Simulações Conversacionais</small></span>
     </a>
-    <div class="header-actions">
-      <span class="profile-chips">
-        <span class="subject-tag" th:each="p : ${perfis}" th:text="${p}">Perfil</span>
-      </span>
-      <span class="user-email" th:text="${email}">pessoa@escola.edu.br</span>
-      <form th:action="@{/logout}" method="post" class="logout-form">
-        <button class="btn btn-ghost" type="submit">Sair</button>
-      </form>
-      <span class="avatar" aria-hidden="true"
-            th:text="${#strings.toUpperCase(#strings.substring(email, 0, 1))}">A</span>
-    </div>
+    <details class="user-menu" data-menu-do-usuario>
+      <summary aria-label="Menu da conta">
+        <span class="avatar" aria-hidden="true"
+              th:text="${#strings.toUpperCase(#strings.substring(email, 0, 1))}">A</span>
+        <span class="user-identity">
+          <span class="user-email" th:text="${email}">pessoa@escola.edu.br</span>
+          <span class="user-roles" th:text="${#strings.listJoin(perfis, ' · ')}">Professor</span>
+        </span>
+        <svg class="icon user-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+      <div class="user-menu-panel">
+        <div class="user-menu-head">
+          <span class="avatar avatar-lg" aria-hidden="true"
+                th:text="${#strings.toUpperCase(#strings.substring(email, 0, 1))}">A</span>
+          <div>
+            <p class="user-menu-label">Conectado como</p>
+            <p class="user-menu-email" th:text="${email}">pessoa@escola.edu.br</p>
+          </div>
+        </div>
+        <div class="user-menu-section">
+          <p class="user-menu-label">Perfis de acesso</p>
+          <span class="profile-chips">
+            <span class="subject-tag" th:each="p : ${perfis}" th:text="${p}">Perfil</span>
+          </span>
+        </div>
+        <form th:action="@{/logout}" method="post" class="logout-form">
+          <button class="user-menu-item" type="submit">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            Sair da conta
+          </button>
+        </form>
+      </div>
+    </details>
   </div>
+  <script th:src="@{/js/cabecalho.js}" defer></script>
   <div class="security-notice">
     <span aria-hidden="true">i</span>
     Personagem simulado por Inteligência Artificial · pode conter erros
@@ -38,6 +66,7 @@
   'ativa' é 'usuarios', 'turmas' ou 'parametros'. O log de auditoria ganha a sua aba quando a tela existir.
 -->
 <div th:fragment="painelAdmin(ativa)">
+  <a class="back-link" th:href="@{/}">Voltar ao início</a>
   <div class="library-heading">
     <div>
       <p class="eyebrow">ADMINISTRAÇÃO</p>
@@ -62,8 +91,18 @@
 -->
 <script th:fragment="htmx" th:src="@{/webjars/htmx.org/dist/htmx.min.js}" defer></script>
 
+<!-- Extensão SSE do HTMX, também por WebJar. Vem depois do htmx, que ela estende. -->
+<script th:fragment="htmxSse" th:src="@{/webjars/htmx-ext-sse/sse.js}" defer></script>
+
 <!-- Ícone de confirmação (check) usado nas telas de cadastro concluído. -->
 <svg th:fragment="iconeCheck" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>
+
+<!-- Ícones dos botões, desenhados em SVG para ficarem nítidos e herdarem a cor do texto. -->
+<svg th:fragment="iconeMais" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+<svg th:fragment="iconePlay" class="icon icon-cheio" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>
+<svg th:fragment="iconePausa" class="icon icon-cheio" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
+<svg th:fragment="iconeReiniciar" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+<svg th:fragment="iconeParar" class="icon icon-cheio" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
 </body>
 </html>
 

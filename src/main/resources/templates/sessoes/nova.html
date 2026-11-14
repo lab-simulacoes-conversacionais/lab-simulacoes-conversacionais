@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Nova sessão · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!-- Preparação da sessão (RF-14), como no protótipo: a turma e um cenário aprovado (RN-01). -->
+<main class="page narrow-page">
+  <a class="back-link" th:href="@{/}">Voltar ao início</a>
+  <div class="step-heading">
+    <div>
+      <p class="eyebrow">NOVA SESSÃO</p>
+      <h1>Prepare a conversa</h1>
+      <p>Escolha a turma e o cenário aprovado para começar.</p>
+    </div>
+  </div>
+
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <form method="post" th:action="@{/sessoes}">
+    <fieldset class="choice-fieldset">
+      <legend class="section-title"><span class="section-title-main"><span>1</span><span class="legend-text">Escolha a turma</span></span></legend>
+      <div class="choice-grid" th:unless="${turmas.isEmpty()}">
+        <label class="choice-card" th:each="t, i : ${turmas}">
+          <input type="radio" name="turma" required th:value="${t.id}" th:checked="${turmas.size() == 1}">
+          <span class="radio-ui" aria-hidden="true"></span>
+          <span><strong th:text="${t.rotulo}">8º A</strong><small th:text="|${t.anoSerie} · ${t.turno} · ${t.escola}|">8º ano · Manhã</small></span>
+        </label>
+      </div>
+      <p class="hint-note" th:if="${turmas.isEmpty()}">Nenhuma turma cadastrada. Peça à administração para cadastrar a turma.</p>
+    </fieldset>
+
+    <fieldset class="choice-fieldset">
+      <legend class="section-title"><span class="section-title-main"><span>2</span><span class="legend-text">Escolha um cenário aprovado</span></span></legend>
+      <label class="choice-card scenario-choice" th:each="c : ${cenarios}">
+        <input type="radio" name="cenario" required th:value="${c.cenarioId}"
+               th:checked="${cenarioEscolhido == c.cenarioId or cenarios.size() == 1}">
+        <span class="radio-ui" aria-hidden="true"></span>
+        <span class="scenario-choice-copy">
+          <span class="subject-tag" th:text="${c.componente}">História</span>
+          <span><strong th:text="${c.titulo}">Santos Dumont e o voo do 14-bis</strong>
+            <small th:text="|${c.ano}º ano · ${#strings.listJoin(c.habilidades, ', ')} · ${c.duracaoPrevistaMin} min|">8º ano · EF08HI03</small></span>
+        </span>
+        <span class="badge badge-positive"><span aria-hidden="true">✓</span>Aprovado</span>
+      </label>
+      <p class="hint-note" th:if="${cenarios.isEmpty()}">
+        Nenhum cenário aprovado ainda. <a th:href="@{/cenarios/novo}">Crie um cenário</a> e envie à curadoria.
+      </p>
+    </fieldset>
+
+    <div class="privacy-reminder">
+      <span aria-hidden="true">!</span>
+      <div>
+        <strong>Proteja a privacidade da turma</strong>
+        <p>Não digite nomes de estudantes nem outros dados pessoais durante a conversa.</p>
+      </div>
+    </div>
+
+    <div class="setup-footer">
+      <p>A conversa abre em tela cheia para projetar. O painel do professor fica à direita.</p>
+      <button class="btn btn-primary" type="submit" th:disabled="${turmas.isEmpty() or cenarios.isEmpty()}">
+        <svg th:replace="~{fragmentos/base :: iconePlay}"></svg> Abrir modo projeção
+      </button>
+    </div>
+  </form>
+</main>
+</body>
+</html>

@@ -12,23 +12,29 @@
   - "falha": o provedor ou a moderação falharam. A tela descarta a resposta parcial já exibida e mostra
     o aviso; a pergunta continua pendente (RNF-04);
   - "fim": sempre o último; fecha o canal e evita a reconexão automática do navegador.
-  O descarte da resposta parcial é da tela de projeção (#24); este fragmento só mostra o aviso.
+  O descarte da resposta parcial é da tela de projeção (projecao.js); este fragmento só mostra o aviso.
 -->
 <th:block th:fragment="pergunta">
   <div class="mensagem mensagem-turma">
     <span class="mensagem-autoria">Turma</span>
     <p th:text="${recebida.pergunta().texto()}">Pergunta da turma</p>
   </div>
-  <div class="mensagem mensagem-ia" hx-ext="sse" sse-close="fim"
-       th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})}">
-    <span class="mensagem-autoria">Personagem</span>
-    <p class="mensagem-texto" sse-swap="trecho" hx-swap="beforeend"></p>
-    <p class="aviso" role="alert" sse-swap="falha,bloqueio"></p>
-  </div>
+  <div th:replace="~{sessoes/conversa :: resposta(${sessaoId})}"></div>
   <p class="aviso aviso-quiz" th:if="${recebida.perguntasRestantes() == 0}">
     Esta foi a última pergunta da sessão. Ao fim da resposta, que tal passar ao quiz?
   </p>
 </th:block>
+
+<!--
+  A resposta do personagem que chega pelo canal SSE. Também é usada pela tela de projeção quando ela
+  abre com uma pergunta ainda sem resposta, para tentar de novo (RNF-04).
+-->
+<div th:fragment="resposta(sessaoId)" class="mensagem mensagem-ia" hx-ext="sse" sse-close="fim"
+     th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})}">
+  <span class="mensagem-autoria">Personagem</span>
+  <p class="mensagem-texto" sse-swap="trecho" hx-swap="beforeend"></p>
+  <p class="aviso" role="alert" sse-swap="falha,bloqueio"></p>
+</div>
 
 <p th:fragment="aviso" class="aviso" role="alert" th:text="${aviso}">Aviso ao professor</p>
 </body>

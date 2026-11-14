@@ -113,8 +113,20 @@ final class Navegador {
     /** Um evento do canal SSE; {@code chegada} vem de {@link System#nanoTime()}. */
     record EventoSse(String nome, String dados, long chegada) {}
 
-    private HttpResponse<String> get(String caminho) throws IOException, InterruptedException {
+    HttpResponse<String> get(String caminho) throws IOException, InterruptedException {
         return cliente.send(requisicao(caminho).GET().build(), BodyHandlers.ofString());
+    }
+
+    /** POST como o HTMX manda: o token CSRF no cabeçalho e o HX-Request. */
+    HttpResponse<String> postHtmx(String caminho, String corpo) throws IOException, InterruptedException {
+        return cliente.send(
+                requisicao(caminho)
+                        .header("Content-Type", "application/x-www-form-urlencoded")
+                        .header("HX-Request", "true")
+                        .header("X-CSRF-TOKEN", tokenCsrf)
+                        .POST(BodyPublishers.ofString(corpo))
+                        .build(),
+                BodyHandlers.ofString());
     }
 
     private HttpRequest.Builder requisicao(String caminho) {

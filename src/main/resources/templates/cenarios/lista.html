@@ -10,14 +10,14 @@
   protótipo.
 -->
 <main class="page">
-  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
+  <a class="back-link" th:href="@{/}">Voltar ao início</a>
   <div class="library-heading">
     <div>
       <p class="eyebrow">CONTEÚDO PEDAGÓGICO</p>
       <h1>Meus cenários</h1>
       <p>Continue seus rascunhos e acompanhe o que está na curadoria.</p>
     </div>
-    <a class="btn btn-primary" th:href="@{/cenarios/novo}">Criar cenário <span aria-hidden="true">+</span></a>
+    <a class="btn btn-primary" th:href="@{/cenarios/novo}"><svg th:replace="~{fragmentos/base :: iconeMais}"></svg> Criar cenário</a>
   </div>
 
   <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
@@ -44,7 +44,7 @@
       <div class="library-card-footer">
         <small th:text="${c.editavel} ? 'Rascunho editável' : 'Bloqueado para edição'">Rascunho editável</small>
         <a class="btn btn-secondary" th:if="${c.editavel}" th:href="@{/cenarios/{id}/editar(id=${c.id})}">
-          Continuar edição <span aria-hidden="true">→</span>
+          Continuar edição
         </a>
       </div>
     </section>
@@ -58,9 +58,9 @@
   </div>
 
   <nav class="results-bar" aria-label="Páginas" th:if="${pagina > 0 or temProxima}">
-    <a class="text-button" th:if="${pagina > 0}" th:href="@{/cenarios(pagina=${pagina - 1})}">← Mais recentes</a>
+    <a class="btn btn-ghost btn-sm pagina-anterior" th:if="${pagina > 0}" th:href="@{/cenarios(pagina=${pagina - 1})}">Mais recentes</a>
     <span th:unless="${pagina > 0}"></span>
-    <a class="text-button" th:if="${temProxima}" th:href="@{/cenarios(pagina=${pagina + 1})}">Mais antigos →</a>
+    <a class="btn btn-ghost btn-sm pagina-proxima" th:if="${temProxima}" th:href="@{/cenarios(pagina=${pagina + 1})}">Mais antigos</a>
   </nav>
 </main>
 </body>
