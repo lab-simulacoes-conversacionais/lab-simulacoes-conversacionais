@@ -13,7 +13,7 @@
 
     <groupId>br.ufg.inf</groupId>
     <artifactId>lab-simulacoes-conversacionais</artifactId>
-    <version>0.1.0</version>
+    <version>0.2.0-SNAPSHOT</version>
     <name>lab-simulacoes-conversacionais</name>
     <description>POC 2.3: Laboratório de Simulações Conversacionais</description>
 
