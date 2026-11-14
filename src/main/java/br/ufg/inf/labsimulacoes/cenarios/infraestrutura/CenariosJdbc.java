@@ -47,7 +47,8 @@ class CenariosJdbc implements Cenarios {
      * Os trechos abaixo são juntados com +, e não com formatted(), para que cada consulta seja uma
      * constante de compilação: nenhum valor entra no texto do SQL, só pelos parâmetros.
      */
-    private static final String COLUNAS_DO_CENARIO = "c.id, c.autor_id, c.status, " + COLUNAS_DA_VERSAO + """
+    private static final String COLUNAS_DO_CENARIO = "c.id, c.autor_id, c.status, c.sugestao_ia_meta_id, "
+            + COLUNAS_DA_VERSAO + """
             ,
             d.id AS devolucao_id, d.curador_id AS devolucao_curador_id,
             d.comentario AS devolucao_comentario, d.criado_em AS devolucao_em""";
@@ -225,10 +226,11 @@ class CenariosJdbc implements Cenarios {
 
     private Cenario inserir(Cenario cenario) {
         Long id = jdbc.queryForObject(
-                "INSERT INTO cenario (autor_id, status) VALUES (?, ?) RETURNING id",
+                "INSERT INTO cenario (autor_id, status, sugestao_ia_meta_id) VALUES (?, ?, ?) RETURNING id",
                 Long.class,
                 cenario.autorId(),
-                cenario.status().name());
+                cenario.status().name(),
+                cenario.sugestaoDaIa());
         VersaoDoCenario versao = cenario.versao();
         ConteudoDoCenario conteudo = versao.conteudo();
         VinculoCurricular curriculo = conteudo.curriculo();
@@ -249,7 +251,7 @@ class CenariosJdbc implements Cenarios {
         inserirHabilidades(versaoId, curriculo.habilidades());
         var versaoSalva = new VersaoDoCenario(
                 versaoId, versao.numero(), versao.status(), conteudo, versao.criadaPorId());
-        return new Cenario(id, cenario.autorId(), cenario.status(), versaoSalva);
+        return new Cenario(id, cenario.autorId(), cenario.status(), versaoSalva, null, cenario.sugestaoDaIa());
     }
 
     private Cenario atualizar(Cenario cenario) {
@@ -266,7 +268,8 @@ class CenariosJdbc implements Cenarios {
         if (devolucao != null && devolucao.id() == null) {
             devolucao = devolucao.comId(inserirDevolucao(versao.id(), devolucao));
         }
-        return new Cenario(cenario.id(), cenario.autorId(), cenario.status(), versao, devolucao);
+        return new Cenario(
+                cenario.id(), cenario.autorId(), cenario.status(), versao, devolucao, cenario.sugestaoDaIa());
     }
 
     private void atualizarVersao(VersaoDoCenario versao) {
@@ -320,7 +323,8 @@ class CenariosJdbc implements Cenarios {
                 linha.getLong("autor_id"),
                 StatusDoCenario.valueOf(linha.getString("status")),
                 paraVersao(linha),
-                paraDevolucao(linha));
+                paraDevolucao(linha),
+                linha.getObject("sugestao_ia_meta_id", Long.class));
     }
 
     private VersaoDoCenario paraVersao(ResultSet linha) throws SQLException {
