@@ -1,6 +1,7 @@
 package br.ufg.inf.labsimulacoes.auditoria.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -9,10 +10,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /** Log de auditoria na tabela log_auditoria, que tem trigger contra UPDATE, DELETE e TRUNCATE. */
@@ -22,10 +27,12 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
     private static final TypeReference<Map<String, Object>> DETALHES = new TypeReference<>() {};
 
     private final JdbcTemplate jdbc;
+    private final NamedParameterJdbcTemplate comNomes;
     private final ObjectMapper json;
 
     LogDeAuditoriaJdbc(JdbcTemplate jdbc, ObjectMapper json) {
         this.jdbc = jdbc;
+        this.comNomes = new NamedParameterJdbcTemplate(jdbc);
         this.json = json;
     }
 
@@ -69,6 +76,37 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
                 SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
                 FROM log_auditoria ORDER BY id""",
                 this::paraRegistro);
+    }
+
+    /**
+     * O texto da consulta é fixo: um filtro ausente vai como parâmetro nulo e deixa de restringir.
+     * Nas pontas do período, o nulo vira infinito dentro do próprio SQL, o que mantém o uso do índice
+     * de ocorrido_em.
+     */
+    private static final String CONSULTA = """
+            SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
+            FROM log_auditoria
+            WHERE ocorrido_em >= COALESCE(CAST(:inicio AS TIMESTAMPTZ), '-infinity')
+              AND ocorrido_em < COALESCE(CAST(:fim AS TIMESTAMPTZ), 'infinity')
+              AND (CAST(:usuarioId AS BIGINT) IS NULL OR usuario_id = :usuarioId)
+              AND (CAST(:acao AS TEXT) IS NULL OR acao = :acao)
+            ORDER BY ocorrido_em DESC, id DESC
+            LIMIT :tamanho OFFSET :deslocamento""";
+
+    @Override
+    public List<RegistroDeAuditoria> consultar(FiltroDoLog filtro) {
+        var parametros = new MapSqlParameterSource()
+                .addValue("inicio", paraTimestamp(filtro.inicio()), Types.TIMESTAMP)
+                .addValue("fim", paraTimestamp(filtro.fim()), Types.TIMESTAMP)
+                .addValue("usuarioId", filtro.usuarioId(), Types.BIGINT)
+                .addValue("acao", filtro.acao() == null ? null : filtro.acao().name(), Types.VARCHAR)
+                .addValue("tamanho", filtro.tamanho())
+                .addValue("deslocamento", filtro.deslocamento());
+        return comNomes.query(CONSULTA, parametros, this::paraRegistro);
+    }
+
+    private static Timestamp paraTimestamp(Instant instante) {
+        return instante == null ? null : Timestamp.from(instante);
     }
 
     private RegistroDeAuditoria paraRegistro(ResultSet linha, int numero) throws SQLException {
