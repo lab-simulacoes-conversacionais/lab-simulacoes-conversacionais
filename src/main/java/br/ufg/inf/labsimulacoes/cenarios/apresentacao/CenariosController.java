@@ -64,13 +64,19 @@ class CenariosController {
     private final AutoriaDeCenarios autoria;
     private final EnvioACuradoria envio;
     private final CatalogoBncc catalogo;
+    private final DescricoesDaBncc descricoes;
     private final UsuarioLogado usuarioLogado;
 
     CenariosController(
-            AutoriaDeCenarios autoria, EnvioACuradoria envio, CatalogoBncc catalogo, UsuarioLogado usuarioLogado) {
+            AutoriaDeCenarios autoria,
+            EnvioACuradoria envio,
+            CatalogoBncc catalogo,
+            DescricoesDaBncc descricoes,
+            UsuarioLogado usuarioLogado) {
         this.autoria = autoria;
         this.envio = envio;
         this.catalogo = catalogo;
+        this.descricoes = descricoes;
         this.usuarioLogado = usuarioLogado;
     }
 
@@ -225,7 +231,7 @@ class CenariosController {
     private String editor(Model modelo, Long id, FormularioDoCenario formulario, String erro) {
         modelo.addAttribute("id", id);
         modelo.addAttribute("formulario", formulario);
-        modelo.addAttribute("habilidadesEscolhidas", escolhidas(formulario.habilidades()));
+        modelo.addAttribute("habilidadesEscolhidas", descricoes.de(formulario.habilidades()));
         modelo.addAttribute("pendencias", formulario.pendencias());
         modelo.addAttribute("componentes", COMPONENTES);
         modelo.addAttribute("anos", ANOS);
@@ -235,17 +241,6 @@ class CenariosController {
             modelo.addAttribute("erro", erro);
         }
         return EDITOR;
-    }
-
-    /** A descrição de cada código escolhido, para o autor conferir o que vinculou. */
-    private List<HabilidadeDoCatalogo> escolhidas(List<String> codigos) {
-        return codigos.stream()
-                .map(codigo -> catalogo.buscar(ConsultaAoCatalogo.porCodigo(codigo)).stream()
-                        .findFirst()
-                        .orElseGet(() -> new HabilidadeDoCatalogo(
-                                codigo.toUpperCase(Locale.ROOT), "Código fora do catálogo da BNCC. Remova ou corrija.",
-                                FormularioDoCenario.ETAPA, List.of(), "")))
-                .toList();
     }
 
     private static ConsultaAoCatalogo consulta(String termo, String componente, Integer ano) {

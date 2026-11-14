@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Fila do Curador · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Fila do curador (RF-08), como no protótipo: a lista dos cenários em curadoria à esquerda e o aberto à
+  direita, com aprovar e devolver. A aba de sinalizações, o modo de teste, o checklist e o histórico de
+  versões chegam com as issues #33, #34 e #44.
+-->
+<main class="page curator-page">
+  <a class="back-link" th:href="@{/}">← Voltar ao início</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">QUALIDADE PEDAGÓGICA</p>
+      <h1>Fila do Curador</h1>
+      <p>Revise os cenários enviados e aprove ou devolva com orientações ao autor.</p>
+    </div>
+    <div class="queue-stats">
+      <span><strong th:text="${fila.size()} + (${haMais} ? '+' : '')">2</strong> aguardando revisão</span>
+    </div>
+  </div>
+
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <div class="empty-state" th:if="${fila.isEmpty()}">
+    <div class="empty-shapes" aria-hidden="true"><span></span><span></span></div>
+    <h2>Nenhum cenário aguardando revisão</h2>
+    <p>Quando um autor enviar um cenário à curadoria, ele aparece aqui.</p>
+    <a class="btn btn-secondary" th:href="@{/biblioteca}">Ver a biblioteca</a>
+  </div>
+
+  <div class="review-layout" th:unless="${fila.isEmpty()}">
+    <nav class="review-list" aria-label="Cenários aguardando revisão">
+      <h2>Aguardando revisão</h2>
+      <a th:each="item : ${fila}" th:href="@{/curadoria(cenario=${item.id})}"
+         th:classappend="${item.id == aberto} ? 'active'"
+         th:attr="aria-current=${item.id == aberto} ? 'true' : null">
+        <span class="badge badge-pending"><span aria-hidden="true">◷</span>Em curadoria</span>
+        <strong th:text="${item.titulo}">Título</strong>
+        <small th:text="|${item.componente} · ${item.ano}º ano|">Ciências · 6º ano</small>
+      </a>
+      <p class="review-list-more" th:if="${haMais}">Há mais cenários na fila; eles aparecem quando estes forem decididos.</p>
+    </nav>
+
+    <div class="review-main" th:if="${conteudo}">
+      <section class="card review-summary">
+        <div>
+          <span class="subject-tag" th:text="${conteudo.componente} ?: 'Sem componente'">Ciências</span>
+          <h2 th:text="${conteudo.titulo}">Título</h2>
+          <p th:text="${conteudo.resumoCurricular()}">6º ano · EF06CI05</p>
+        </div>
+      </section>
+
+      <div class="danger-callout conflict-warning" th:if="${souAutor}" role="note">
+        <span aria-hidden="true">!</span>
+        <div>
+          <strong>Conflito de autoria</strong>
+          <p>Você criou este cenário. Outro curador deverá realizar a aprovação.</p>
+        </div>
+      </div>
+
+      <div th:replace="~{cenarios/fragmentos :: conteudo(${conteudo})}"></div>
+
+      <div class="review-actions">
+        <div>
+          <strong th:text="${souAutor} ? 'Aprovação bloqueada por conflito de autoria.' : 'Revise o conteúdo antes de decidir.'">Revise o conteúdo antes de decidir.</strong>
+          <span>A decisão fica registrada no log de auditoria.</span>
+        </div>
+        <button class="btn btn-ghost" type="button" data-abrir-devolucao>Devolver</button>
+        <!-- Critério de aceite da #23: o botão de aprovar não aparece para o autor (RN-36). -->
+        <form th:unless="${souAutor}" method="post" th:action="@{/curadoria/{id}/aprovar(id=${aberto})}">
+          <button class="btn btn-primary" type="submit">
+            <svg th:replace="~{fragmentos/base :: iconeCheck}"></svg> Aprovar
+          </button>
+        </form>
+      </div>
+
+      <!-- Devolução com comentário obrigatório (RN-07), conferido também no servidor. -->
+      <dialog class="modal" id="devolucao" aria-labelledby="devolucao-titulo" data-devolucao
+              th:attr="data-abrir=${abrirDevolucao} ? 'true' : null">
+        <form method="post" th:action="@{/curadoria/{id}/devolver(id=${aberto})}">
+          <div class="modal-head">
+            <h2 id="devolucao-titulo">Devolver cenário ao autor</h2>
+            <button class="icon-button" type="button" data-fechar aria-label="Fechar">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="modal-intro">Explique objetivamente o que precisa ser corrigido. O comentário é obrigatório.</p>
+            <label for="comentario">Comentário para o autor *</label>
+            <textarea id="comentario" name="comentario" rows="5" required
+                      placeholder="Descreva os ajustes necessários…"></textarea>
+            <p class="field-help" data-ajuda-comentario>Preencha o comentário para habilitar a devolução.</p>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-ghost" type="button" data-fechar>Cancelar</button>
+            <button class="btn btn-danger" type="submit" data-confirmar-devolucao>Devolver cenário</button>
+          </div>
+        </form>
+      </dialog>
+    </div>
+  </div>
+</main>
+<script th:src="@{/js/curadoria.js}" defer></script>
+</body>
+</html>

@@ -25,9 +25,10 @@
         <p>Escolha a turma e um cenário aprovado e conduza a conversa no projetor.</p>
       </section>
       <section class="card">
-        <div class="card-top"><span class="subject-tag">Cenários</span><span class="badge badge-pending">Em breve</span></div>
+        <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Biblioteca de cenários</h3>
-        <p>Encontre cenários aprovados e acompanhe os seus na curadoria.</p>
+        <p>Encontre cenários aprovados pela curadoria para levar à sala.</p>
+        <a class="btn btn-secondary" th:href="@{/biblioteca}">Abrir <span aria-hidden="true">→</span></a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Cenários</span></div>
@@ -61,9 +62,10 @@
     </div>
     <div class="scenario-grid">
       <section class="card">
-        <div class="card-top"><span class="subject-tag">Curadoria</span><span class="badge badge-pending">Em breve</span></div>
+        <div class="card-top"><span class="subject-tag">Curadoria</span></div>
         <h3>Fila do curador</h3>
-        <p>Teste, aprove ou devolva cenários e trate as sinalizações no prazo.</p>
+        <p>Revise, aprove ou devolva os cenários enviados pelos autores.</p>
+        <a class="btn btn-secondary" th:href="@{/curadoria}">Abrir <span aria-hidden="true">→</span></a>
       </section>
       <!-- O curador também cria cenários (RF-06); quem tem os dois perfis vê o atalho uma vez só. -->
       <section class="card" th:unless="${professor}">
@@ -73,9 +75,10 @@
         <a class="btn btn-secondary" th:href="@{/cenarios}">Abrir <span aria-hidden="true">→</span></a>
       </section>
       <section class="card">
-        <div class="card-top"><span class="subject-tag">Cenários</span><span class="badge badge-pending">Em breve</span></div>
+        <div class="card-top"><span class="subject-tag">Cenários</span></div>
         <h3>Biblioteca de cenários</h3>
-        <p>Veja todos os cenários da escola, com busca e filtros.</p>
+        <p>Veja os cenários aprovados da escola.</p>
+        <a class="btn btn-secondary" th:href="@{/biblioteca}">Abrir <span aria-hidden="true">→</span></a>
       </section>
       <section class="card">
         <div class="card-top"><span class="subject-tag">Dados</span><span class="badge badge-pending">Em breve</span></div>

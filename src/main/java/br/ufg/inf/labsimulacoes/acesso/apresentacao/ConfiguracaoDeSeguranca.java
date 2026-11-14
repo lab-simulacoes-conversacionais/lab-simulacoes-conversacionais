@@ -43,7 +43,9 @@ class ConfiguracaoDeSeguranca {
                         // nenhum; assim nenhuma tela da administração abre para outro perfil (RN-37).
                         .requestMatchers("/admin/**").hasRole("ADMINISTRADOR")
                         // Pelo mesmo motivo: o administrador não edita conteúdo pedagógico (RN-37).
-                        .requestMatchers("/cenarios/**").hasAnyRole("PROFESSOR", "CURADOR")
+                        .requestMatchers("/cenarios/**", "/biblioteca/**").hasAnyRole("PROFESSOR", "CURADOR")
+                        // Aprovar e devolver é só do curador (RN-05).
+                        .requestMatchers("/curadoria/**").hasRole("CURADOR")
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage("/login")
