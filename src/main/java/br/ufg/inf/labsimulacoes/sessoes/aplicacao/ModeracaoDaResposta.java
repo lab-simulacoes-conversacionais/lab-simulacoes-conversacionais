@@ -3,6 +3,7 @@ package br.ufg.inf.labsimulacoes.sessoes.aplicacao;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.AgrupadorDeFrases;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,8 @@ import java.util.function.Consumer;
  * gravar os metadados dos tokens já gastos (RNF-13). Nenhuma frase aparece depois dela, o restante é
  * descartado como no bloqueio e a falha fica em {@link #falha()}, para quem chamou tratá-la como uma
  * falha do provedor quando a resposta terminar.
+ *
+ * <p>O agrupamento de cada trecho é medido à parte da moderação ({@link EtapasDaConversa}).
  */
 final class ModeracaoDaResposta {
 
@@ -28,6 +31,7 @@ final class ModeracaoDaResposta {
     record Bloqueio(String frase, List<String> categorias) {}
 
     private final AdaptadorDeIa adaptador;
+    private final EtapasDaConversa etapas;
     private final Consumer<String> aoAprovar;
     private final Consumer<Bloqueio> aoBloquear;
     private final AgrupadorDeFrases agrupador = new AgrupadorDeFrases();
@@ -38,8 +42,13 @@ final class ModeracaoDaResposta {
      * @param aoBloquear chamado uma vez, na primeira frase bloqueada; se lançar exceção, a resposta é
      *     interrompida e o bloqueio não vale
      */
-    ModeracaoDaResposta(AdaptadorDeIa adaptador, Consumer<String> aoAprovar, Consumer<Bloqueio> aoBloquear) {
+    ModeracaoDaResposta(
+            AdaptadorDeIa adaptador,
+            EtapasDaConversa etapas,
+            Consumer<String> aoAprovar,
+            Consumer<Bloqueio> aoBloquear) {
         this.adaptador = adaptador;
+        this.etapas = etapas;
         this.aoAprovar = aoAprovar;
         this.aoBloquear = aoBloquear;
     }
@@ -48,7 +57,7 @@ final class ModeracaoDaResposta {
         if (parou()) {
             return;
         }
-        for (String frase : agrupador.acrescentar(trecho)) {
+        for (String frase : etapas.medir(Etapa.AGRUPAMENTO_DE_FRASES, () -> agrupador.acrescentar(trecho))) {
             if (!moderar(frase)) {
                 return;
             }
@@ -58,7 +67,7 @@ final class ModeracaoDaResposta {
     /** A resposta terminou: modera e exibe o que sobrou sem pontuação final. */
     void terminar() {
         if (!parou()) {
-            agrupador.terminar().ifPresent(this::moderar);
+            etapas.medir(Etapa.AGRUPAMENTO_DE_FRASES, agrupador::terminar).ifPresent(this::moderar);
         }
     }
 

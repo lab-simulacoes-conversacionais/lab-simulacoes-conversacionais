@@ -9,6 +9,8 @@ import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.EtapaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadoDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadosDasSessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
@@ -60,6 +62,7 @@ public class ConversaDaSessao {
     private final TransactionTemplate transacao;
     private final Relogio relogio;
     private final ApplicationEventPublisher eventos;
+    private final EtapasDaConversa etapas;
 
     /**
      * Sessões em que o personagem está respondendo agora, com a marca de quem responde, para uma
@@ -76,7 +79,8 @@ public class ConversaDaSessao {
             AdaptadorDeIa adaptador,
             TransactionTemplate transacao,
             Relogio relogio,
-            ApplicationEventPublisher eventos) {
+            ApplicationEventPublisher eventos,
+            EtapasDaConversa etapas) {
         this.sessoes = sessoes;
         this.estados = estados;
         this.leitura = leitura;
@@ -85,6 +89,7 @@ public class ConversaDaSessao {
         this.transacao = transacao;
         this.relogio = relogio;
         this.eventos = eventos;
+        this.etapas = etapas;
     }
 
     /**
@@ -116,9 +121,11 @@ public class ConversaDaSessao {
             throw new IllegalArgumentException("Digite a pergunta da turma");
         }
         String pergunta = texto.strip();
-        leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId).aceitarPergunta(leitura.doBanco(sessaoId));
+        etapas.medir(Etapa.CONFERENCIA_DA_SESSAO, () -> leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId)
+                .aceitarPergunta(leitura.doBanco(sessaoId)));
         ResultadoDaModeracao moderacao = adaptador.moderar(pergunta);
-        Optional<PerguntaRecebida> recebida = transacao.execute(status -> gravarPergunta(sessaoId, pergunta, moderacao));
+        Optional<PerguntaRecebida> recebida = etapas.medir(Etapa.GRAVACAO_DA_PERGUNTA,
+                () -> transacao.execute(status -> gravarPergunta(sessaoId, pergunta, moderacao)));
         if (recebida.isEmpty()) {
             throw new PerguntaBloqueada(sessaoId);
         }
@@ -175,6 +182,19 @@ public class ConversaDaSessao {
      *     de um bloqueio
      */
     public Optional<MensagemExibida> responderPendente(long sessaoId, TelaDaResposta tela) {
+        EtapaEmAndamento preparo = etapas.iniciar(Etapa.PREPARO_DA_RESPOSTA);
+        try {
+            return responderPendente(sessaoId, tela, preparo);
+        } catch (RuntimeException e) {
+            preparo.falhar(e);
+            throw e;
+        } finally {
+            preparo.parar();
+        }
+    }
+
+    /** O preparo para quando o pedido vai ao adaptador, ou antes, se não houver o que responder. */
+    private Optional<MensagemExibida> responderPendente(long sessaoId, TelaDaResposta tela, EtapaEmAndamento preparo) {
         Sessao sessao = leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId);
         Object vez = new Object();
         if (respondendo.putIfAbsent(sessaoId, vez) != null) {
@@ -188,8 +208,10 @@ public class ConversaDaSessao {
             }
             sessao.aceitarResposta();
             MensagemExibida pergunta = pendente.get();
+            PedidoDeFala pedido = pedido(sessao, estado, pergunta);
+            preparo.parar();
             AtomicReference<ConteudoBloqueado> bloqueado = new AtomicReference<>();
-            var moderacao = new ModeracaoDaResposta(adaptador, tela::exibir, bloqueio -> {
+            var moderacao = new ModeracaoDaResposta(adaptador, etapas, tela::exibir, bloqueio -> {
                 bloqueado.set(pausarPorBloqueioDaResposta(sessaoId, pergunta, bloqueio));
                 // O restante só serve aos metadados: a sessão fica livre para a próxima resposta.
                 respondendo.remove(sessaoId, vez);
@@ -198,7 +220,7 @@ public class ConversaDaSessao {
 
             RespostaDoPersonagem resposta;
             try {
-                resposta = adaptador.responder(pedido(sessao, estado, pergunta), moderacao::receber);
+                resposta = adaptador.responder(pedido, moderacao::receber);
                 moderacao.terminar();
             } catch (RuntimeException e) {
                 if (bloqueado.get() == null) {
@@ -218,7 +240,8 @@ public class ConversaDaSessao {
                 return Optional.empty();
             }
             var exibida = new MensagemExibida(MensagemExibida.Autoria.IA, resposta.texto(), relogio.agora());
-            transacao.executeWithoutResult(status -> gravarResposta(sessaoId, exibida, resposta.metadadosId()));
+            etapas.medir(Etapa.GRAVACAO_DA_RESPOSTA,
+                    () -> transacao.executeWithoutResult(status -> gravarResposta(sessaoId, exibida, resposta.metadadosId())));
             return Optional.of(exibida);
         } finally {
             respondendo.remove(sessaoId, vez);

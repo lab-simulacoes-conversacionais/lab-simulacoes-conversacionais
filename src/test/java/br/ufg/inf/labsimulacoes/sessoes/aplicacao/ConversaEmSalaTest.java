@@ -22,6 +22,7 @@ import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao.VersaoNoBanco;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadoDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadosDasSessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido;
@@ -34,6 +35,8 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.sql.Array;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -43,6 +46,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -89,6 +93,9 @@ class ConversaEmSalaTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private MeterRegistry metricas;
 
     /** Marca do bloqueio na tela simulada, que nunca recebe o texto bloqueado. */
     private static final String BLOQUEIO = "<bloqueio>";
@@ -137,6 +144,28 @@ class ConversaEmSalaTest {
         EstadoDaSessao estado = estados.buscar(sessao).orElseThrow();
         assertThat(estado.perguntasDaTurma()).isEqualTo(1);
         assertThat(estado.ultimasMensagens()).containsExactly(recebida.pergunta(), resposta);
+    }
+
+    /** RNF-03: cada etapa da pergunta e da resposta vira um timer, para separar onde vai o tempo. */
+    @Test
+    void etapasDaPerguntaEDaRespostaSaoMedidas() {
+        respondeEmTrechos("Sou ", "Santos Dumont.");
+        List<Etapa> medidas = List.of(Etapa.CONFERENCIA_DA_SESSAO, Etapa.GRAVACAO_DA_PERGUNTA,
+                Etapa.PREPARO_DA_RESPOSTA, Etapa.AGRUPAMENTO_DE_FRASES, Etapa.GRAVACAO_DA_RESPOSTA);
+        Map<Etapa, Long> antes = medidas.stream().collect(Collectors.toMap(e -> e, this::medicoes));
+
+        conversa.enviarPergunta(sessao, "Quem é você?");
+        conversa.responderPendente(sessao, new Tela());
+
+        assertThat(medidas).allSatisfy(etapa ->
+                assertThat(medicoes(etapa)).as(etapa.valor()).isGreaterThan(antes.get(etapa)));
+    }
+
+    private long medicoes(Etapa etapa) {
+        Timer timer = metricas.find(EtapasDaConversa.OBSERVACAO)
+                .tag(EtapasDaConversa.CHAVE, etapa.valor())
+                .timer();
+        return timer == null ? 0 : timer.count();
     }
 
     /** RNF-10: a resposta exibida aponta para os metadados que o adaptador gravou. */
