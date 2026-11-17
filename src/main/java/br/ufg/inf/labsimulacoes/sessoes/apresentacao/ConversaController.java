@@ -3,6 +3,9 @@ package br.ufg.inf.labsimulacoes.sessoes.apresentacao;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ConversaDaSessao;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.EtapaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.PerguntaRecebida;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.TelaDaResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido;
@@ -63,6 +66,9 @@ import org.springframework.web.util.HtmlUtils;
  * <p>Depois de {@code bloqueio} vem {@code fim} na mesma hora, e o canal fecha; o servidor continua
  * consumindo o resto da resposta só para gravar os tokens (RNF-13), sem prender a sessão: depois de
  * retomar, o canal da pergunta seguinte responde normalmente.
+ *
+ * <p>A espera até a thread da resposta começar e cada envio pelo canal são medidos
+ * ({@link EtapasDaConversa}), para separar o tempo do SSE no caminho até a primeira frase (RNF-03).
  */
 @Controller
 @RequestMapping("/sessoes/{id}")
@@ -88,6 +94,7 @@ class ConversaController {
 
     private final ConversaDaSessao conversa;
     private final ControlesDaSessao controles;
+    private final EtapasDaConversa etapas;
 
     /**
      * A resposta é gerada fora da thread da requisição, para o SSE mandar cada trecho assim que chega.
@@ -96,9 +103,10 @@ class ConversaController {
      */
     private final Executor respostas;
 
-    ConversaController(ConversaDaSessao conversa, ControlesDaSessao controles) {
+    ConversaController(ConversaDaSessao conversa, ControlesDaSessao controles, EtapasDaConversa etapas) {
         this.conversa = conversa;
         this.controles = controles;
+        this.etapas = etapas;
         var threads = new SimpleAsyncTaskExecutor("resposta-do-personagem-");
         threads.setVirtualThreads(true);
         this.respostas = new DelegatingSecurityContextExecutor(threads);
@@ -121,12 +129,21 @@ class ConversaController {
     SseEmitter resposta(@PathVariable long id) {
         controles.estado(id);
         var canal = new SseEmitter(TEMPO_MAXIMO_DA_RESPOSTA.toMillis());
-        respostas.execute(() -> transmitir(id, canal));
+        EtapaEmAndamento espera = etapas.iniciar(Etapa.ESPERA_DA_THREAD);
+        try {
+            respostas.execute(() -> {
+                espera.parar();
+                transmitir(id, canal);
+            });
+        } catch (RuntimeException e) {
+            espera.falhar(e);
+            throw e;
+        }
         return canal;
     }
 
     private void transmitir(long id, SseEmitter canal) {
-        var tela = new TelaNoCanal(canal);
+        var tela = new TelaNoCanal(canal, etapas);
         try {
             conversa.responderPendente(id, tela);
         } catch (FalhaNoProvedorDeIa e) {
@@ -152,28 +169,31 @@ class ConversaController {
     private static final class TelaNoCanal implements TelaDaResposta {
 
         private final SseEmitter canal;
+        private final EtapasDaConversa etapas;
         private boolean fechado;
 
-        TelaNoCanal(SseEmitter canal) {
+        TelaNoCanal(SseEmitter canal, EtapasDaConversa etapas) {
             this.canal = canal;
+            this.etapas = etapas;
         }
 
         @Override
         public void exibir(String frase) {
-            enviar(canal, "trecho", escapar(frase));
+            etapas.medir(Etapa.ENVIO_SSE_TRECHO, () -> enviar(canal, "trecho", escapar(frase)));
         }
 
         @Override
         public void bloquear() {
             if (!fechado) {
-                enviarSemFalhar(canal, "bloqueio", escapar(AVISO_DE_BLOQUEIO));
+                etapas.medir(Etapa.ENVIO_SSE_AVISO,
+                        () -> enviarSemFalhar(canal, "bloqueio", escapar(AVISO_DE_BLOQUEIO)));
             }
             fechar();
         }
 
         void falhar() {
             if (!fechado) {
-                enviarSemFalhar(canal, "falha", escapar(AVISO_DE_FALHA));
+                etapas.medir(Etapa.ENVIO_SSE_AVISO, () -> enviarSemFalhar(canal, "falha", escapar(AVISO_DE_FALHA)));
             }
         }
 
@@ -182,7 +202,7 @@ class ConversaController {
                 return;
             }
             fechado = true;
-            enviarSemFalhar(canal, "fim", "");
+            etapas.medir(Etapa.ENVIO_SSE_FIM, () -> enviarSemFalhar(canal, "fim", ""));
             canal.complete();
         }
     }

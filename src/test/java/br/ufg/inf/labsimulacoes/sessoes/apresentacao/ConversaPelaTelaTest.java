@@ -14,7 +14,11 @@ import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.InicioDeSessao;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -64,6 +68,9 @@ class ConversaPelaTelaTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private MeterRegistry metricas;
 
     private DadosDeSessao dados;
     private String professora;
@@ -121,6 +128,27 @@ class ConversaPelaTelaTest {
         assertThat(jdbc.queryForObject(
                         "SELECT texto FROM mensagem WHERE sessao_id = ? AND autoria = 'IA'", String.class, sessao))
                 .isEqualTo("Olá, sou Santos <b>Dumont</b>. Voei em 1906.");
+    }
+
+    /** RNF-03: a espera da thread e cada envio pelo canal são medidos, para separar o tempo do SSE. */
+    @Test
+    void esperaDaThreadEEnviosPeloSseSaoMedidos() throws Exception {
+        respondeEmTrechos("Sou Santos Dumont. ", "Voei em 1906.");
+        long esperas = medicoes(Etapa.ESPERA_DA_THREAD);
+        long trechos = medicoes(Etapa.ENVIO_SSE_TRECHO);
+        long fins = medicoes(Etapa.ENVIO_SSE_FIM);
+        navegador.perguntar(sessao, "Quem é você?");
+
+        navegador.resposta(sessao);
+
+        assertThat(medicoes(Etapa.ESPERA_DA_THREAD)).isEqualTo(esperas + 1);
+        assertThat(medicoes(Etapa.ENVIO_SSE_TRECHO)).isEqualTo(trechos + 2);
+        assertThat(medicoes(Etapa.ENVIO_SSE_FIM)).isEqualTo(fins + 1);
+    }
+
+    private long medicoes(Etapa etapa) {
+        Timer timer = metricas.find(EtapasDaConversa.OBSERVACAO).tag(EtapasDaConversa.CHAVE, etapa.valor()).timer();
+        return timer == null ? 0 : timer.count();
     }
 
     /** A tela reconectou depois da resposta: o canal só fecha, sem chamar o modelo de novo. */
