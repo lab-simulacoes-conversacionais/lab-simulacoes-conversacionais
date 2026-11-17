@@ -7,6 +7,8 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -26,21 +28,32 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *
  * <p>Falha do Redis não derruba a aula: a leitura devolve vazio e o estado é refeito a partir do
  * PostgreSQL; a gravação que falha apaga a chave, para que a próxima leitura também o refaça.
+ *
+ * <p>Cada leitura e gravação vira uma observação {@value #OBSERVACAO}, com a operação na chave
+ * {@value #CHAVE}, para separar o tempo do Redis no caminho até a primeira frase na tela (RNF-03).
  */
 @Component
 class EstadosNoRedis implements EstadosDasSessoes {
 
     private static final Logger LOG = LoggerFactory.getLogger(EstadosNoRedis.class);
 
+    static final String OBSERVACAO = "lab.sessoes.redis";
+    static final String CHAVE = "operacao";
+
     private final StringRedisTemplate redis;
     private final ObjectMapper json;
     private final Duration validade;
+    private final ObservationRegistry observacoes;
 
     EstadosNoRedis(
-            StringRedisTemplate redis, ObjectMapper json, @Value("${sessoes.estado.validade:6h}") Duration validade) {
+            StringRedisTemplate redis,
+            ObjectMapper json,
+            @Value("${sessoes.estado.validade:6h}") Duration validade,
+            ObservationRegistry observacoes) {
         this.redis = redis;
         this.json = json;
         this.validade = validade;
+        this.observacoes = observacoes;
     }
 
     static String chave(long sessaoId) {
@@ -50,7 +63,7 @@ class EstadosNoRedis implements EstadosDasSessoes {
     @Override
     public Optional<EstadoDaSessao> buscar(long sessaoId) {
         try {
-            String valor = redis.opsForValue().get(chave(sessaoId));
+            String valor = observacao("buscar").observe(() -> redis.opsForValue().get(chave(sessaoId)));
             return valor == null ? Optional.empty() : Optional.of(json.readValue(valor, EstadoJson.class).paraDominio());
         } catch (JsonProcessingException | RuntimeException e) {
             LOG.warn("Estado da sessão {} ilegível no Redis; ele será refeito a partir do banco", sessaoId, e);
@@ -75,11 +88,16 @@ class EstadosNoRedis implements EstadosDasSessoes {
     private void gravarAgora(EstadoDaSessao estado) {
         String chave = chave(estado.sessaoId());
         try {
-            redis.opsForValue().set(chave, json.writeValueAsString(EstadoJson.de(estado)), validade);
+            String valor = json.writeValueAsString(EstadoJson.de(estado));
+            observacao("gravar").observe(() -> redis.opsForValue().set(chave, valor, validade));
         } catch (JsonProcessingException | RuntimeException e) {
             LOG.warn("Não deu para gravar o estado da sessão {} no Redis", estado.sessaoId(), e);
             apagarSemFalhar(chave);
         }
+    }
+
+    private Observation observacao(String operacao) {
+        return Observation.createNotStarted(OBSERVACAO, observacoes).lowCardinalityKeyValue(CHAVE, operacao);
     }
 
     /** Uma chave desatualizada mostraria a tela errada; sem ela, o estado é refeito do banco. */
