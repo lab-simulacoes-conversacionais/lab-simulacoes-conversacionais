@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import br.ufg.inf.labsimulacoes.ObservacoesGravadas;
+import br.ufg.inf.labsimulacoes.ObservacoesGravadas.Observada;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
 import br.ufg.inf.labsimulacoes.ia.CenariosDeTeste;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
@@ -44,6 +46,7 @@ class ChamadasAoProvedorTest {
 
     private ProvedorDeIa provedor;
     private RegistroDeMetadados registro;
+    private ObservacoesGravadas observacoes;
     private ChamadasAoProvedor chamadas;
 
     @BeforeEach
@@ -52,7 +55,8 @@ class ChamadasAoProvedorTest {
         registro = mock(RegistroDeMetadados.class);
         when(provedor.nome()).thenReturn("openai");
         when(registro.gravar(any())).thenAnswer(gravacao -> gravacao.<MetadadosDaResposta>getArgument(0).comId(42));
-        chamadas = new ChamadasAoProvedor(provedor, TemplatesDeTeste.montador(), registro, PRECOS);
+        observacoes = new ObservacoesGravadas();
+        chamadas = new ChamadasAoProvedor(provedor, TemplatesDeTeste.montador(), registro, PRECOS, observacoes.registro());
     }
 
     @Test
@@ -166,6 +170,71 @@ class ChamadasAoProvedorTest {
         assertThatThrownBy(() -> chamadas.moderar(" ")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> chamadas.moderar(null)).isInstanceOf(IllegalArgumentException.class);
         verify(provedor, never()).moderar(any());
+    }
+
+    @Test
+    void respostaObservaMontagemEsperaDoPrimeiroTrechoEGeracao() {
+        List<String> etapasNoPrimeiroTrecho = new ArrayList<>();
+        when(provedor.conversar(any(), any())).thenAnswer(chamada -> {
+            Consumer<String> aoReceber = chamada.getArgument(1);
+            aoReceber.accept("Sou ");
+            aoReceber.accept("Santos Dumont.");
+            return new Geracao<>("Sou Santos Dumont.", "m", Map.of(), null);
+        });
+
+        chamadas.responder(PEDIDO, trecho -> {
+            if (etapasNoPrimeiroTrecho.isEmpty()) {
+                etapasNoPrimeiroTrecho.addAll(etapas());
+            }
+        });
+
+        // A espera para no primeiro trecho, antes de ele chegar a quem chamou.
+        assertThat(etapasNoPrimeiroTrecho).containsExactly("montagem-do-prompt", "espera-do-primeiro-trecho");
+        assertThat(etapas()).containsExactly("montagem-do-prompt", "espera-do-primeiro-trecho", "geracao");
+        assertThat(observacoes.paradas(ChamadasAoProvedor.OBSERVACAO)).allMatch(o -> o.erro() == null);
+    }
+
+    @Test
+    void falhaAntesDoPrimeiroTrechoParaAEsperaComOErro() {
+        var foraDoAr = new FalhaNoProvedorDeIa("fora do ar", null);
+        when(provedor.conversar(any(), any())).thenThrow(foraDoAr);
+
+        assertThatThrownBy(() -> chamadas.responder(PEDIDO, trecho -> {})).isSameAs(foraDoAr);
+
+        assertThat(observada("espera-do-primeiro-trecho").erro()).isSameAs(foraDoAr);
+        assertThat(observada("geracao").erro()).isSameAs(foraDoAr);
+    }
+
+    @Test
+    void respostaSemTrechoParaAEsperaComErro() {
+        when(provedor.conversar(any(), any())).thenReturn(new Geracao<>("", "m", Map.of(), null));
+
+        assertThatThrownBy(() -> chamadas.responder(PEDIDO, trecho -> {})).isInstanceOf(FalhaNoProvedorDeIa.class);
+
+        assertThat(observada("espera-do-primeiro-trecho").erro()).isInstanceOf(FalhaNoProvedorDeIa.class);
+        assertThat(observada("geracao").erro()).isNull();
+    }
+
+    @Test
+    void moderacaoEObservada() {
+        when(provedor.moderar("texto")).thenReturn(new ResultadoDaModeracao(false, List.of()));
+
+        chamadas.moderar("texto");
+
+        assertThat(etapas()).containsExactly("moderacao");
+    }
+
+    private List<String> etapas() {
+        return observacoes.paradas(ChamadasAoProvedor.OBSERVACAO).stream()
+                .map(o -> o.valor(ChamadasAoProvedor.CHAVE))
+                .toList();
+    }
+
+    private Observada observada(String etapa) {
+        return observacoes.paradas(ChamadasAoProvedor.OBSERVACAO).stream()
+                .filter(o -> etapa.equals(o.valor(ChamadasAoProvedor.CHAVE)))
+                .findFirst()
+                .orElseThrow();
     }
 
     private MetadadosDaResposta gravados() {
