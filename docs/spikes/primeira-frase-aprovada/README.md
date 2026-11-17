@@ -1,4 +1,4 @@
-# Spike: primeira frase aprovada na tela (issue #19)
+# Spike: primeira frase aprovada na tela (issues #19 e #80)
 
 Confere se a moderação frase a frase cumpre o RNF-03, como pede a seção 5 da [stack.md](../../stack.md)
 (fluxo de uma pergunta, passo 7). O RN-20 exige moderar antes de exibir, e o RNF-03 exige o primeiro
@@ -8,6 +8,10 @@ na tela em até 3 s**.
 - **Se atingir:** a moderação por frase continua.
 - **Se não atingir:** a moderação passa a ser da resposta inteira, com o aviso "personagem pensando", e o
   grupo leva ao PO a revisão do RNF-03.
+
+A primeira medição (`resultados01.md`) ficou em 93,3%. Antes de trocar a moderação, a issue #80 tenta
+reduzir a latência mantendo a moderação por frase. Cada estratégia é medida com este spike, num relatório
+próprio, e comparada à medição original.
 
 ## Como rodar
 
@@ -31,6 +35,24 @@ roda, e o nome do arquivo gravado aparece no fim.
 
 O `resultados01.md` é a medição registrada na issue #19, com o modelo `gpt-6.1-terra` e o esforço `low`.
 
+### Anotar a estratégia (issue #80)
+
+Cada relatório diz qual estratégia de latência foi medida. Sem a propriedade, a execução é uma nova linha
+de base, com os mesmos parâmetros da original:
+
+```sh
+./mvnw test -Dtest=PrimeiraFraseAprovadaComOpenAiTest -Dia.spike-primeira-frase=true -Djacoco.skip=true \
+  -Dspike.estrategia="A: conexão de streaming aquecida ao subir"
+```
+
+O relatório traz uma tabela que compara a execução com o `resultados01.md`: a proporção dentro da meta,
+a média, o p95 e o máximo da primeira frase na tela, e as etapas principais. Os números da original
+ficam copiados no teste, para a comparação continuar valendo mesmo que o formato do relatório mude.
+
+Para estabelecer a variação natural da latência, a linha de base é repetida em horários diferentes,
+sem mudar nada no código nem nos parâmetros. O RNF-03 só conta como atingido com 95% em mais de uma
+execução.
+
 ## O que o teste faz
 
 - Sobe a aplicação inteira, com a configuração de `application.properties`: o modelo, o esforço de
@@ -49,9 +71,21 @@ O `resultados01.md` é a medição registrada na issue #19, com o modelo `gpt-6.
   3. a volta do fragmento e a abertura do canal;
   4. o modelo gerando até fechar a primeira frase;
   5. a moderação dessa frase (passo 7).
-- Um cronômetro em volta do adaptador de IA marca a moderação da pergunta, o primeiro trecho do modelo,
-  o fim da primeira frase e a moderação dela. Ele não muda o que o adaptador faz e serve só para mostrar
-  onde o tempo foi gasto se o critério não for atingido.
+- Um cronômetro recebe as observações que a aplicação já registra (Micrometer) e separa o tempo em
+  etapas. Ele não muda o que a aplicação faz e serve só para mostrar onde o tempo foi gasto:
+
+  | Observação | Etapas |
+  | --- | --- |
+  | `http.server.requests` | a requisição da pergunta e a do canal SSE, no servidor |
+  | `lab.conversa.etapa` | conferência da sessão, gravação da pergunta, espera da thread, preparo da resposta, agrupamento de frases, envio pelo SSE, gravação da resposta |
+  | `lab.sessoes.redis` | leitura e gravação do estado no Redis |
+  | `lab.ia.chamada` | moderação, montagem do prompt, espera até o primeiro trecho, geração |
+
+  A gravação da pergunta no banco é a transação dela menos o Redis gravado logo depois da confirmação. A
+  abertura do canal vai do fragmento de volta no cliente até o servidor receber o pedido do SSE. No
+  spike o cliente é o do teste; no navegador, entra ainda o tempo de o HTMX trocar o fragmento.
+- As mesmas observações viram timers do Micrometer na aplicação, com os mesmos nomes, para acompanhar o
+  RNF-03 fora do spike.
 - Antes da medição, faz uma pergunta numa sessão à parte para aquecer a aplicação. Ela fica fora da
   conta, porque o servidor em produção já está rodando quando a aula começa. O tempo dela aparece no
   relatório.
