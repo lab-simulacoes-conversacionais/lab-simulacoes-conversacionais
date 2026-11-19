@@ -5,6 +5,7 @@ import br.ufg.inf.labsimulacoes.cenarios.VersaoAprovada;
 import br.ufg.inf.labsimulacoes.eventos.ConteudoBloqueado;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
@@ -312,7 +313,10 @@ public class ConversaDaSessao {
         List<MensagemDaConversa> historico = estado.historicoParaOModelo().stream()
                 .map(ConversaDaSessao::paraConversa)
                 .toList();
-        return new PedidoDeFala(paraCenario(versao), historico, pendente.texto());
+        // RNF-13: o consumo fica ligado à sessão, para somar o custo dela, mesmo que a resposta seja
+        // bloqueada ou venha vazia e não vire mensagem.
+        return new PedidoDeFala(
+                paraCenario(versao), historico, pendente.texto(), FinalidadeDoConsumo.FALA_EM_SALA, sessao.id());
     }
 
     private static MensagemDaConversa paraConversa(MensagemExibida mensagem) {
