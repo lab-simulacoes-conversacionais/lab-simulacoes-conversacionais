@@ -1,6 +1,9 @@
 package br.ufg.inf.labsimulacoes.cenarios.infraestrutura;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -16,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 
 /** Contagem dos pedidos de sugestão no Redis real (RNF-13). */
 @SpringBootTest
@@ -71,6 +75,15 @@ class PedidosDeSugestaoNoRedisTest {
         assertThat(redis.getExpire(PedidosDeSugestaoNoRedis.chave(usuarioId))).isPositive().isLessThanOrEqualTo(300);
     }
 
+    /** Se a chave existir sem validade, o próximo pedido devolve a validade da janela. */
+    @Test
+    void contagemSemValidadeGanhaAValidadeDaJanela() {
+        redis.opsForValue().set(PedidosDeSugestaoNoRedis.chave(usuarioId), "10");
+
+        assertThat(pedidos.registrar(usuarioId, UMA_HORA)).isEqualTo(11);
+        assertThat(redis.getExpire(PedidosDeSugestaoNoRedis.chave(usuarioId))).isPositive().isLessThanOrEqualTo(3600);
+    }
+
     @Test
     void depoisDaJanelaAContagemRecomeca() {
         pedidos.registrar(usuarioId, UMA_HORA);
@@ -84,7 +97,8 @@ class PedidosDeSugestaoNoRedisTest {
     @Test
     void falhaDoRedisDeixaOPedidoPassar() {
         StringRedisTemplate foraDoAr = mock(StringRedisTemplate.class);
-        when(foraDoAr.opsForValue()).thenThrow(new RedisConnectionFailureException("fora do ar"));
+        when(foraDoAr.execute(any(RedisScript.class), anyList(), anyString()))
+                .thenThrow(new RedisConnectionFailureException("fora do ar"));
 
         assertThat(new PedidosDeSugestaoNoRedis(foraDoAr).registrar(usuarioId, UMA_HORA)).isZero();
     }
