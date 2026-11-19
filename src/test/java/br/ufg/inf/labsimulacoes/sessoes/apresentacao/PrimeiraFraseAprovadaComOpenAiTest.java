@@ -62,7 +62,8 @@ import org.springframework.web.util.HtmlUtils;
  * frases) separam o tempo em etapas, só para explicar o resultado (issue #80).
  *
  * <p>Cada execução anota a estratégia de latência que está sendo medida ({@code -Dspike.estrategia}) e
- * se compara com a medição original da issue #19 ({@code resultados01.md}).
+ * se compara com a linha de base das execuções 02 a 04, sem estratégia. A medição original da issue #19
+ * ({@code resultados01.md}) aparece só como referência.
  *
  * <p>Gasta tokens e leva alguns minutos, por isso só roda quando pedido e com a chave no terminal; no CI
  * e no {@code verify} comum fica desligado. Como rodar e o que fica de fora estão no README da pasta
@@ -303,26 +304,44 @@ class PrimeiraFraseAprovadaComOpenAiTest {
                         + "execução, em horários diferentes (issue #80).\n\n"
                 : "- **Resultado: critério não atingido nesta execução.**\n\n");
 
-        md.append("## Comparação com a medição original\n\n");
-        md.append("A medição original é o `resultados01.md` (issue #19), sem nenhuma estratégia. Em segundos; "
-                + "na diferença, negativo é mais rápido.\n\n");
-        md.append("| Indicador | Original | Esta execução | Diferença |\n| --- | ---: | ---: | ---: |\n");
-        md.append(String.format(Locale.ROOT, "| 1ª frase na tela em até 3 s | %.1f%% | %.1f%% | %+.1f p.p. |%n",
-                Original.PROPORCAO * 100, proporcao * 100, (proporcao - Original.PROPORCAO) * 100));
+        md.append("## Comparação com a linha de base\n\n");
+        md.append("A linha de base junta as 90 respostas dos `resultados02.md` a `resultados04.md`, sem nenhuma "
+                + "estratégia e com o código da issue #80 já instrumentado. A diferença é contra ela. A medição "
+                + "original (`resultados01.md`, issue #19) fica só como referência: rodou de madrugada, com o "
+                + "provedor mais rápido, e não serve para medir o ganho de uma estratégia. Em segundos; na "
+                + "diferença, negativo é mais rápido.\n\n");
+        md.append("| Indicador | Original (01) | Linha de base (02 a 04) | Esta execução | Diferença |\n"
+                + "| --- | ---: | ---: | ---: | ---: |\n");
+        md.append(String.format(Locale.ROOT,
+                "| 1ª frase na tela em até 3 s | %.1f%% | %.1f%% | %.1f%% | %+.1f p.p. |%n",
+                Original.PROPORCAO * 100, LinhaDeBase.PROPORCAO * 100, proporcao * 100,
+                (proporcao - LinhaDeBase.PROPORCAO) * 100));
         Estatistica naTela = Estatistica.de(valores(medicoes, Medicao::primeiraFraseNaTela));
         Estatistica primeiroTrecho = Estatistica.de(valores(medicoes, Medicao::primeiroTrechoDoModelo));
-        comparar(md, "1ª frase na tela, média", Original.NA_TELA_MEDIA, naTela, Estatistica::media);
-        comparar(md, "1ª frase na tela, p95", Original.NA_TELA_P95, naTela, Estatistica::p95);
-        comparar(md, "1ª frase na tela, máximo", Original.NA_TELA_MAXIMO, naTela, Estatistica::maximo);
-        comparar(md, "1º trecho do modelo, média", Original.PRIMEIRO_TRECHO_MEDIA, primeiroTrecho, Estatistica::media);
-        comparar(md, "1º trecho do modelo, p95", Original.PRIMEIRO_TRECHO_P95, primeiroTrecho, Estatistica::p95);
-        comparar(md, "Envio da pergunta, média", Original.ENVIO_MEDIA,
+        Estatistica espera = Estatistica.de(valores(medicoes, Medicao::esperaDoPrimeiroTrecho));
+        comparar(md, "1ª frase na tela, média", Original.NA_TELA_MEDIA, LinhaDeBase.NA_TELA_MEDIA, naTela,
+                Estatistica::media);
+        comparar(md, "1ª frase na tela, p95", Original.NA_TELA_P95, LinhaDeBase.NA_TELA_P95, naTela, Estatistica::p95);
+        comparar(md, "1ª frase na tela, máximo", Original.NA_TELA_MAXIMO, LinhaDeBase.NA_TELA_MAXIMO, naTela,
+                Estatistica::maximo);
+        comparar(md, "Espera do provedor até o 1º trecho, média", null, LinhaDeBase.ESPERA_MEDIA, espera,
+                Estatistica::media);
+        comparar(md, "Espera do provedor até o 1º trecho, p95", null, LinhaDeBase.ESPERA_P95, espera,
+                Estatistica::p95);
+        comparar(md, "1º trecho do modelo, média", Original.PRIMEIRO_TRECHO_MEDIA, LinhaDeBase.PRIMEIRO_TRECHO_MEDIA,
+                primeiroTrecho, Estatistica::media);
+        comparar(md, "1º trecho do modelo, p95", Original.PRIMEIRO_TRECHO_P95, LinhaDeBase.PRIMEIRO_TRECHO_P95,
+                primeiroTrecho, Estatistica::p95);
+        comparar(md, "Envio da pergunta, média", Original.ENVIO_MEDIA, LinhaDeBase.ENVIO_MEDIA,
                 Estatistica.de(valores(medicoes, Medicao::envio)), Estatistica::media);
         comparar(md, "Moderação da pergunta, média", Original.MODERACAO_DA_PERGUNTA_MEDIA,
+                LinhaDeBase.MODERACAO_DA_PERGUNTA_MEDIA,
                 Estatistica.de(valores(medicoes, Medicao::moderacaoDaPergunta)), Estatistica::media);
         comparar(md, "Moderação da 1ª frase, média", Original.MODERACAO_DA_FRASE_MEDIA,
+                LinhaDeBase.MODERACAO_DA_FRASE_MEDIA,
                 Estatistica.de(valores(medicoes, Medicao::moderacaoDaPrimeiraFrase)), Estatistica::media);
-        comparar(md, "Resposta completa, média", Original.TOTAL_MEDIA, Estatistica.de(totais), Estatistica::media);
+        comparar(md, "Resposta completa, média", Original.TOTAL_MEDIA, LinhaDeBase.TOTAL_MEDIA,
+                Estatistica.de(totais), Estatistica::media);
 
         md.append("\n## Tempo por etapa\n\n");
         md.append("Em segundos. O p95 usa o método do posto mais próximo: com 30 respostas, é a 29ª mais rápida. "
@@ -404,14 +423,45 @@ class PrimeiraFraseAprovadaComOpenAiTest {
         private Original() {}
     }
 
+    /**
+     * A linha de base da issue #80: as 90 respostas dos {@code resultados02.md} a {@code resultados04.md},
+     * juntas. Média, p95 (posto mais próximo, a 86ª de 90) e máximo saem da tabela por pergunta; as médias
+     * das moderações, que não estão nela, são a média das três execuções, todas com 30 respostas.
+     */
+    static final class LinhaDeBase {
+
+        static final double PROPORCAO = 59.0 / 90;
+        static final double NA_TELA_MEDIA = 2.82;
+        static final double NA_TELA_P95 = 3.85;
+        static final double NA_TELA_MAXIMO = 4.69;
+        static final double ESPERA_MEDIA = 1.66;
+        static final double ESPERA_P95 = 2.65;
+        static final double PRIMEIRO_TRECHO_MEDIA = 2.10;
+        static final double PRIMEIRO_TRECHO_P95 = 3.12;
+        static final double ENVIO_MEDIA = 0.41;
+        static final double MODERACAO_DA_PERGUNTA_MEDIA = 0.36;
+        static final double MODERACAO_DA_FRASE_MEDIA = 0.34;
+        static final double TOTAL_MEDIA = 3.92;
+
+        private LinhaDeBase() {}
+    }
+
+    /** Uma linha da comparação; sem o valor da original (etapa que ela não media), a coluna fica com "–". */
     private static void comparar(
-            StringBuilder md, String indicador, double original, Estatistica atual, Function<Estatistica, Double> valor) {
+            StringBuilder md,
+            String indicador,
+            Double original,
+            double linhaDeBase,
+            Estatistica atual,
+            Function<Estatistica, Double> valor) {
+        String daOriginal = original == null ? "–" : String.format(Locale.ROOT, "%.2f", original);
         if (atual == null) {
-            md.append(String.format(Locale.ROOT, "| %s | %.2f | – | – |%n", indicador, original));
+            md.append(String.format(Locale.ROOT, "| %s | %s | %.2f | – | – |%n", indicador, daOriginal, linhaDeBase));
             return;
         }
         double agora = valor.apply(atual);
-        md.append(String.format(Locale.ROOT, "| %s | %.2f | %.2f | %+.2f |%n", indicador, original, agora, agora - original));
+        md.append(String.format(Locale.ROOT, "| %s | %s | %.2f | %.2f | %+.2f |%n",
+                indicador, daOriginal, linhaDeBase, agora, agora - linhaDeBase));
     }
 
     /** Média, mediana, p95 e máximo de uma etapa. */

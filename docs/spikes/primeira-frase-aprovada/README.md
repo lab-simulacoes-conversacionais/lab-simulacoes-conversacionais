@@ -11,7 +11,7 @@ na tela em até 3 s**.
 
 A primeira medição (`resultados01.md`) ficou em 93,3%. Antes de trocar a moderação, a issue #80 tenta
 reduzir a latência mantendo a moderação por frase. Cada estratégia é medida com este spike, num relatório
-próprio, e comparada à medição original.
+próprio, e comparada à linha de base das execuções 02 a 04 (veja abaixo).
 
 ## Como rodar
 
@@ -45,13 +45,25 @@ de base, com os mesmos parâmetros da original:
   -Dspike.estrategia="A: conexão de streaming aquecida ao subir"
 ```
 
-O relatório traz uma tabela que compara a execução com o `resultados01.md`: a proporção dentro da meta,
-a média, o p95 e o máximo da primeira frase na tela, e as etapas principais. Os números da original
-ficam copiados no teste, para a comparação continuar valendo mesmo que o formato do relatório mude.
+O relatório traz uma tabela que compara a execução com a linha de base: a proporção dentro da meta, a
+média, o p95 e o máximo da primeira frase na tela, a espera do provedor até o primeiro trecho e as
+etapas principais. Os números ficam copiados no teste, para a comparação continuar valendo mesmo que o
+formato do relatório mude.
 
-Para estabelecer a variação natural da latência, a linha de base é repetida em horários diferentes,
-sem mudar nada no código nem nos parâmetros. O RNF-03 só conta como atingido com 95% em mais de uma
-execução.
+### Linha de base (issue #80)
+
+A linha de base foi repetida três vezes sem mudar nada no código nem nos parâmetros
+(`resultados02.md` a `resultados04.md`), e as 90 respostas juntas são a referência das estratégias:
+65,6% (59 de 90) com a primeira frase na tela em até 3 s, média de 2,82 s e p95 de 3,85 s.
+
+Nas três, as etapas da aplicação (banco, Redis, preparo, montagem do prompt, envio pelo SSE) somam cerca
+de 0,05 s e quase não mudaram. A diferença para a original, de 93,3%, está toda na espera da OpenAI até o
+primeiro trecho: a mediana do envio até o primeiro trecho foi de 1,11 s na 01 e de 1,47 a 1,81 s nas
+outras. A 01 rodou à 01h; as outras, entre 10h e 16h30, em horário comercial nos EUA. A variação entre
+as três (73,3%, 63,3% e 56,7%) cabe no acaso de 30 amostras com a mediana perto dos 3 s: as médias foram
+2,76, 2,76 e 2,95 s. A original continua na tabela só como referência.
+
+O RNF-03 só conta como atingido com 95% em mais de uma execução.
 
 ## O que o teste faz
 
