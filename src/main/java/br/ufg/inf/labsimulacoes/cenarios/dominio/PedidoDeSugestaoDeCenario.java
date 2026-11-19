@@ -7,10 +7,17 @@ package br.ufg.inf.labsimulacoes.cenarios.dominio;
  */
 public record PedidoDeSugestaoDeCenario(String tema, VinculoCurricular curriculo) {
 
+    /** RNF-13: o tema vai inteiro para o prompt, então um texto longo gastaria tokens à toa. */
+    public static final int TAMANHO_MAXIMO_DO_TEMA = 200;
+
     public PedidoDeSugestaoDeCenario {
         tema = Textos.opcional(tema);
         if (tema == null) {
             throw new IllegalArgumentException("O tema da sugestão é obrigatório");
+        }
+        if (tema.length() > TAMANHO_MAXIMO_DO_TEMA) {
+            throw new IllegalArgumentException(
+                    "O tema da sugestão tem no máximo " + TAMANHO_MAXIMO_DO_TEMA + " caracteres");
         }
         if (curriculo == null || curriculo.componente() == null) {
             throw new IllegalArgumentException("O componente curricular da sugestão é obrigatório");

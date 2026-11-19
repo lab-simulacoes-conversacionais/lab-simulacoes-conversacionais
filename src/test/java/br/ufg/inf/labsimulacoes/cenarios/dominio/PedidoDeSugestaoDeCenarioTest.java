@@ -30,6 +30,21 @@ class PedidoDeSugestaoDeCenarioTest {
                 .hasMessageContaining("tema");
     }
 
+    /** RNF-13: o tema vai inteiro para o prompt. */
+    @Test
+    void temaTemNoMaximo200Caracteres() {
+        assertThat(new PedidoDeSugestaoDeCenario("a".repeat(200), CURRICULO).tema()).hasSize(200);
+        assertThatThrownBy(() -> new PedidoDeSugestaoDeCenario("a".repeat(201), CURRICULO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("200 caracteres");
+    }
+
+    /** Os espaços nas pontas são tirados antes de medir. */
+    @Test
+    void espacosNasPontasNaoContamNoTamanhoDoTema() {
+        assertThat(new PedidoDeSugestaoDeCenario("  " + "a".repeat(200) + "  ", CURRICULO).tema()).hasSize(200);
+    }
+
     @Test
     void curriculoEhObrigatorio() {
         assertThatThrownBy(() -> new PedidoDeSugestaoDeCenario("Tema", null))
