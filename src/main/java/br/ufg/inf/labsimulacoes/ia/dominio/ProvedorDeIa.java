@@ -27,6 +27,8 @@ public interface ProvedorDeIa {
      *
      * @return a geração com o conteúdo nulo se a resposta não virou um roteiro, para o consumo ser
      *     registrado mesmo assim
+     * @throws br.ufg.inf.labsimulacoes.ia.SugestaoDesligada se o ambiente não definiu o modelo da
+     *     sugestão
      */
     Geracao<RoteiroSugerido> sugerirRoteiro(PromptMontado prompt);
 

@@ -8,6 +8,8 @@ import br.ufg.inf.labsimulacoes.ia.PedidoDeSugestao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MontadorDePrompt;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
@@ -50,14 +52,14 @@ class ConfiguracaoDoAdaptadorTest {
                         .isEqualTo(new OpcoesDaSugestao("gpt-6.1-terra", null, null, 4000)));
     }
 
-    /** IA_MODELO_SUGESTAO definida sem valor deixaria o pedido sem modelo (HTTP 400). */
-    @Test
-    void modeloDaSugestaoVazioImpedeASubida() {
-        contexto.withPropertyValues("ia.sugestao.modelo=").run(subido -> assertThat(subido)
-                .hasFailed()
-                .getFailure()
-                .rootCause()
-                .hasMessageContaining("IA_MODELO_SUGESTAO"));
+    /** Sem IA_MODELO_SUGESTAO, a aplicação sobe com a sugestão desligada; o chat continua. */
+    @ParameterizedTest
+    @ValueSource(strings = {"ia.sugestao.modelo=", "ia.sugestao.modelo=  "})
+    void semModeloDaSugestaoSobeComASugestaoDesligada(String propriedade) {
+        contexto.withPropertyValues(propriedade).run(subido -> {
+            assertThat(subido).hasNotFailed();
+            assertThat(subido.getBean(OpcoesDaSugestao.class).ligada()).isFalse();
+        });
     }
 
     @Test

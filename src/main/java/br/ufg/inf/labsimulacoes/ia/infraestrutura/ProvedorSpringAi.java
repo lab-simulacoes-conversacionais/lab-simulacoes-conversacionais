@@ -3,6 +3,7 @@ package br.ufg.inf.labsimulacoes.ia.infraestrutura;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
+import br.ufg.inf.labsimulacoes.ia.SugestaoDesligada;
 import br.ufg.inf.labsimulacoes.ia.dominio.Geracao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MensagemDoPrompt;
 import br.ufg.inf.labsimulacoes.ia.dominio.PromptMontado;
@@ -126,9 +127,14 @@ class ProvedorSpringAi implements ProvedorDeIa {
      *
      * <p>Uma resposta que não vira roteiro, inclusive a cortada no teto, chega com o conteúdo nulo e o
      * consumo preenchido, para que os tokens gastos sejam registrados antes da falha.
+     *
+     * @throws SugestaoDesligada se o ambiente não definiu IA_MODELO_SUGESTAO, sem chamar o provedor
      */
     @Override
     public Geracao<RoteiroSugerido> sugerirRoteiro(PromptMontado prompt) {
+        if (!sugestao.ligada()) {
+            throw new SugestaoDesligada();
+        }
         ResponseEntity<ChatResponse, RoteiroSugerido> resposta = doProvedor(() -> chat.prompt(paraPrompt(prompt))
                 .options(opcoesDaSugestao())
                 .call()

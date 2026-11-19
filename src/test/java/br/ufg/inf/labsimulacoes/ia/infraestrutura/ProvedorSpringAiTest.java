@@ -4,12 +4,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
+import br.ufg.inf.labsimulacoes.ia.SugestaoDesligada;
 import br.ufg.inf.labsimulacoes.ia.dominio.Geracao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MensagemDoPrompt;
 import br.ufg.inf.labsimulacoes.ia.dominio.PromptMontado;
@@ -267,6 +269,19 @@ class ProvedorSpringAiTest {
                 .containsEntry("reasoning_effort", "none")
                 .containsEntry("service_tier", "priority")
                 .containsEntry("max_completion_tokens", 400);
+    }
+
+    /** Sem IA_MODELO_SUGESTAO, a sugestão não roda e nada é enviado ao provedor; a fala continua. */
+    @Test
+    void sugestaoDesligadaNaoChamaOProvedor() {
+        var desligada = new ProvedorSpringAi(modelo, moderacao, "openai", new OpcoesDaSugestao(null, "low", "default", 4000));
+        when(modelo.stream(any(Prompt.class))).thenReturn(Flux.just(trecho("Sou Santos Dumont.", null, null)));
+
+        assertThatThrownBy(() -> desligada.sugerirRoteiro(PROMPT))
+                .isInstanceOf(SugestaoDesligada.class)
+                .hasMessageContaining("IA_MODELO_SUGESTAO");
+        verify(modelo, never()).call(any(Prompt.class));
+        assertThat(desligada.conversar(PROMPT, trecho -> {}).conteudo()).isEqualTo("Sou Santos Dumont.");
     }
 
     /** Sem esforço nem nível próprios, a sugestão fica com os da configuração da fala. */

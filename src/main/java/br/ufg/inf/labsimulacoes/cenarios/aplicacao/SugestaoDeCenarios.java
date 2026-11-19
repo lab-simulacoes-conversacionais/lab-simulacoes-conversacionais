@@ -59,6 +59,8 @@ public class SugestaoDeCenarios {
      *     provedor conta mesmo se ele falhar, porque os tokens já foram gastos
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se o provedor falhar ou devolver algo que
      *     não vira um roteiro
+     * @throws br.ufg.inf.labsimulacoes.ia.SugestaoDesligada se o ambiente não definiu o modelo da
+     *     sugestão
      */
     public Cenario sugerir(PedidoDeSugestaoDeCenario pedido) {
         if (pedido == null) {

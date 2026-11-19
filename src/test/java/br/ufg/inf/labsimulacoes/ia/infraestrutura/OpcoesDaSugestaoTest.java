@@ -27,13 +27,20 @@ class OpcoesDaSugestaoTest {
         assertThat(opcoes.nivelDeServico()).isNull();
     }
 
+    /** Sem IA_MODELO_SUGESTAO, a sugestão não roda. */
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"", "  "})
-    void modeloEhObrigatorio(String modelo) {
-        assertThatThrownBy(() -> new OpcoesDaSugestao(modelo, "low", "default", 4000))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("IA_MODELO_SUGESTAO");
+    void semModeloASugestaoFicaDesligada(String modelo) {
+        var opcoes = new OpcoesDaSugestao(modelo, "low", "default", 4000);
+
+        assertThat(opcoes.modelo()).isNull();
+        assertThat(opcoes.ligada()).isFalse();
+    }
+
+    @Test
+    void comModeloASugestaoFicaLigada() {
+        assertThat(new OpcoesDaSugestao("gpt-6.1-terra", null, null, 4000).ligada()).isTrue();
     }
 
     @ParameterizedTest
