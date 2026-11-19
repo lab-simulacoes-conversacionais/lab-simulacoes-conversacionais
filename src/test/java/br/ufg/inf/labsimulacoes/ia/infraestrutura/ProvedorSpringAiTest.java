@@ -60,7 +60,7 @@ class ProvedorSpringAiTest {
                 .reasoningEffort("low")
                 .maxCompletionTokens(400)
                 .build());
-        provedor = new ProvedorSpringAi(modelo, moderacao, "openai");
+        provedor = new ProvedorSpringAi(modelo, moderacao, "openai", 4000);
     }
 
     /** IA_MODELO definida sem valor vence o padrão e deixaria o pedido sem modelo (HTTP 400). */
@@ -69,9 +69,16 @@ class ProvedorSpringAiTest {
         ChatModel semModelo = mock(ChatModel.class);
         when(semModelo.getDefaultOptions()).thenReturn(OpenAiChatOptions.builder().model("").build());
 
-        assertThatThrownBy(() -> new ProvedorSpringAi(semModelo, moderacao, "openai"))
+        assertThatThrownBy(() -> new ProvedorSpringAi(semModelo, moderacao, "openai", 4000))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("IA_MODELO");
+    }
+
+    @Test
+    void tetoDeTokensDaSugestaoPrecisaSerPositivo() {
+        assertThatThrownBy(() -> new ProvedorSpringAi(modelo, moderacao, "openai", 0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("teto de tokens");
     }
 
     @Test
@@ -202,6 +209,39 @@ class ProvedorSpringAiTest {
         assertThat(geracao.conteudo().fontes()).isEmpty();
         assertThat(geracao.modelo()).isEqualTo("gpt-6.1-terra-2026-10-01");
         assertThat(geracao.uso()).isEqualTo(new UsoDoModelo(500, 300));
+    }
+
+    /** RNF-13: a sugestão vai com o próprio teto de tokens, e os metadados mostram o teto usado. */
+    @Test
+    void sugestaoVaiComOTetoDeTokensDaSugestao() {
+        when(modelo.call(any(Prompt.class))).thenReturn(new ChatResponse(
+                List.of(new Generation(new AssistantMessage("{\"titulo\": \"O voo do 14-bis\"}")))));
+
+        Geracao<RoteiroSugerido> geracao = provedor.sugerirRoteiro(PROMPT);
+
+        ArgumentCaptor<Prompt> enviado = ArgumentCaptor.forClass(Prompt.class);
+        verify(modelo).call(enviado.capture());
+        assertThat(enviado.getValue().getOptions()).isInstanceOf(OpenAiChatOptions.class);
+        assertThat(((OpenAiChatOptions) enviado.getValue().getOptions()).getMaxCompletionTokens()).isEqualTo(4000);
+        assertThat(geracao.parametros())
+                .containsEntry("max_completion_tokens", 4000)
+                .containsEntry("reasoning_effort", "low");
+    }
+
+    /** Em outro provedor, o teto da sugestão vai no campo genérico. */
+    @Test
+    void sugestaoEmOutroProvedorUsaOTetoGenerico() {
+        ChatModel outro = mock(ChatModel.class);
+        when(outro.getDefaultOptions()).thenReturn(ChatOptions.builder().model("outro").maxTokens(400).build());
+        when(outro.call(any(Prompt.class))).thenReturn(new ChatResponse(
+                List.of(new Generation(new AssistantMessage("{\"titulo\": \"O voo do 14-bis\"}")))));
+
+        Geracao<RoteiroSugerido> geracao = new ProvedorSpringAi(outro, moderacao, "outro", 4000).sugerirRoteiro(PROMPT);
+
+        ArgumentCaptor<Prompt> enviado = ArgumentCaptor.forClass(Prompt.class);
+        verify(outro).call(enviado.capture());
+        assertThat(enviado.getValue().getOptions().getMaxTokens()).isEqualTo(4000);
+        assertThat(geracao.parametros()).containsEntry("max_tokens", 4000);
     }
 
     @Test
