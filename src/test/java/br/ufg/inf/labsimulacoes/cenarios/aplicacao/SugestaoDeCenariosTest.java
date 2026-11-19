@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -15,6 +16,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadesForaDoCatalogo;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDeSugestoesAtingido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PedidoDeSugestaoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Revisor;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
@@ -197,6 +199,30 @@ class SugestaoDeCenariosTest {
                 .isInstanceOf(HabilidadesForaDoCatalogo.class)
                 .hasMessageContaining("EF01XX99");
         verify(adaptador, never()).sugerirCenario(any());
+    }
+
+    /** RNF-13: o 11º pedido na hora é recusado sem chamar a IA. */
+    @Test
+    void pedidoAlemDoLimiteDaHoraERecusadoSemChamarAIa() {
+        logar(PROFESSORA, "ROLE_PROFESSOR");
+        for (int i = 0; i < 10; i++) {
+            sugestao.sugerir(PEDIDO);
+        }
+
+        assertThatThrownBy(() -> sugestao.sugerir(PEDIDO)).isInstanceOf(LimiteDeSugestoesAtingido.class);
+        verify(adaptador, times(10)).sugerirCenario(any());
+    }
+
+    /** O limite é de cada usuário: o de um não gasta o do outro. */
+    @Test
+    void limiteDeUmUsuarioNaoAfetaOutro() {
+        logar(PROFESSORA, "ROLE_PROFESSOR");
+        for (int i = 0; i < 10; i++) {
+            sugestao.sugerir(PEDIDO);
+        }
+        logar(CURADORA, "ROLE_CURADOR");
+
+        assertThat(sugestao.sugerir(PEDIDO).autorId()).isEqualTo(curadora);
     }
 
     @Test

@@ -4,7 +4,9 @@ import br.ufg.inf.labsimulacoes.acesso.UsuarioLogado;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDeSugestoes;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PedidoDeSugestaoDeCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.PedidosDeSugestao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
@@ -31,18 +33,30 @@ public class SugestaoDeCenarios {
     private final Cenarios cenarios;
     private final Habilidades habilidades;
     private final UsuarioLogado usuarioLogado;
+    private final PedidosDeSugestao pedidos;
+    private final LimiteDeSugestoes limite;
 
     SugestaoDeCenarios(
-            AdaptadorDeIa adaptador, Cenarios cenarios, Habilidades habilidades, UsuarioLogado usuarioLogado) {
+            AdaptadorDeIa adaptador,
+            Cenarios cenarios,
+            Habilidades habilidades,
+            UsuarioLogado usuarioLogado,
+            PedidosDeSugestao pedidos,
+            LimiteDeSugestoes limite) {
         this.adaptador = adaptador;
         this.cenarios = cenarios;
         this.habilidades = habilidades;
         this.usuarioLogado = usuarioLogado;
+        this.pedidos = pedidos;
+        this.limite = limite;
     }
 
     /**
      * @throws br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadesForaDoCatalogo antes de chamar o
      *     provedor, para um código errado não gastar tokens
+     * @throws br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDeSugestoesAtingido antes de chamar o
+     *     provedor, se o usuário já pediu todas as sugestões da janela (RNF-13). Um pedido que chega ao
+     *     provedor conta mesmo se ele falhar, porque os tokens já foram gastos
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se o provedor falhar ou devolver algo que
      *     não vira um roteiro
      */
@@ -52,6 +66,7 @@ public class SugestaoDeCenarios {
         }
         habilidades.exigirNoCatalogo(pedido.curriculo().habilidades());
         long quemPediu = usuarioLogado.id();
+        limite.exigirDentro(pedidos.registrar(quemPediu, limite.janela()));
 
         SugestaoDeCenario sugestao = adaptador.sugerirCenario(paraOAdaptador(pedido));
 
