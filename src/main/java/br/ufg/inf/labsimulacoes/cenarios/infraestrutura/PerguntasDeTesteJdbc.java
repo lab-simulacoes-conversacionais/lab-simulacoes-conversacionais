@@ -1,7 +1,7 @@
 package br.ufg.inf.labsimulacoes.cenarios.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste;
-import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste.Desfecho;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste.Situacao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntasDeTeste;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -10,24 +10,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /**
- * Tabela pergunta_de_teste. O desfecho fica em duas colunas booleanas, e não num texto com CHECK, para
- * um desfecho novo não exigir trocar a restrição (RNF-12). A rodada em aberto é a das perguntas sem
- * devolução, e a ordem é a de gravação.
+ * Tabela pergunta_de_teste. A rodada em aberto é a das perguntas sem devolução, e a ordem é a de
+ * reserva. O resultado é gravado na mesma linha da reserva, sem tocar na devolução: o UPDATE do resultado
+ * e o da devolução mudam colunas diferentes, e o banco aplica os dois, em qualquer ordem.
  */
 @Repository
 class PerguntasDeTesteJdbc implements PerguntasDeTeste {
 
-    private static final String DA_RODADA = """
-            SELECT id, cenario_versao_id, curador_id, pergunta, pergunta_bloqueada, resposta_bloqueada, resposta,
-                   resposta_ia_meta_id
-            FROM pergunta_de_teste
-            WHERE cenario_versao_id = ? AND curador_id = ? AND devolucao_id IS NULL
-            ORDER BY id""";
+    private static final String COLUNAS = """
+            id, cenario_versao_id, curador_id, pergunta, situacao, resposta, resposta_ia_meta_id,
+            devolucao_id IS NOT NULL AS rodada_fechada""";
 
-    private static final String CONTAR = """
-            SELECT count(*)
-            FROM pergunta_de_teste
-            WHERE cenario_versao_id = ? AND curador_id = ? AND devolucao_id IS NULL AND NOT pergunta_bloqueada""";
+    private static final String RODADA_EM_ABERTO =
+            "cenario_versao_id = ? AND curador_id = ? AND devolucao_id IS NULL";
 
     private final JdbcTemplate jdbc;
 
@@ -36,32 +31,48 @@ class PerguntasDeTesteJdbc implements PerguntasDeTeste {
     }
 
     @Override
-    public PerguntaDeTeste gravar(PerguntaDeTeste pergunta) {
+    public PerguntaDeTeste reservar(PerguntaDeTeste reservada) {
+        if (reservada.situacao() != Situacao.PENDENTE || reservada.id() != null) {
+            throw new IllegalStateException("Só uma pergunta nova e pendente é reservada");
+        }
         Long id = jdbc.queryForObject("""
-                INSERT INTO pergunta_de_teste (cenario_versao_id, curador_id, pergunta, pergunta_bloqueada,
-                                               resposta_bloqueada, resposta, resposta_ia_meta_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO pergunta_de_teste (cenario_versao_id, curador_id, pergunta, situacao)
+                VALUES (?, ?, ?, 'PENDENTE')
                 RETURNING id""",
-                Long.class,
-                pergunta.versaoId(),
-                pergunta.curadorId(),
-                pergunta.pergunta(),
-                pergunta.desfecho() == Desfecho.PERGUNTA_BLOQUEADA,
-                pergunta.desfecho() == Desfecho.RESPOSTA_BLOQUEADA,
-                pergunta.resposta(),
-                pergunta.respostaIaMetaId());
-        return pergunta.comId(id);
+                Long.class, reservada.versaoId(), reservada.curadorId(), reservada.pergunta());
+        return reservada.comId(id);
+    }
+
+    @Override
+    public PerguntaDeTeste concluir(PerguntaDeTeste comResultado) {
+        List<PerguntaDeTeste> atualizada = jdbc.query("""
+                        UPDATE pergunta_de_teste SET situacao = ?, resposta = ?, resposta_ia_meta_id = ?
+                        WHERE id = ? AND situacao = 'PENDENTE'
+                        RETURNING""" + " " + COLUNAS,
+                (linha, numero) -> paraPergunta(linha),
+                comResultado.situacao().name(), comResultado.resposta(), comResultado.respostaIaMetaId(),
+                comResultado.id());
+        if (atualizada.isEmpty()) {
+            throw new IllegalStateException(
+                    "A pergunta de teste " + comResultado.id() + " não existe ou já tem resultado");
+        }
+        return atualizada.getFirst();
     }
 
     @Override
     public List<PerguntaDeTeste> daRodada(long versaoId, long curadorId) {
-        return jdbc.query(DA_RODADA, (linha, numero) -> paraPergunta(linha), versaoId, curadorId);
+        return jdbc.query("SELECT " + COLUNAS + " FROM pergunta_de_teste WHERE " + RODADA_EM_ABERTO + " ORDER BY id",
+                (linha, numero) -> paraPergunta(linha), versaoId, curadorId);
+    }
+
+    @Override
+    public int ocupadas(long versaoId, long curadorId) {
+        return contarOnde(RODADA_EM_ABERTO, versaoId, curadorId);
     }
 
     @Override
     public int contar(long versaoId, long curadorId) {
-        Integer total = jdbc.queryForObject(CONTAR, Integer.class, versaoId, curadorId);
-        return total == null ? 0 : total;
+        return contarOnde(RODADA_EM_ABERTO + " AND situacao IN ('CONCLUIDA', 'RESPOSTA_BLOQUEADA')", versaoId, curadorId);
     }
 
     @Override
@@ -72,22 +83,21 @@ class PerguntasDeTesteJdbc implements PerguntasDeTeste {
                 versaoId);
     }
 
+    private int contarOnde(String condicao, long versaoId, long curadorId) {
+        Integer total = jdbc.queryForObject(
+                "SELECT count(*) FROM pergunta_de_teste WHERE " + condicao, Integer.class, versaoId, curadorId);
+        return total == null ? 0 : total;
+    }
+
     private static PerguntaDeTeste paraPergunta(ResultSet linha) throws SQLException {
-        Desfecho desfecho;
-        if (linha.getBoolean("pergunta_bloqueada")) {
-            desfecho = Desfecho.PERGUNTA_BLOQUEADA;
-        } else if (linha.getBoolean("resposta_bloqueada")) {
-            desfecho = Desfecho.RESPOSTA_BLOQUEADA;
-        } else {
-            desfecho = Desfecho.EXIBIDA;
-        }
         return new PerguntaDeTeste(
                 linha.getLong("id"),
                 linha.getLong("cenario_versao_id"),
                 linha.getLong("curador_id"),
                 linha.getString("pergunta"),
-                desfecho,
+                Situacao.valueOf(linha.getString("situacao")),
                 linha.getString("resposta"),
-                linha.getObject("resposta_ia_meta_id", Long.class));
+                linha.getObject("resposta_ia_meta_id", Long.class),
+                linha.getBoolean("rodada_fechada"));
     }
 }

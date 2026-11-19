@@ -1,17 +1,18 @@
 package br.ufg.inf.labsimulacoes.cenarios.dominio;
 
 /**
- * RNF-13: quantas perguntas de teste cada curador faz em uma versão. Cada pergunta gasta tokens do
- * provedor, então passar do teto é recusado antes de qualquer chamada.
+ * RNF-13: quantas perguntas de teste cada curador faz numa rodada de uma versão. Cada pergunta gasta
+ * algo do provedor, então passar do teto é recusado antes de qualquer chamada.
  *
- * <p>Conta o mesmo que o RN-06 ({@link PerguntasDeTeste#contar}): a pergunta bloqueada, que não chega
- * ao modelo, não conta. Uma devolução abre rodada nova, e a contagem recomeça.
+ * <p>Conta todas as perguntas da rodada ({@link PerguntasDeTeste#ocupadas}): pendentes, concluídas,
+ * bloqueadas e com falha. É outra contagem que a do RN-06 ({@link PerguntasDeTeste#contar}). Uma devolução
+ * abre rodada nova, e as duas recomeçam.
  *
- * <p>O teto é conferido antes de chamar o provedor, sem trava, para a geração não ficar dentro de uma
- * transação. Dois envios simultâneos do mesmo curador podem passar do teto por uma pergunta; para um
- * limite de custo, isso é aceitável.
+ * <p>O teto é exato também com pedidos ao mesmo tempo: a vaga é reservada com o cenário travado, antes
+ * de chamar a IA. Uma pergunta pendente presa por uma queda da aplicação continua ocupando a sua vaga até
+ * a próxima devolução; ela não conta para o RN-06.
  *
- * @param perguntasPorVersao quantas perguntas que contam cabem em uma rodada
+ * @param perguntasPorVersao quantas perguntas cabem em uma rodada
  */
 public record LimiteDoTeste(int perguntasPorVersao) {
 
@@ -23,11 +24,11 @@ public record LimiteDoTeste(int perguntasPorVersao) {
     }
 
     /**
-     * @param jaFeitas quantas perguntas que contam o curador já fez na rodada, sem esta
+     * @param ocupadas quantas perguntas a rodada do curador já tem, de qualquer situação, sem esta
      * @throws LimiteDoTesteAtingido se não couber mais uma
      */
-    public void exigirDentro(int jaFeitas) {
-        if (jaFeitas >= perguntasPorVersao) {
+    public void exigirDentro(int ocupadas) {
+        if (ocupadas >= perguntasPorVersao) {
             throw new LimiteDoTesteAtingido(perguntasPorVersao);
         }
     }

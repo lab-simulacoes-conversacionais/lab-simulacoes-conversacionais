@@ -18,6 +18,8 @@ import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -32,12 +34,20 @@ import org.springframework.transaction.support.TransactionTemplate;
  * resposta_ia_meta, apontado pela pergunta (RNF-13). Por isso não entra nas métricas nem na fila do
  * curador.
  *
- * <p>O filtro é o da sala (RN-20), mas síncrono: modera a pergunta, gera a resposta inteira e modera a
- * resposta de uma vez, antes de devolver. Nenhuma chamada ao provedor fica dentro de transação; a
- * pergunta é gravada no fim, numa transação curta com o cenário travado, que confere de novo se a versão
- * continua em curadoria. Assim, uma pergunta respondida durante a devolução não vai para a rodada nova.
+ * <p>Cada pergunta passa por três passos, e nenhuma chamada à IA fica dentro de transação:
  *
- * <p>A contagem do RN-06 para o checklist (#27) é {@link PerguntasDeTeste#contar}.
+ * <ol>
+ *   <li>Reserva, numa transação curta com o cenário travado: confere se a versão está em curadoria, se
+ *       o curador não é o autor e se ainda cabe uma pergunta no teto, e grava a pergunta como pendente na
+ *       rodada em aberto. Com a trava, dois pedidos ao mesmo tempo nunca passam do teto.
+ *   <li>Fora de transação, o filtro da sala (RN-20), síncrono: modera a pergunta, gera a resposta inteira
+ *       e modera a resposta de uma vez.
+ *   <li>Resultado, noutra transação curta, na mesma pergunta reservada: concluída, pergunta bloqueada,
+ *       resposta bloqueada ou falha. A resposta já gerada fica sempre ligada à pergunta, também na falha.
+ * </ol>
+ *
+ * <p>São duas contagens: o teto (RNF-13) conta todas as perguntas da rodada, e o RN-06
+ * ({@link PerguntasDeTeste#contar}, para o checklist da #27) conta só as que testaram o personagem.
  */
 @Service
 @PreAuthorize("hasRole('CURADOR')")
@@ -45,6 +55,8 @@ public class TesteDoCenario {
 
     /** O mesmo tamanho de histórico que a sala envia ao modelo. */
     static final int MENSAGENS_NO_HISTORICO = 20;
+
+    private static final Logger LOG = LoggerFactory.getLogger(TesteDoCenario.class);
 
     private final Cenarios cenarios;
     private final PerguntasDeTeste perguntas;
@@ -68,67 +80,97 @@ public class TesteDoCenario {
         this.transacao = transacao;
     }
 
+    /** O que a reserva leva para a chamada à IA, lido com o cenário travado. */
+    private record Reserva(PerguntaDeTeste pergunta, ConteudoDoCenario conteudo, List<MensagemDaConversa> historico) {}
+
     /**
      * O curador faz uma pergunta ao personagem e recebe a resposta inteira, já moderada. O pedido leva o
-     * histórico da rodada do curador, sem as perguntas bloqueadas e as respostas bloqueadas, como na sala.
+     * histórico da rodada do curador, só com as perguntas concluídas, como na sala.
      *
      * <p>Se o filtro bloquear a pergunta, ela não chega ao modelo; se bloquear a resposta, ela não é
-     * devolvida nem guardada. Nos dois casos a pergunta é gravada com a marca, e quem exibe mostra o
-     * aviso neutro no lugar da resposta. Nada vai para a fila do curador.
+     * devolvida nem guardada. Nos dois casos a pergunta fica com a marca, e quem exibe mostra o aviso
+     * neutro no lugar da resposta. Nada vai para a fila do curador.
      *
-     * @return a pergunta gravada, com a resposta só no desfecho
-     *     {@link PerguntaDeTeste.Desfecho#EXIBIDA}
-     * @throws IllegalArgumentException se a pergunta estiver vazia
+     * @return a pergunta com o resultado; a resposta só existe na situação
+     *     {@link PerguntaDeTeste.Situacao#CONCLUIDA}
+     * @throws IllegalArgumentException se a pergunta estiver vazia ou passar de
+     *     {@value PerguntaDeTeste#TAMANHO_MAXIMO_DA_PERGUNTA} caracteres
      * @throws CenarioNaoEncontrado se o cenário não existir
      * @throws TesteNaoPermitido se a versão não estiver em curadoria ou se o curador for o autor; também
-     *     quando a versão sai da curadoria durante a resposta, e então nada é gravado
+     *     quando uma devolução fecha a rodada durante a resposta, e então a pergunta fica guardada na rodada
+     *     fechada
      * @throws br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDoTesteAtingido antes de chamar o provedor,
-     *     se o curador já fez todas as perguntas da rodada (RNF-13)
-     * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se o provedor ou a moderação falharem; nada
-     *     é gravado em pergunta_de_teste, e a pergunta pode ser feita de novo
+     *     se a rodada do curador já tem todas as perguntas do teto (RNF-13)
+     * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se o provedor ou a moderação falharem; a
+     *     pergunta fica com a situação de falha, ocupando a vaga, e pode ser feita de novo
      */
     public PerguntaDeTeste perguntar(long cenarioId, String texto) {
-        if (texto == null || texto.isBlank()) {
-            throw new IllegalArgumentException("Digite a pergunta de teste");
-        }
-        String pergunta = texto.strip();
+        String pergunta = PerguntaDeTeste.textoDaPergunta(texto);
         long curador = usuarioLogado.id();
-        Cenario cenario = cenarios.buscar(cenarioId).orElseThrow(() -> new CenarioNaoEncontrado(cenarioId));
-        long versaoId = PerguntaDeTeste.versaoTestavel(cenario, curador);
-        limite.exigirDentro(perguntas.contar(versaoId, curador));
+        Reserva reserva = reservar(cenarioId, curador, pergunta);
 
-        ConteudoDoCenario testado = cenario.versao().conteudo();
+        PerguntaDeTeste comResultado = consultarAIa(reserva);
 
-        if (adaptador.moderar(pergunta).sinalizado()) {
-            return gravar(cenarioId, testado, PerguntaDeTeste.comPerguntaBloqueada(versaoId, curador, pergunta));
+        PerguntaDeTeste gravada = transacao.execute(status -> perguntas.concluir(comResultado));
+        if (gravada.rodadaFechada()) {
+            throw TesteNaoPermitido.rodadaFechada(gravada.versaoId());
         }
-
-        PedidoDeFala pedido = new PedidoDeFala(paraCenario(testado), historico(versaoId, curador), pergunta);
-        RespostaDoPersonagem resposta = adaptador.responder(pedido, trecho -> {});
-        PerguntaDeTeste respondida = adaptador.moderar(resposta.texto()).sinalizado()
-                ? PerguntaDeTeste.comRespostaBloqueada(versaoId, curador, pergunta, resposta.metadadosId())
-                : PerguntaDeTeste.exibida(versaoId, curador, pergunta, resposta.texto(), resposta.metadadosId());
-        return gravar(cenarioId, testado, respondida);
+        return gravada;
     }
 
-    /**
-     * Com o cenário travado, a devolução não fecha a rodada no meio da gravação, e uma pergunta respondida
-     * sobre uma versão que saiu da curadoria ou mudou é recusada em vez de entrar na rodada seguinte.
-     */
-    private PerguntaDeTeste gravar(long cenarioId, ConteudoDoCenario testado, PerguntaDeTeste pergunta) {
+    /** Passo 1: com o cenário travado, os pedidos do mesmo cenário reservam um de cada vez. */
+    private Reserva reservar(long cenarioId, long curador, String pergunta) {
         return transacao.execute(status -> {
             Cenario cenario = cenarios.buscarParaAlterar(cenarioId)
                     .orElseThrow(() -> new CenarioNaoEncontrado(cenarioId));
-            PerguntaDeTeste.exigirAindaTestavel(cenario, pergunta.curadorId(), pergunta.versaoId(), testado);
-            return perguntas.gravar(pergunta);
+            long versaoId = PerguntaDeTeste.versaoTestavel(cenario, curador);
+            List<PerguntaDeTeste> rodada = perguntas.daRodada(versaoId, curador);
+            limite.exigirDentro(perguntas.ocupadas(versaoId, curador));
+            PerguntaDeTeste reservada = perguntas.reservar(PerguntaDeTeste.reservada(versaoId, curador, pergunta));
+            return new Reserva(reservada, cenario.versao().conteudo(), historico(rodada));
         });
     }
 
-    /** As últimas falas exibidas na rodada; as bloqueadas ficam de fora (RN-20). */
-    private List<MensagemDaConversa> historico(long versaoId, long curador) {
+    /**
+     * Passo 2, fora de transação. Uma falha depois de a IA responder fica com os metadados da resposta,
+     * que já foi paga (RNF-13).
+     */
+    private PerguntaDeTeste consultarAIa(Reserva reserva) {
+        PerguntaDeTeste pendente = reserva.pergunta();
+        Long metadados = null;
+        try {
+            if (adaptador.moderar(pendente.pergunta()).sinalizado()) {
+                return pendente.comPerguntaBloqueada();
+            }
+            RespostaDoPersonagem resposta = adaptador.responder(
+                    new PedidoDeFala(paraCenario(reserva.conteudo()), reserva.historico(), pendente.pergunta()),
+                    trecho -> {});
+            metadados = resposta.metadadosId();
+            return adaptador.moderar(resposta.texto()).sinalizado()
+                    ? pendente.comRespostaBloqueada(resposta.metadadosId())
+                    : pendente.concluida(resposta.texto(), resposta.metadadosId());
+        } catch (RuntimeException falha) {
+            registrarFalha(pendente.comFalha(metadados), falha);
+            throw falha;
+        }
+    }
+
+    /** Se nem a falha puder ser gravada, a pergunta fica pendente, ocupando só a sua vaga. */
+    private void registrarFalha(PerguntaDeTeste comFalha, RuntimeException falha) {
+        try {
+            transacao.executeWithoutResult(status -> perguntas.concluir(comFalha));
+        } catch (RuntimeException naGravacao) {
+            LOG.warn("Não deu para gravar a falha da pergunta de teste {}; ela fica pendente", comFalha.id(),
+                    naGravacao);
+            falha.addSuppressed(naGravacao);
+        }
+    }
+
+    /** As últimas falas exibidas na rodada; as bloqueadas, pendentes e com falha ficam de fora (RN-20). */
+    private static List<MensagemDaConversa> historico(List<PerguntaDeTeste> rodada) {
         List<MensagemDaConversa> falas = new ArrayList<>();
-        for (PerguntaDeTeste anterior : perguntas.daRodada(versaoId, curador)) {
-            if (anterior.desfecho() == PerguntaDeTeste.Desfecho.EXIBIDA) {
+        for (PerguntaDeTeste anterior : rodada) {
+            if (anterior.situacao() == PerguntaDeTeste.Situacao.CONCLUIDA) {
                 falas.add(new MensagemDaConversa(MensagemDaConversa.Autor.TURMA, anterior.pergunta()));
                 falas.add(new MensagemDaConversa(MensagemDaConversa.Autor.PERSONAGEM, anterior.resposta()));
             }

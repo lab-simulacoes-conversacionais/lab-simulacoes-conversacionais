@@ -1,15 +1,14 @@
 package br.ufg.inf.labsimulacoes.cenarios.dominio;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste.Desfecho;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste.Situacao;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-/** Regras da pergunta de teste do curador (RF-09, RN-05, RN-06, RN-36), sem banco nem Spring. */
+/** Regras da pergunta de teste do curador (RF-09, RN-05, RN-06, RN-36, RNF-13), sem banco nem Spring. */
 class PerguntaDeTesteTest {
 
     private static final long AUTOR = 1;
@@ -17,63 +16,120 @@ class PerguntaDeTesteTest {
     private static final long CENARIO = 10;
     private static final long VERSAO = 20;
 
-    @Test
-    void respostaExibidaGuardaOTextoEOsMetadados() {
-        var pergunta = PerguntaDeTeste.exibida(VERSAO, CURADOR, "  Por que voar?  ", "  Porque sim.  ", 7);
+    private static final PerguntaDeTeste PENDENTE =
+            PerguntaDeTeste.reservada(VERSAO, CURADOR, "  Por que voar?  ").comId(5);
 
-        assertThat(pergunta.pergunta()).isEqualTo("Por que voar?");
-        assertThat(pergunta.resposta()).isEqualTo("Porque sim.");
-        assertThat(pergunta.desfecho()).isEqualTo(Desfecho.EXIBIDA);
-        assertThat(pergunta.respostaIaMetaId()).isEqualTo(7L);
-        assertThat(pergunta.id()).isNull();
-        assertThat(pergunta.comId(5).id()).isEqualTo(5L);
+    @Test
+    void reservaNasceSemRespostaNemMetadados() {
+        var reservada = PerguntaDeTeste.reservada(VERSAO, CURADOR, "  Por que voar?  ");
+
+        assertThat(reservada.id()).isNull();
+        assertThat(reservada.pergunta()).isEqualTo("Por que voar?");
+        assertThat(reservada.situacao()).isEqualTo(Situacao.PENDENTE);
+        assertThat(reservada.resposta()).isNull();
+        assertThat(reservada.respostaIaMetaId()).isNull();
+        assertThat(reservada.rodadaFechada()).isFalse();
+        assertThat(reservada.comId(5).id()).isEqualTo(5L);
+    }
+
+    @Test
+    void concluidaGuardaARespostaEOsMetadadosNaMesmaPergunta() {
+        var concluida = PENDENTE.concluida("  Porque sim.  ", 7);
+
+        assertThat(concluida.id()).isEqualTo(5L);
+        assertThat(concluida.situacao()).isEqualTo(Situacao.CONCLUIDA);
+        assertThat(concluida.resposta()).isEqualTo("Porque sim.");
+        assertThat(concluida.respostaIaMetaId()).isEqualTo(7L);
     }
 
     /** RN-20: a pergunta bloqueada não chega ao modelo, então não tem resposta nem metadados. */
     @Test
     void perguntaBloqueadaFicaSemRespostaESemMetadados() {
-        var pergunta = PerguntaDeTeste.comPerguntaBloqueada(VERSAO, CURADOR, "Texto impróprio");
+        var bloqueada = PENDENTE.comPerguntaBloqueada();
 
-        assertThat(pergunta.desfecho()).isEqualTo(Desfecho.PERGUNTA_BLOQUEADA);
-        assertThat(pergunta.resposta()).isNull();
-        assertThat(pergunta.respostaIaMetaId()).isNull();
+        assertThat(bloqueada.situacao()).isEqualTo(Situacao.PERGUNTA_BLOQUEADA);
+        assertThat(bloqueada.resposta()).isNull();
+        assertThat(bloqueada.respostaIaMetaId()).isNull();
     }
 
     /** RN-20: a resposta bloqueada não é guardada, mas o consumo fica nos metadados (RNF-13). */
     @Test
     void respostaBloqueadaNaoGuardaOTextoMasGuardaOsMetadados() {
-        var pergunta = PerguntaDeTeste.comRespostaBloqueada(VERSAO, CURADOR, "Pergunta", 7);
+        var bloqueada = PENDENTE.comRespostaBloqueada(7);
 
-        assertThat(pergunta.desfecho()).isEqualTo(Desfecho.RESPOSTA_BLOQUEADA);
-        assertThat(pergunta.resposta()).isNull();
-        assertThat(pergunta.respostaIaMetaId()).isEqualTo(7L);
+        assertThat(bloqueada.situacao()).isEqualTo(Situacao.RESPOSTA_BLOQUEADA);
+        assertThat(bloqueada.resposta()).isNull();
+        assertThat(bloqueada.respostaIaMetaId()).isEqualTo(7L);
     }
 
-    /** RN-06: a pergunta bloqueada não conta para aprovar; a resposta bloqueada conta. */
+    /** RNF-13: a falha depois da resposta paga guarda os metadados; antes da resposta, fica sem. */
     @Test
-    void soAPerguntaBloqueadaNaoConta() {
-        assertThat(PerguntaDeTeste.exibida(VERSAO, CURADOR, "P", "R", 7).conta()).isTrue();
-        assertThat(PerguntaDeTeste.comRespostaBloqueada(VERSAO, CURADOR, "P", 7).conta()).isTrue();
-        assertThat(PerguntaDeTeste.comPerguntaBloqueada(VERSAO, CURADOR, "P").conta()).isFalse();
+    void falhaGuardaOsMetadadosQuandoHa() {
+        assertThat(PENDENTE.comFalha(7L).respostaIaMetaId()).isEqualTo(7L);
+        assertThat(PENDENTE.comFalha(null).respostaIaMetaId()).isNull();
+        assertThat(PENDENTE.comFalha(7L).situacao()).isEqualTo(Situacao.FALHA);
+    }
+
+    /** RN-06: contam só a concluída e a de resposta bloqueada, numa rodada em aberto. */
+    @Test
+    void soAsPerguntasQueTestaramOPersonagemContam() {
+        assertThat(PENDENTE.conta()).isFalse();
+        assertThat(PENDENTE.concluida("R", 7).conta()).isTrue();
+        assertThat(PENDENTE.comRespostaBloqueada(7).conta()).isTrue();
+        assertThat(PENDENTE.comPerguntaBloqueada().conta()).isFalse();
+        assertThat(PENDENTE.comFalha(7L).conta()).isFalse();
+    }
+
+    /** Uma pergunta de rodada fechada pela devolução não conta, mesmo concluída. */
+    @Test
+    void perguntaDeRodadaFechadaNaoConta() {
+        var fechada = new PerguntaDeTeste(5L, VERSAO, CURADOR, "P", Situacao.CONCLUIDA, "R", 7L, true);
+
+        assertThat(fechada.conta()).isFalse();
+    }
+
+    /** O resultado vai uma vez só: uma pergunta com resultado não muda de novo. */
+    @Test
+    void soAPendenteRecebeResultado() {
+        var concluida = PENDENTE.concluida("R", 7);
+
+        assertThatThrownBy(() -> concluida.comFalha(8L)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> PENDENTE.comPerguntaBloqueada().concluida("R", 7))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
     void perguntaVaziaERecusada() {
-        assertThatThrownBy(() -> PerguntaDeTeste.comPerguntaBloqueada(VERSAO, CURADOR, "  "))
+        assertThatThrownBy(() -> PerguntaDeTeste.reservada(VERSAO, CURADOR, "  "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Digite a pergunta de teste");
+        assertThatThrownBy(() -> PerguntaDeTeste.reservada(VERSAO, CURADOR, null))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> PerguntaDeTeste.comPerguntaBloqueada(VERSAO, CURADOR, null))
+    }
+
+    /** O mesmo limite do campo da pergunta na sala, contado depois de tirar os espaços das pontas. */
+    @Test
+    void perguntaTemNoMaximo1000Caracteres() {
+        String noLimite = "a".repeat(PerguntaDeTeste.TAMANHO_MAXIMO_DA_PERGUNTA);
+
+        assertThat(PerguntaDeTeste.textoDaPergunta("  " + noLimite + "  ")).isEqualTo(noLimite);
+        assertThatThrownBy(() -> PerguntaDeTeste.textoDaPergunta(noLimite + "a"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A pergunta de teste tem no máximo 1000 caracteres");
+        assertThatThrownBy(() -> PerguntaDeTeste.reservada(VERSAO, CURADOR, noLimite + "a"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void desfechoECoerenteComAResposta() {
-        assertThatThrownBy(() -> PerguntaDeTeste.exibida(VERSAO, CURADOR, "P", " ", 7))
+    void situacaoECoerenteComARespostaEOsMetadados() {
+        assertThatThrownBy(() -> PENDENTE.concluida(" ", 7)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new PerguntaDeTeste(null, VERSAO, CURADOR, "P", Situacao.RESPOSTA_BLOQUEADA, "R", 7L, false))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new PerguntaDeTeste(null, VERSAO, CURADOR, "P", Desfecho.RESPOSTA_BLOQUEADA, "R", 7L))
+        assertThatThrownBy(() -> new PerguntaDeTeste(null, VERSAO, CURADOR, "P", Situacao.PERGUNTA_BLOQUEADA, null, 7L, false))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new PerguntaDeTeste(null, VERSAO, CURADOR, "P", Desfecho.PERGUNTA_BLOQUEADA, null, 7L))
+        assertThatThrownBy(() -> new PerguntaDeTeste(null, VERSAO, CURADOR, "P", Situacao.PENDENTE, null, 7L, false))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new PerguntaDeTeste(null, VERSAO, CURADOR, "P", null, null, null))
+        assertThatThrownBy(() -> new PerguntaDeTeste(null, VERSAO, CURADOR, "P", null, null, null, false))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -109,37 +165,10 @@ class PerguntaDeTesteTest {
     }
 
     @Test
-    void aVersaoQueContinuaIgualAindaETestavel() {
-        assertThatCode(() -> PerguntaDeTeste.exigirAindaTestavel(
-                emCuradoria(AUTOR, AUTOR), CURADOR, VERSAO, ConteudosDeTeste.completo()))
-                .doesNotThrowAnyException();
-    }
-
-    /** A devolução volta a mesma versão a rascunho: depois de editada e reenviada, o id é o mesmo. */
-    @Test
-    void aVersaoComOutroConteudoNaoEMaisAQueFoiTestada() {
-        var outro = new ConteudoDoCenario(
-                "Outro título", ConteudosDeTeste.ROTEIRO, ConteudosDeTeste.CURRICULO, "13 a 14 anos", 20);
-
-        assertThatThrownBy(() -> PerguntaDeTeste.exigirAindaTestavel(emCuradoria(AUTOR, AUTOR), CURADOR, VERSAO, outro))
-                .isInstanceOf(TesteNaoPermitido.class)
-                .hasMessageContaining("mudou");
-    }
-
-    @Test
-    void outraVersaoNaoEMaisAQueFoiTestada() {
-        assertThatThrownBy(() -> PerguntaDeTeste.exigirAindaTestavel(
-                emCuradoria(AUTOR, AUTOR), CURADOR, VERSAO + 1, ConteudosDeTeste.completo()))
-                .isInstanceOf(TesteNaoPermitido.class);
-    }
-
-    @Test
-    void versaoQueSaiuDaCuradoriaNaoEMaisTestavel() {
-        var devolvido = new Cenario(CENARIO, AUTOR, StatusDoCenario.RASCUNHO,
-                new VersaoDoCenario(VERSAO, 1, StatusDaVersao.RASCUNHO, ConteudosDeTeste.completo(), AUTOR));
-
-        assertThatThrownBy(() -> PerguntaDeTeste.exigirAindaTestavel(devolvido, CURADOR, VERSAO, ConteudosDeTeste.completo()))
-                .isInstanceOf(TesteNaoPermitido.class);
+    void rodadaFechadaTemMensagemClara() {
+        assertThat(TesteNaoPermitido.rodadaFechada(VERSAO))
+                .hasMessageContaining("devolvida")
+                .hasMessageContaining("não conta para a aprovação");
     }
 
     private static Cenario emCuradoria(long autor, long criadaPor) {

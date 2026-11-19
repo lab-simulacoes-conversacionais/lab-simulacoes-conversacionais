@@ -17,7 +17,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDoTesteAtingido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste;
-import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste.Desfecho;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste.Situacao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntasDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.TesteNaoPermitido;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
@@ -92,7 +92,10 @@ class TesteDoCenarioTest {
     private JdbcTemplate jdbc;
 
     private long curadora;
+    /** Metadados para as respostas montadas no próprio teste. */
     private long meta;
+    /** Os metadados da última resposta do adaptador simulado, que grava uns novos a cada resposta. */
+    private long ultimoMeta;
     private long cenario;
     private long versao;
 
@@ -102,16 +105,15 @@ class TesteDoCenarioTest {
         curadora = inserirUsuario(CURADORA);
         inserirUsuario(CURADOR);
         habilidades.gravar(List.of(new HabilidadeBncc("EF08HI03", "Descrição", "EF", List.of(8), "História")));
-        meta = jdbc.queryForObject("""
-                INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt)
-                VALUES ('openai', 'modelo', 'personagem-v1') RETURNING id""", Long.class);
+        meta = novoMetadado();
         when(adaptador.moderar(anyString())).thenAnswer(chamada -> ((String) chamada.getArgument(0)).contains(IMPROPRIO)
                 ? new ResultadoDaModeracao(true, List.of("violence"))
                 : ResultadoDaModeracao.aprovado());
         when(adaptador.responder(any(), any())).thenAnswer(chamada -> {
             PedidoDeFala pedido = chamada.getArgument(0);
             String texto = pedido.pergunta().equals(PROVOCACAO) ? "Era uma vez " + IMPROPRIO : "Sobre " + pedido.pergunta();
-            return new RespostaDoPersonagem(texto, meta);
+            ultimoMeta = novoMetadado();
+            return new RespostaDoPersonagem(texto, ultimoMeta);
         });
 
         logar(AUTORA, "ROLE_PROFESSOR");
@@ -130,10 +132,10 @@ class TesteDoCenarioTest {
         PerguntaDeTeste respondida = teste.perguntar(cenario, "  Por que o 14-bis voou?  ");
 
         assertThat(respondida.id()).isNotNull();
-        assertThat(respondida.desfecho()).isEqualTo(Desfecho.EXIBIDA);
+        assertThat(respondida.situacao()).isEqualTo(Situacao.CONCLUIDA);
         assertThat(respondida.pergunta()).isEqualTo("Por que o 14-bis voou?");
         assertThat(respondida.resposta()).isEqualTo("Sobre Por que o 14-bis voou?");
-        assertThat(respondida.respostaIaMetaId()).isEqualTo(meta);
+        assertThat(respondida.respostaIaMetaId()).isEqualTo(ultimoMeta);
         assertThat(respondida.versaoId()).isEqualTo(versao);
         assertThat(respondida.curadorId()).isEqualTo(curadora);
         assertThat(perguntas.daRodada(versao, curadora)).containsExactly(respondida);
@@ -200,7 +202,7 @@ class TesteDoCenarioTest {
     void perguntaBloqueadaNaoChegaAoModeloEFicaMarcadaSemContar() {
         PerguntaDeTeste bloqueada = teste.perguntar(cenario, "Pergunta " + IMPROPRIO);
 
-        assertThat(bloqueada.desfecho()).isEqualTo(Desfecho.PERGUNTA_BLOQUEADA);
+        assertThat(bloqueada.situacao()).isEqualTo(Situacao.PERGUNTA_BLOQUEADA);
         assertThat(bloqueada.resposta()).isNull();
         assertThat(bloqueada.respostaIaMetaId()).isNull();
         verify(adaptador, never()).responder(any(), any());
@@ -213,51 +215,44 @@ class TesteDoCenarioTest {
     void respostaBloqueadaNaoEDevolvidaNemGuardadaMasConta() {
         PerguntaDeTeste bloqueada = teste.perguntar(cenario, PROVOCACAO);
 
-        assertThat(bloqueada.desfecho()).isEqualTo(Desfecho.RESPOSTA_BLOQUEADA);
+        assertThat(bloqueada.situacao()).isEqualTo(Situacao.RESPOSTA_BLOQUEADA);
         assertThat(bloqueada.resposta()).isNull();
-        assertThat(bloqueada.respostaIaMetaId()).isEqualTo(meta);
+        assertThat(bloqueada.respostaIaMetaId()).isEqualTo(ultimoMeta);
         verify(adaptador).moderar("Era uma vez " + IMPROPRIO);
         assertThat(jdbc.queryForObject(
                 "SELECT count(*) FROM pergunta_de_teste WHERE resposta LIKE '%impróprio%'", Integer.class)).isZero();
         assertThat(perguntas.contar(versao, curadora)).isEqualTo(1);
     }
 
+    /** A falha do provedor antes de responder fica como falha, sem metadados, ocupando a vaga. */
     @Test
-    void falhaDoProvedorNaoGravaNada() {
+    void falhaDoProvedorFicaComoFalhaSemMetadados() {
         doThrow(new FalhaNoProvedorDeIa("Fora do ar", null)).when(adaptador).responder(any(), any());
 
         assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?")).isInstanceOf(FalhaNoProvedorDeIa.class);
 
-        assertThat(perguntasGravadas()).isZero();
+        PerguntaDeTeste falha = unicaDaRodada();
+        assertThat(falha.situacao()).isEqualTo(Situacao.FALHA);
+        assertThat(falha.respostaIaMetaId()).isNull();
+        assertThat(perguntas.ocupadas(versao, curadora)).isEqualTo(1);
+        assertThat(perguntas.contar(versao, curadora)).isZero();
     }
 
     @Test
-    void falhaDaModeracaoDaPerguntaNaoGravaNada() {
+    void falhaDaModeracaoDaPerguntaFicaComoFalhaSemChamarOModelo() {
         when(adaptador.moderar(anyString())).thenThrow(new FalhaNoProvedorDeIa("Fora do ar", null));
 
         assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?")).isInstanceOf(FalhaNoProvedorDeIa.class);
 
         verify(adaptador, never()).responder(any(), any());
-        assertThat(perguntasGravadas()).isZero();
-    }
-
-    @Test
-    void falhaDaModeracaoDaRespostaNaoGravaNada() {
-        when(adaptador.moderar(anyString()))
-                .thenReturn(ResultadoDaModeracao.aprovado())
-                .thenThrow(new FalhaNoProvedorDeIa("Fora do ar", null));
-
-        assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?")).isInstanceOf(FalhaNoProvedorDeIa.class);
-
-        assertThat(perguntasGravadas()).isZero();
+        assertThat(unicaDaRodada().situacao()).isEqualTo(Situacao.FALHA);
+        assertThat(perguntas.contar(versao, curadora)).isZero();
     }
 
     /** RNF-13: com o teto cheio, a pergunta é recusada antes de qualquer chamada ao provedor. */
     @Test
     void tetoCheioRecusaAntesDeChamarOProvedor() {
-        for (int i = 0; i < 40; i++) {
-            perguntas.gravar(PerguntaDeTeste.exibida(versao, curadora, "Pergunta " + i, "Resposta", meta));
-        }
+        preencher(40, Situacao.CONCLUIDA);
 
         assertThatThrownBy(() -> teste.perguntar(cenario, "Mais uma")).isInstanceOf(LimiteDoTesteAtingido.class);
 
@@ -265,25 +260,24 @@ class TesteDoCenarioTest {
         verify(adaptador, never()).responder(any(), any());
     }
 
-    /** As perguntas bloqueadas não gastam tokens nem contam, então não enchem o teto. */
+    /** O teto conta qualquer situação, inclusive as pendentes e as falhas; o RN-06 só as válidas. */
     @Test
-    void perguntasBloqueadasNaoEnchemOTeto() {
-        for (int i = 0; i < 40; i++) {
-            perguntas.gravar(PerguntaDeTeste.comPerguntaBloqueada(versao, curadora, "Pergunta " + i));
-        }
+    void tetoContaPendentesEFalhasQueNaoContamNoRn06() {
+        preencher(20, Situacao.PENDENTE);
+        preencher(20, Situacao.FALHA);
 
-        assertThat(teste.perguntar(cenario, "Mais uma").desfecho()).isEqualTo(Desfecho.EXIBIDA);
+        assertThatThrownBy(() -> teste.perguntar(cenario, "Mais uma")).isInstanceOf(LimiteDoTesteAtingido.class);
+
+        assertThat(perguntas.contar(versao, curadora)).isZero();
     }
 
     /** O teto é de cada curador: o de um não afeta o de outro. */
     @Test
     void tetoDeUmCuradorNaoAfetaOutro() {
-        for (int i = 0; i < 40; i++) {
-            perguntas.gravar(PerguntaDeTeste.exibida(versao, curadora, "Pergunta " + i, "Resposta", meta));
-        }
+        preencher(40, Situacao.CONCLUIDA);
         logar(CURADOR, "ROLE_CURADOR");
 
-        assertThat(teste.perguntar(cenario, "Oi?").desfecho()).isEqualTo(Desfecho.EXIBIDA);
+        assertThat(teste.perguntar(cenario, "Oi?").situacao()).isEqualTo(Situacao.CONCLUIDA);
     }
 
     /** RN-05, RN-36: a autora com o perfil Curador também não testa a própria versão. */
@@ -363,22 +357,34 @@ class TesteDoCenarioTest {
         assertThat(perguntasGravadas()).isEqualTo(3);
     }
 
-    /** A devolução durante a geração: a resposta é descartada e não entra na rodada seguinte. */
+    /**
+     * A devolução durante a geração fecha também a pergunta pendente. A resposta é guardada nela, com os
+     * metadados, mas fica na rodada fechada e não é devolvida como se fosse da rodada nova.
+     */
     @Test
-    void devolucaoDuranteARespostaDescartaAPergunta() {
+    void devolucaoDuranteARespostaGuardaAPerguntaNaRodadaFechada() {
         doAnswer(chamada -> {
             devolucao.devolver(cenario, "Corrigir as fontes");
             return new RespostaDoPersonagem("Resposta sobre o conteúdo antigo", meta);
         }).when(adaptador).responder(any(), any());
 
-        assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?")).isInstanceOf(TesteNaoPermitido.class);
+        assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?"))
+                .isInstanceOf(TesteNaoPermitido.class)
+                .hasMessageContaining("devolvida");
 
-        assertThat(perguntasGravadas()).isZero();
+        assertThat(perguntasGravadas()).isEqualTo(1);
+        assertThat(perguntas.ocupadas(versao, curadora)).isZero();
+        assertThat(jdbc.queryForMap(
+                        "SELECT situacao, resposta_ia_meta_id, devolucao_id IS NOT NULL AS fechada FROM pergunta_de_teste"
+                                + " WHERE cenario_versao_id = ?", versao))
+                .containsEntry("situacao", "CONCLUIDA")
+                .containsEntry("resposta_ia_meta_id", meta)
+                .containsEntry("fechada", true);
     }
 
-    /** Devolvida, editada e reenviada durante a geração: mesmo id, outro conteúdo, resposta descartada. */
+    /** Devolvida, editada e reenviada durante a geração: mesmo id, outro conteúdo, rodada fechada. */
     @Test
-    void versaoReenviadaComOutroConteudoDuranteARespostaDescartaAPergunta() {
+    void versaoReenviadaComOutroConteudoDuranteARespostaNaoEntraNaRodadaNova() {
         doAnswer(chamada -> {
             devolucao.devolver(cenario, "Corrigir as fontes");
             logar(AUTORA, "ROLE_PROFESSOR");
@@ -390,9 +396,10 @@ class TesteDoCenarioTest {
 
         assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?"))
                 .isInstanceOf(TesteNaoPermitido.class)
-                .hasMessageContaining("mudou");
+                .hasMessageContaining("devolvida");
 
-        assertThat(perguntasGravadas()).isZero();
+        assertThat(perguntas.ocupadas(versao, curadora)).isZero();
+        assertThat(perguntas.contar(versao, curadora)).isZero();
     }
 
     /**
@@ -444,6 +451,124 @@ class TesteDoCenarioTest {
     private Map<String, Integer> contagensDaSala() {
         return TABELAS_DA_SALA.stream().collect(java.util.stream.Collectors.toMap(
                 tabela -> tabela, tabela -> jdbc.queryForObject("SELECT count(*) FROM " + tabela, Integer.class)));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Revisão do PR da #26
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Devolvida e reenviada sem edição enquanto a resposta é gerada: mesma versão, mesmo conteúdo, mas a
+     * rodada da pergunta foi fechada pela devolução. A resposta antiga não pode contar na rodada nova
+     * (RN-06).
+     */
+    @Test
+    void devolucaoEReenvioSemEdicaoDuranteARespostaNaoEntramNaRodadaNova() {
+        doAnswer(chamada -> {
+            devolucao.devolver(cenario, "Conferir as fontes");
+            logar(AUTORA, "ROLE_PROFESSOR");
+            envio.enviar(cenario);
+            logar(CURADORA, "ROLE_CURADOR");
+            return new RespostaDoPersonagem("Resposta da rodada antiga", meta);
+        }).when(adaptador).responder(any(), any());
+
+        assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?")).isInstanceOf(TesteNaoPermitido.class);
+
+        assertThat(perguntas.contar(versao, curadora)).isZero();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM pergunta_de_teste WHERE cenario_versao_id = ? AND devolucao_id IS NULL",
+                        Integer.class, versao))
+                .isZero();
+    }
+
+    /**
+     * RNF-13: a resposta já foi paga quando a moderação dela falha. A pergunta fica registrada como falha,
+     * com os metadados ligados, ocupando a vaga do teto, sem contar no RN-06.
+     */
+    @Test
+    void falhaDaModeracaoDepoisDaRespostaPagaFicaRegistradaEOcupaVaga() {
+        when(adaptador.moderar(anyString()))
+                .thenReturn(ResultadoDaModeracao.aprovado())
+                .thenThrow(new FalhaNoProvedorDeIa("Fora do ar", null));
+
+        assertThatThrownBy(() -> teste.perguntar(cenario, "Oi?")).isInstanceOf(FalhaNoProvedorDeIa.class);
+
+        PerguntaDeTeste falha = unicaDaRodada();
+        assertThat(falha.situacao()).isEqualTo(Situacao.FALHA);
+        assertThat(falha.respostaIaMetaId()).as("metadados da resposta paga ligados à pergunta").isEqualTo(ultimoMeta);
+        assertThat(perguntas.ocupadas(versao, curadora)).isEqualTo(1);
+        assertThat(perguntas.contar(versao, curadora)).isZero();
+        assertThat(jdbc.queryForObject("""
+                        SELECT count(*) FROM resposta_ia_meta r
+                        WHERE r.id = ? AND NOT EXISTS (SELECT 1 FROM pergunta_de_teste p WHERE p.resposta_ia_meta_id = r.id)""",
+                        Integer.class, ultimoMeta))
+                .as("resposta_ia_meta órfã")
+                .isZero();
+    }
+
+    /** RNF-13: a pergunta bloqueada é uma linha como as outras e ocupa uma vaga do teto. */
+    @Test
+    void perguntaBloqueadaOcupaVagaDoTeto() {
+        for (int i = 0; i < 40; i++) {
+            teste.perguntar(cenario, "Pergunta " + i + " " + IMPROPRIO);
+        }
+
+        assertThatThrownBy(() -> teste.perguntar(cenario, "Mais uma")).isInstanceOf(LimiteDoTesteAtingido.class);
+    }
+
+    /** O mesmo limite do campo da pergunta na sala (sessoes/projecao.html, maxlength="1000"). */
+    @Test
+    void perguntaAcimaDoTamanhoMaximoERecusadaAntesDeTudo() {
+        assertThatThrownBy(() -> teste.perguntar(cenario, "a".repeat(1001)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("1000 caracteres");
+
+        verify(adaptador, never()).moderar(anyString());
+        assertThat(perguntasGravadas()).isZero();
+    }
+
+    /** Enquanto a IA responde, a pergunta está reservada: ocupa a vaga e ainda não conta no RN-06. */
+    @Test
+    void perguntaPendenteSoExisteEnquantoAIaResponde() {
+        doAnswer(chamada -> {
+            assertThat(unicaDaRodada().situacao()).isEqualTo(Situacao.PENDENTE);
+            assertThat(perguntas.ocupadas(versao, curadora)).isEqualTo(1);
+            assertThat(perguntas.contar(versao, curadora)).isZero();
+            ultimoMeta = novoMetadado();
+            return new RespostaDoPersonagem("Olá", ultimoMeta);
+        }).when(adaptador).responder(any(), any());
+
+        teste.perguntar(cenario, "Oi?");
+
+        assertThat(unicaDaRodada().situacao()).isEqualTo(Situacao.CONCLUIDA);
+        assertThat(perguntas.contar(versao, curadora)).isEqualTo(1);
+    }
+
+    private PerguntaDeTeste unicaDaRodada() {
+        List<PerguntaDeTeste> rodada = perguntas.daRodada(versao, curadora);
+        assertThat(rodada).hasSize(1);
+        return rodada.getFirst();
+    }
+
+    /** Ocupa vagas da rodada da curadora direto pela porta, cada uma com os seus metadados. */
+    private void preencher(int quantas, Situacao situacao) {
+        for (int i = 0; i < quantas; i++) {
+            PerguntaDeTeste reservada =
+                    perguntas.reservar(PerguntaDeTeste.reservada(versao, curadora, "Pergunta " + situacao + " " + i));
+            switch (situacao) {
+                case PENDENTE -> { }
+                case CONCLUIDA -> perguntas.concluir(reservada.concluida("Resposta", novoMetadado()));
+                case PERGUNTA_BLOQUEADA -> perguntas.concluir(reservada.comPerguntaBloqueada());
+                case RESPOSTA_BLOQUEADA -> perguntas.concluir(reservada.comRespostaBloqueada(novoMetadado()));
+                case FALHA -> perguntas.concluir(reservada.comFalha(novoMetadado()));
+            }
+        }
+    }
+
+    private long novoMetadado() {
+        return jdbc.queryForObject("""
+                INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt)
+                VALUES ('openai', 'modelo', 'personagem-v1') RETURNING id""", Long.class);
     }
 
     private int perguntasGravadas() {
