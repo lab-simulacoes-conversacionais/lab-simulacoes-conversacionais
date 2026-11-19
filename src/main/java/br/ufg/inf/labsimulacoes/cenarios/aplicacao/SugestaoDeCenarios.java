@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
  * Sugestão de cenário pela IA (RF-07). O resultado entra como um cenário novo, em Rascunho e marcado
  * "Sugerido por IA", com quem pediu como autor; daí ele ajusta e envia à curadoria como qualquer
  * rascunho (RN-04, RN-05). Este caso de uso só cria cenários: nunca altera, aprova ou publica um que já
- * existe. O quiz sugerido entra junto com o quiz do cenário (RF-27).
+ * existe. A sugestão de quiz fica para a #46, que depende do quiz do cenário (#45).
  *
  * <p>Não abre transação: a geração leva segundos, e a gravação do rascunho tem a própria. Se o provedor
  * falhar, nada é gravado e a {@link br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa} chega a quem chamou.
