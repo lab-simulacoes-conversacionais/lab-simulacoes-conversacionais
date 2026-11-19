@@ -31,12 +31,16 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.converter.StructuredOutputConverter;
 import org.springframework.ai.moderation.Categories;
 import org.springframework.ai.moderation.Moderation;
 import org.springframework.ai.moderation.ModerationModel;
 import org.springframework.ai.moderation.ModerationPrompt;
 import org.springframework.ai.moderation.ModerationResult;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -49,6 +53,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class ProvedorSpringAi implements ProvedorDeIa {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ProvedorSpringAi.class);
 
     private final ChatModel modeloDeConversa;
     private final ChatClient chat;
@@ -120,16 +126,16 @@ class ProvedorSpringAi implements ProvedorDeIa {
     /**
      * O teto de tokens vale só para a sugestão: a fala do personagem segue com o da configuração. Sem
      * ele, um pedido de sugestão não tem limite de gasto (RNF-13).
+     *
+     * <p>Uma resposta que não vira roteiro, inclusive a cortada no teto, chega com o conteúdo nulo e o
+     * consumo preenchido, para que os tokens gastos sejam registrados antes da falha.
      */
     @Override
     public Geracao<RoteiroSugerido> sugerirRoteiro(PromptMontado prompt) {
         ResponseEntity<ChatResponse, RoteiroSugerido> resposta = doProvedor(() -> chat.prompt(paraPrompt(prompt))
                 .options(opcoesDaSugestao())
                 .call()
-                .responseEntity(RoteiroSugerido.class));
-        if (resposta.entity() == null) {
-            throw new FalhaNoProvedorDeIa("O provedor de IA não devolveu um roteiro", null);
-        }
+                .responseEntity(new RoteiroOuNulo()));
         ChatResponse metadados = resposta.response();
         return new Geracao<>(resposta.entity(), modeloOuPadrao(modeloDe(metadados, null)), parametros(tokensDaSugestao),
                 usoDe(metadados, UsoDoModelo.desconhecido()));
@@ -263,6 +269,31 @@ class ProvedorSpringAi implements ProvedorDeIa {
         todas.put("violence", Categories::isViolence);
         todas.put("violence/graphic", Categories::isViolenceGraphic);
         return todas.entrySet().stream().filter(c -> c.getValue().test(categorias)).map(Map.Entry::getKey);
+    }
+
+    /**
+     * Conversor do roteiro que devolve nulo, em vez de lançar, quando a resposta não é um roteiro. O
+     * Spring AI lança a exceção do conversor sem a resposta, e o consumo dela se perderia. O formato
+     * pedido ao modelo é o mesmo do conversor padrão.
+     */
+    private static final class RoteiroOuNulo implements StructuredOutputConverter<RoteiroSugerido> {
+
+        private final BeanOutputConverter<RoteiroSugerido> conversor = new BeanOutputConverter<>(RoteiroSugerido.class);
+
+        @Override
+        public String getFormat() {
+            return conversor.getFormat();
+        }
+
+        @Override
+        public RoteiroSugerido convert(String texto) {
+            try {
+                return conversor.convert(texto);
+            } catch (RuntimeException e) {
+                LOG.warn("A resposta da sugestão não virou um roteiro: {}", e.getClass().getSimpleName());
+                return null;
+            }
+        }
     }
 
     private static <T> T doProvedor(Supplier<T> chamada) {

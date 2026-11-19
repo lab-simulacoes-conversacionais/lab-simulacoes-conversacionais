@@ -147,6 +147,27 @@ class ChamadasAoProvedorTest {
         assertThat(gravados.custo()).isNull();
     }
 
+    /** RNF-13: os tokens de uma resposta que não virou roteiro ficam registrados. */
+    @Test
+    void sugestaoSemRoteiroFalhaDepoisDeGravarOsMetadados() {
+        when(provedor.sugerirRoteiro(any())).thenReturn(
+                new Geracao<>(null, "gpt-6.1-terra", Map.of(), new UsoDoModelo(500, 4000)));
+
+        assertThatThrownBy(() -> chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null)))
+                .isInstanceOf(FalhaNoProvedorDeIa.class)
+                .hasMessageContaining("roteiro");
+        assertThat(gravados().uso()).isEqualTo(new UsoDoModelo(500, 4000));
+    }
+
+    @Test
+    void falhaDoProvedorNaSugestaoNaoGravaMetadados() {
+        when(provedor.sugerirRoteiro(any())).thenThrow(new FalhaNoProvedorDeIa("fora do ar", null));
+
+        assertThatThrownBy(() -> chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null)))
+                .isInstanceOf(FalhaNoProvedorDeIa.class);
+        verify(registro, never()).gravar(any());
+    }
+
     @Test
     void sugestaoExigePedido() {
         assertThatThrownBy(() -> chamadas.sugerirCenario(null)).isInstanceOf(IllegalArgumentException.class);
