@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -50,6 +51,9 @@ class TetoDeTokensNaRequisicaoTest {
     @Autowired
     private ProvedorDeIa provedor;
 
+    @Autowired
+    private MeterRegistry metricas;
+
     @DynamicPropertySource
     static void apontarParaOProvedorLocal(DynamicPropertyRegistry propriedades) {
         propriedades.add("spring.ai.openai.base-url", () -> "http://localhost:" + PROVEDOR.getAddress().getPort());
@@ -82,6 +86,20 @@ class TetoDeTokensNaRequisicaoTest {
         assertThat(corpo.path("stream").asBoolean()).isTrue();
         assertThat(corpo.has("max_completion_tokens")).isFalse();
         assertThat(corpo.has("max_tokens")).isFalse();
+    }
+
+    /**
+     * RNF-13: o Spring AI também conta os tokens, em {@code gen_ai.client.token.usage}, por modelo e tipo.
+     * O lab.ia.tokens repete essa contagem com a finalidade, que o Spring AI não conhece (README,
+     * Observabilidade).
+     */
+    @Test
+    void springAiTambemContaOsTokens() {
+        provedor.sugerirRoteiro(PROMPT);
+
+        assertThat(metricas.find("gen_ai.client.token.usage").counters())
+                .extracting(contador -> contador.getId().getTag("gen_ai.token.type"))
+                .contains("input", "output");
     }
 
     private static JsonNode proximaRequisicao() throws InterruptedException {

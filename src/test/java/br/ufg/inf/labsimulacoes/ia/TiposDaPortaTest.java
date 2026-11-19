@@ -61,6 +61,23 @@ class TiposDaPortaTest {
                 .hasMessageContaining("texto");
     }
 
+    /** RNF-13: o construtor de antes deixa a finalidade de fora; a referência só vem com ela. */
+    @Test
+    void pedidoDeFalaLevaAFinalidadeEAReferenciaDoConsumo() {
+        var semFinalidade = new PedidoDeFala(cenario(), List.of(), "Oi");
+        var daSessao = new PedidoDeFala(cenario(), List.of(), "Oi", FinalidadeDoConsumo.FALA_EM_SALA, 7L);
+
+        assertThat(semFinalidade.finalidade()).isNull();
+        assertThat(semFinalidade.referenciaId()).isNull();
+        assertThat(daSessao.finalidade()).isEqualTo(FinalidadeDoConsumo.FALA_EM_SALA);
+        assertThat(daSessao.referenciaId()).isEqualTo(7L);
+        assertThat(new PedidoDeFala(cenario(), List.of(), "Oi", FinalidadeDoConsumo.SUGESTAO, null).referenciaId())
+                .isNull();
+        assertThatThrownBy(() -> new PedidoDeFala(cenario(), List.of(), "Oi", null, 7L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("finalidade");
+    }
+
     @Test
     void pedidoDeFalaCopiaOHistoricoEExigeCenarioEPergunta() {
         List<MensagemDaConversa> historico = new ArrayList<>(List.of(new MensagemDaConversa(Autor.TURMA, "Oi")));
