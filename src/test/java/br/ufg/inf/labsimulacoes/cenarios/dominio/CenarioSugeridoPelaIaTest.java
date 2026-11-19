@@ -49,7 +49,29 @@ class CenarioSugeridoPelaIaTest {
                 .enviarACuradoria(PROFESSORA)
                 .devolver(CURADORA, "Confira as datas com as fontes", AGORA);
 
+        assertThat(devolvido.sugeridoPorIa()).isTrue();
         assertThat(devolvido.sugestaoDaIa()).isEqualTo(GERACAO);
+    }
+
+    /** RN-04: a retenção pode apagar os metadados da geração, mas o cenário continua marcado. */
+    @Test
+    void marcaNaoDependeDosMetadadosDaGeracao() {
+        var semMetadados = new Cenario(1L, PROFESSORA, StatusDoCenario.RASCUNHO,
+                VersaoDoCenario.primeira(PROFESSORA, ConteudosDeTeste.soComTitulo()), null, true, null);
+
+        Cenario ajustado = semMetadados.alterarRascunho(ConteudosDeTeste.completo());
+
+        assertThat(ajustado.sugeridoPorIa()).isTrue();
+        assertThat(ajustado.sugestaoDaIa()).isNull();
+    }
+
+    @Test
+    void metadadosDeGeracaoSemAMarcaSaoRecusados() {
+        VersaoDoCenario versao = VersaoDoCenario.primeira(PROFESSORA, ConteudosDeTeste.completo());
+
+        assertThatThrownBy(() -> new Cenario(null, PROFESSORA, StatusDoCenario.RASCUNHO, versao, null, false, GERACAO))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sugerido por IA");
     }
 
     /** RN-05: quem aprova é o curador, que assume a responsabilidade pedagógica. */

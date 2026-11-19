@@ -14,21 +14,25 @@ import java.util.Objects;
  * @param versao a versão mais recente
  * @param ultimaDevolucao a devolução mais recente desta versão, para o autor saber o que mudar
  *     (RN-07); {@code null} se ela nunca foi devolvida
- * @param sugestaoDaIa metadados da geração que sugeriu o cenário (RN-04, RNF-10); {@code null} se ele
- *     foi criado do zero
+ * @param sugeridoPorIa RN-04: o curador confere os fatos de um cenário sugerido pela IA com as fontes
+ * @param sugestaoDaIa metadados da geração que sugeriu o cenário (RNF-10); {@code null} se ele foi
+ *     criado do zero ou se os metadados já foram apagados pela retenção, o que não tira a marca
  */
 public record Cenario(
         Long id, long autorId, StatusDoCenario status, VersaoDoCenario versao, Devolucao ultimaDevolucao,
-        Long sugestaoDaIa) {
+        boolean sugeridoPorIa, Long sugestaoDaIa) {
 
     public Cenario {
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(versao, "versao");
+        if (sugestaoDaIa != null && !sugeridoPorIa) {
+            throw new IllegalArgumentException("Um cenário com metadados de geração precisa da marca de sugerido por IA");
+        }
     }
 
     /** Cenário criado do zero. */
     public Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCenario versao, Devolucao ultimaDevolucao) {
-        this(id, autorId, status, versao, ultimaDevolucao, null);
+        this(id, autorId, status, versao, ultimaDevolucao, false, null);
     }
 
     /** Cenário criado do zero cuja versão nunca foi devolvida. */
@@ -51,12 +55,7 @@ public record Cenario(
      */
     public static Cenario sugeridoPelaIa(long quemPediu, ConteudoDoCenario conteudo, long geracao) {
         return new Cenario(null, quemPediu, StatusDoCenario.RASCUNHO, VersaoDoCenario.primeira(quemPediu, conteudo),
-                null, geracao);
-    }
-
-    /** RN-04: o curador confere os fatos de um cenário sugerido pela IA com as fontes. */
-    public boolean sugeridoPorIa() {
-        return sugestaoDaIa != null;
+                null, true, geracao);
     }
 
     public boolean temAutor(long usuarioId) {
@@ -66,7 +65,7 @@ public record Cenario(
     /** Mantém o número da versão: só o que já saiu do rascunho vira histórico. */
     public Cenario alterarRascunho(ConteudoDoCenario conteudo) {
         exigirRascunho();
-        return new Cenario(id, autorId, status, versao.comConteudo(conteudo), ultimaDevolucao, sugestaoDaIa);
+        return new Cenario(id, autorId, status, versao.comConteudo(conteudo), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /**
@@ -86,7 +85,7 @@ public record Cenario(
             throw new CenarioIncompleto(pendencias);
         }
         return new Cenario(
-                id, autorId, StatusDoCenario.EM_CURADORIA, versao.enviada(), ultimaDevolucao, sugestaoDaIa);
+                id, autorId, StatusDoCenario.EM_CURADORIA, versao.enviada(), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /**
@@ -106,7 +105,7 @@ public record Cenario(
         }
         var aprovacao = new Aprovacao(curador.id(), momento);
         return new Cenario(
-                id, autorId, StatusDoCenario.APROVADO, versao.aprovada(aprovacao), ultimaDevolucao, sugestaoDaIa);
+                id, autorId, StatusDoCenario.APROVADO, versao.aprovada(aprovacao), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /**
@@ -120,7 +119,7 @@ public record Cenario(
         exigirCuradoria();
         exigirPerfilCurador(curador, "devolve");
         var devolucao = Devolucao.nova(curador.id(), comentario, momento);
-        return new Cenario(id, autorId, StatusDoCenario.RASCUNHO, versao.devolvida(), devolucao, sugestaoDaIa);
+        return new Cenario(id, autorId, StatusDoCenario.RASCUNHO, versao.devolvida(), devolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /** Olha a versão, e não o cenário, porque a edição de um aprovado gera versão nova em rascunho (RN-08). */

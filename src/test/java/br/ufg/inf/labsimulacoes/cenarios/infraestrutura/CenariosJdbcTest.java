@@ -170,6 +170,7 @@ class CenariosJdbcTest {
 
         Cenario salvo = cenarios.salvar(Cenario.sugeridoPelaIa(autor, ConteudosDeTeste.completo(), geracao));
 
+        assertThat(salvo.sugeridoPorIa()).isTrue();
         assertThat(salvo.sugestaoDaIa()).isEqualTo(geracao);
         assertThat(cenarios.buscar(salvo.id())).contains(salvo);
         assertThat(cenarios.listarDoAutor(autor, new Pagina(0, 10)).itens()).containsExactly(salvo);
@@ -185,6 +186,29 @@ class CenariosJdbcTest {
 
         assertThat(enviado.sugestaoDaIa()).isEqualTo(geracao);
         assertThat(cenarios.buscar(salvo.id()).orElseThrow().sugestaoDaIa()).isEqualTo(geracao);
+    }
+
+    /** RN-04: a retenção apaga os metadados da geração, e o cenário continua marcado. */
+    @Test
+    void apagarOsMetadadosDaGeracaoMantemAMarca() {
+        long geracao = inserirMetadadosDaGeracao();
+        Cenario salvo = cenarios.salvar(Cenario.sugeridoPelaIa(autor, ConteudosDeTeste.completo(), geracao));
+
+        jdbc.update("DELETE FROM resposta_ia_meta WHERE id = ?", geracao);
+
+        Cenario lido = cenarios.buscar(salvo.id()).orElseThrow();
+        assertThat(lido.sugeridoPorIa()).isTrue();
+        assertThat(lido.sugestaoDaIa()).isNull();
+    }
+
+    @Test
+    void metadadosDaGeracaoSemAMarcaSaoRecusadosPeloBanco() {
+        long geracao = inserirMetadadosDaGeracao();
+        Cenario salvo = cenarios.salvar(Cenario.novo(autor, ConteudosDeTeste.completo()));
+
+        assertThatThrownBy(() -> jdbc.update(
+                        "UPDATE cenario SET sugestao_ia_meta_id = ? WHERE id = ?", geracao, salvo.id()))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
