@@ -60,23 +60,19 @@ class ProvedorSpringAi implements ProvedorDeIa {
     private final ChatClient chat;
     private final ModerationModel moderacao;
     private final String nome;
-    private final int tokensDaSugestao;
+    private final OpcoesDaSugestao sugestao;
 
     /**
      * Uma variável IA_MODELO definida mas vazia vence o padrão do application.properties e deixa o modelo
      * em branco. Sem esta conferência, a aplicação subiria e cada pergunta falharia com HTTP 400.
      *
-     * @param tokensDaSugestao teto de tokens de saída da sugestão de cenário, contando o raciocínio do
-     *     modelo (RNF-13)
+     * @param sugestao opções do modelo só para a sugestão de cenário
      */
     ProvedorSpringAi(
             ChatModel modeloDeConversa,
             ModerationModel moderacao,
             @Value("${ia.provedor}") String nome,
-            @Value("${ia.sugestao.max-tokens}") int tokensDaSugestao) {
-        if (tokensDaSugestao < 1) {
-            throw new IllegalStateException("O teto de tokens da sugestão precisa ser positivo: " + tokensDaSugestao);
-        }
+            OpcoesDaSugestao sugestao) {
         ChatOptions padrao = modeloDeConversa.getDefaultOptions();
         if (padrao != null && (padrao.getModel() == null || padrao.getModel().isBlank())) {
             throw new IllegalStateException("O modelo de conversa está vazio: confira a variável IA_MODELO, que não"
@@ -86,7 +82,7 @@ class ProvedorSpringAi implements ProvedorDeIa {
         this.chat = ChatClient.create(modeloDeConversa);
         this.moderacao = moderacao;
         this.nome = nome;
-        this.tokensDaSugestao = tokensDaSugestao;
+        this.sugestao = Objects.requireNonNull(sugestao, "sugestao");
     }
 
     @Override
@@ -120,12 +116,13 @@ class ProvedorSpringAi implements ProvedorDeIa {
                 uso = usoDe(resposta, uso);
             }
         }
-        return new Geracao<>(texto.toString(), modeloOuPadrao(modelo), parametros(null), uso);
+        return new Geracao<>(texto.toString(), modeloOuPadrao(modelo), parametros(), uso);
     }
 
     /**
-     * O teto de tokens vale só para a sugestão: a fala do personagem segue com o da configuração. Sem
-     * ele, um pedido de sugestão não tem limite de gasto (RNF-13).
+     * A sugestão vai com as próprias opções de modelo, raciocínio, nível de serviço e teto de tokens; a
+     * fala do personagem segue com as da configuração. Sem o teto, um pedido de sugestão não tem limite
+     * de gasto (RNF-13).
      *
      * <p>Uma resposta que não vira roteiro, inclusive a cortada no teto, chega com o conteúdo nulo e o
      * consumo preenchido, para que os tokens gastos sejam registrados antes da falha.
@@ -137,7 +134,8 @@ class ProvedorSpringAi implements ProvedorDeIa {
                 .call()
                 .responseEntity(new RoteiroOuNulo()));
         ChatResponse metadados = resposta.response();
-        return new Geracao<>(resposta.entity(), modeloOuPadrao(modeloDe(metadados, null)), parametros(tokensDaSugestao),
+        String modelo = modeloDe(metadados, null);
+        return new Geracao<>(resposta.entity(), modelo == null ? sugestao.modelo() : modelo, parametrosDaSugestao(),
                 usoDe(metadados, UsoDoModelo.desconhecido()));
     }
 
@@ -207,38 +205,51 @@ class ProvedorSpringAi implements ProvedorDeIa {
     }
 
     /**
-     * Na OpenAI, os modelos de raciocínio só aceitam max_completion_tokens, e o Spring AI recusa o pedido
-     * com os dois tetos ao mesmo tempo. Os outros provedores usam o teto genérico.
+     * O que não é informado aqui vem da configuração da fala, porque o Spring AI junta as opções da
+     * chamada com as padrão. Na OpenAI, os modelos de raciocínio só aceitam max_completion_tokens, e o
+     * Spring AI recusa o pedido com os dois tetos ao mesmo tempo. Os outros provedores usam o teto
+     * genérico e não têm esforço de raciocínio nem nível de serviço.
      */
     private ChatOptions opcoesDaSugestao() {
         if (modeloDeConversa.getDefaultOptions() instanceof OpenAiChatOptions) {
-            return OpenAiChatOptions.builder().maxCompletionTokens(tokensDaSugestao).build();
+            return OpenAiChatOptions.builder()
+                    .model(sugestao.modelo())
+                    .reasoningEffort(sugestao.esforcoDeRaciocinio())
+                    .serviceTier(sugestao.nivelDeServico())
+                    .maxCompletionTokens(sugestao.tetoDeTokens())
+                    .build();
         }
-        return ChatOptions.builder().maxTokens(tokensDaSugestao).build();
+        return ChatOptions.builder().model(sugestao.modelo()).maxTokens(sugestao.tetoDeTokens()).build();
     }
 
-    /**
-     * Opções enviadas ao modelo, com os nomes da API do provedor. O modelo tem coluna própria.
-     *
-     * @param tetoDaChamada teto de tokens enviado só nesta chamada, que vence o da configuração;
-     *     {@code null} se a chamada usa o da configuração
-     */
-    private Map<String, Object> parametros(Integer tetoDaChamada) {
+    /** Opções enviadas ao modelo na fala, com os nomes da API do provedor. O modelo tem coluna própria. */
+    private Map<String, Object> parametros() {
         Map<String, Object> parametros = new LinkedHashMap<>();
         ChatOptions opcoes = modeloDeConversa.getDefaultOptions();
         if (opcoes == null) {
             return parametros;
         }
-        boolean daOpenAi = opcoes instanceof OpenAiChatOptions;
         colocar(parametros, "temperature", opcoes.getTemperature());
         colocar(parametros, "top_p", opcoes.getTopP());
-        colocar(parametros, "max_tokens", tetoDaChamada != null && !daOpenAi ? tetoDaChamada : opcoes.getMaxTokens());
+        colocar(parametros, "max_tokens", opcoes.getMaxTokens());
         if (opcoes instanceof OpenAiChatOptions openAi) {
-            colocar(parametros, "max_completion_tokens",
-                    tetoDaChamada != null ? tetoDaChamada : openAi.getMaxCompletionTokens());
+            colocar(parametros, "max_completion_tokens", openAi.getMaxCompletionTokens());
             colocar(parametros, "reasoning_effort", openAi.getReasoningEffort());
             colocar(parametros, "verbosity", openAi.getVerbosity());
             colocar(parametros, "service_tier", openAi.getServiceTier());
+        }
+        return parametros;
+    }
+
+    /** Opções enviadas ao modelo na sugestão: as da fala, com as da sugestão por cima. */
+    private Map<String, Object> parametrosDaSugestao() {
+        Map<String, Object> parametros = parametros();
+        if (modeloDeConversa.getDefaultOptions() instanceof OpenAiChatOptions) {
+            parametros.put("max_completion_tokens", sugestao.tetoDeTokens());
+            colocar(parametros, "reasoning_effort", sugestao.esforcoDeRaciocinio());
+            colocar(parametros, "service_tier", sugestao.nivelDeServico());
+        } else {
+            parametros.put("max_tokens", sugestao.tetoDeTokens());
         }
         return parametros;
     }

@@ -20,6 +20,16 @@ class ConfiguracaoDoAdaptador {
         return new TabelaDePrecos(entradaPorMilhao, saidaPorMilhao);
     }
 
+    /** Opções do modelo só para a sugestão de cenário (RNF-03, RNF-13). */
+    @Bean
+    OpcoesDaSugestao opcoesDaSugestao(
+            @Value("${ia.sugestao.modelo}") String modelo,
+            @Value("${ia.sugestao.reasoning-effort:}") String esforcoDeRaciocinio,
+            @Value("${ia.sugestao.service-tier:}") String nivelDeServico,
+            @Value("${ia.sugestao.max-tokens}") int tetoDeTokens) {
+        return new OpcoesDaSugestao(modelo, esforcoDeRaciocinio, nivelDeServico, tetoDeTokens);
+    }
+
     /**
      * Montador com as versões de prompt configuradas (RNF-11). Uma versão sem arquivo, ou um template
      * inválido, impede a aplicação de subir.

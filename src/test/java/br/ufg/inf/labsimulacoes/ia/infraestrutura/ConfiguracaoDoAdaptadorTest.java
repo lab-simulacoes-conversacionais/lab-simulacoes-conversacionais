@@ -22,7 +22,43 @@ class ConfiguracaoDoAdaptadorTest {
                     "ia.preco.entrada-por-milhao=1.00",
                     "ia.preco.saida-por-milhao=5.00",
                     "ia.prompt.personagem=personagem-v1",
-                    "ia.prompt.sugestao=sugestao-v1");
+                    "ia.prompt.sugestao=sugestao-v1",
+                    "ia.sugestao.modelo=gpt-6.1-terra",
+                    "ia.sugestao.reasoning-effort=low",
+                    "ia.sugestao.service-tier=default",
+                    "ia.sugestao.max-tokens=4000");
+
+    @Test
+    void opcoesDaSugestaoVemDaConfiguracao() {
+        contexto.run(subido -> assertThat(subido.getBean(OpcoesDaSugestao.class))
+                .isEqualTo(new OpcoesDaSugestao("gpt-6.1-terra", "low", "default", 4000)));
+    }
+
+    /** Sem esforço nem nível próprios, a sugestão fica com os da fala. */
+    @Test
+    void esforcoENivelDaSugestaoSaoOpcionais() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(ConfiguracaoDoAdaptador.class)
+                .withPropertyValues(
+                        "ia.preco.entrada-por-milhao=1.00",
+                        "ia.preco.saida-por-milhao=5.00",
+                        "ia.prompt.personagem=personagem-v1",
+                        "ia.prompt.sugestao=sugestao-v1",
+                        "ia.sugestao.modelo=gpt-6.1-terra",
+                        "ia.sugestao.max-tokens=4000")
+                .run(subido -> assertThat(subido.getBean(OpcoesDaSugestao.class))
+                        .isEqualTo(new OpcoesDaSugestao("gpt-6.1-terra", null, null, 4000)));
+    }
+
+    /** IA_MODELO_SUGESTAO definida sem valor deixaria o pedido sem modelo (HTTP 400). */
+    @Test
+    void modeloDaSugestaoVazioImpedeASubida() {
+        contexto.withPropertyValues("ia.sugestao.modelo=").run(subido -> assertThat(subido)
+                .hasFailed()
+                .getFailure()
+                .rootCause()
+                .hasMessageContaining("IA_MODELO_SUGESTAO"));
+    }
 
     @Test
     void carregaOsTemplatesDoClasspathComAVersao() {
