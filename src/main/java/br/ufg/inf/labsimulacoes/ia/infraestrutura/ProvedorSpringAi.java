@@ -3,6 +3,7 @@ package br.ufg.inf.labsimulacoes.ia.infraestrutura;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
+import br.ufg.inf.labsimulacoes.ia.SugestaoDesligada;
 import br.ufg.inf.labsimulacoes.ia.dominio.Geracao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MensagemDoPrompt;
 import br.ufg.inf.labsimulacoes.ia.dominio.PromptMontado;
@@ -31,12 +32,16 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.converter.StructuredOutputConverter;
 import org.springframework.ai.moderation.Categories;
 import org.springframework.ai.moderation.Moderation;
 import org.springframework.ai.moderation.ModerationModel;
 import org.springframework.ai.moderation.ModerationPrompt;
 import org.springframework.ai.moderation.ModerationResult;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -50,25 +55,35 @@ import org.springframework.stereotype.Component;
 @Component
 class ProvedorSpringAi implements ProvedorDeIa {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ProvedorSpringAi.class);
+
     private final ChatModel modeloDeConversa;
     private final ChatClient chat;
     private final ModerationModel moderacao;
     private final String nome;
+    private final OpcoesDaSugestao sugestao;
 
     /**
-     * Uma variável IA_MODELO definida mas vazia vence o padrão do application.properties e deixa o modelo
+     * Uma variável IA_MODELO_CHAT definida mas vazia vence o padrão do application.properties e deixa o modelo
      * em branco. Sem esta conferência, a aplicação subiria e cada pergunta falharia com HTTP 400.
+     *
+     * @param sugestao opções do modelo só para a sugestão de cenário
      */
-    ProvedorSpringAi(ChatModel modeloDeConversa, ModerationModel moderacao, @Value("${ia.provedor}") String nome) {
+    ProvedorSpringAi(
+            ChatModel modeloDeConversa,
+            ModerationModel moderacao,
+            @Value("${ia.provedor}") String nome,
+            OpcoesDaSugestao sugestao) {
         ChatOptions padrao = modeloDeConversa.getDefaultOptions();
         if (padrao != null && (padrao.getModel() == null || padrao.getModel().isBlank())) {
-            throw new IllegalStateException("O modelo de conversa está vazio: confira a variável IA_MODELO, que não"
+            throw new IllegalStateException("O modelo de conversa está vazio: confira a variável IA_MODELO_CHAT, que não"
                     + " pode estar definida sem valor, e a propriedade spring.ai.openai.chat.options.model");
         }
         this.modeloDeConversa = modeloDeConversa;
         this.chat = ChatClient.create(modeloDeConversa);
         this.moderacao = moderacao;
         this.nome = nome;
+        this.sugestao = Objects.requireNonNull(sugestao, "sugestao");
     }
 
     @Override
@@ -105,16 +120,28 @@ class ProvedorSpringAi implements ProvedorDeIa {
         return new Geracao<>(texto.toString(), modeloOuPadrao(modelo), parametros(), uso);
     }
 
+    /**
+     * A sugestão vai com as próprias opções de modelo, raciocínio, nível de serviço e teto de tokens; a
+     * fala do personagem segue com as da configuração. Sem o teto, um pedido de sugestão não tem limite
+     * de gasto (RNF-13).
+     *
+     * <p>Uma resposta que não vira roteiro, inclusive a cortada no teto, chega com o conteúdo nulo e o
+     * consumo preenchido, para que os tokens gastos sejam registrados antes da falha.
+     *
+     * @throws SugestaoDesligada se o ambiente não definiu IA_MODELO_SUGESTAO, sem chamar o provedor
+     */
     @Override
     public Geracao<RoteiroSugerido> sugerirRoteiro(PromptMontado prompt) {
-        ResponseEntity<ChatResponse, RoteiroSugerido> resposta = doProvedor(() -> chat.prompt(paraPrompt(prompt))
-                .call()
-                .responseEntity(RoteiroSugerido.class));
-        if (resposta.entity() == null) {
-            throw new FalhaNoProvedorDeIa("O provedor de IA não devolveu um roteiro", null);
+        if (!sugestao.ligada()) {
+            throw new SugestaoDesligada();
         }
+        ResponseEntity<ChatResponse, RoteiroSugerido> resposta = doProvedor(() -> chat.prompt(paraPrompt(prompt))
+                .options(opcoesDaSugestao())
+                .call()
+                .responseEntity(new RoteiroOuNulo()));
         ChatResponse metadados = resposta.response();
-        return new Geracao<>(resposta.entity(), modeloOuPadrao(modeloDe(metadados, null)), parametros(),
+        String modelo = modeloDe(metadados, null);
+        return new Geracao<>(resposta.entity(), modelo == null ? sugestao.modelo() : modelo, parametrosDaSugestao(),
                 usoDe(metadados, UsoDoModelo.desconhecido()));
     }
 
@@ -183,7 +210,25 @@ class ProvedorSpringAi implements ProvedorDeIa {
         return padrao == null || padrao.getModel() == null ? "desconhecido" : padrao.getModel();
     }
 
-    /** Opções enviadas ao modelo, com os nomes da API do provedor. O modelo tem coluna própria. */
+    /**
+     * O que não é informado aqui vem da configuração da fala, porque o Spring AI junta as opções da
+     * chamada com as padrão. Na OpenAI, os modelos de raciocínio só aceitam max_completion_tokens, e o
+     * Spring AI recusa o pedido com os dois tetos ao mesmo tempo. Os outros provedores usam o teto
+     * genérico e não têm esforço de raciocínio nem nível de serviço.
+     */
+    private ChatOptions opcoesDaSugestao() {
+        if (modeloDeConversa.getDefaultOptions() instanceof OpenAiChatOptions) {
+            return OpenAiChatOptions.builder()
+                    .model(sugestao.modelo())
+                    .reasoningEffort(sugestao.esforcoDeRaciocinio())
+                    .serviceTier(sugestao.nivelDeServico())
+                    .maxCompletionTokens(sugestao.tetoDeTokens())
+                    .build();
+        }
+        return ChatOptions.builder().model(sugestao.modelo()).maxTokens(sugestao.tetoDeTokens()).build();
+    }
+
+    /** Opções enviadas ao modelo na fala, com os nomes da API do provedor. O modelo tem coluna própria. */
     private Map<String, Object> parametros() {
         Map<String, Object> parametros = new LinkedHashMap<>();
         ChatOptions opcoes = modeloDeConversa.getDefaultOptions();
@@ -198,6 +243,19 @@ class ProvedorSpringAi implements ProvedorDeIa {
             colocar(parametros, "reasoning_effort", openAi.getReasoningEffort());
             colocar(parametros, "verbosity", openAi.getVerbosity());
             colocar(parametros, "service_tier", openAi.getServiceTier());
+        }
+        return parametros;
+    }
+
+    /** Opções enviadas ao modelo na sugestão: as da fala, com as da sugestão por cima. */
+    private Map<String, Object> parametrosDaSugestao() {
+        Map<String, Object> parametros = parametros();
+        if (modeloDeConversa.getDefaultOptions() instanceof OpenAiChatOptions) {
+            parametros.put("max_completion_tokens", sugestao.tetoDeTokens());
+            colocar(parametros, "reasoning_effort", sugestao.esforcoDeRaciocinio());
+            colocar(parametros, "service_tier", sugestao.nivelDeServico());
+        } else {
+            parametros.put("max_tokens", sugestao.tetoDeTokens());
         }
         return parametros;
     }
@@ -228,6 +286,31 @@ class ProvedorSpringAi implements ProvedorDeIa {
         todas.put("violence", Categories::isViolence);
         todas.put("violence/graphic", Categories::isViolenceGraphic);
         return todas.entrySet().stream().filter(c -> c.getValue().test(categorias)).map(Map.Entry::getKey);
+    }
+
+    /**
+     * Conversor do roteiro que devolve nulo, em vez de lançar, quando a resposta não é um roteiro. O
+     * Spring AI lança a exceção do conversor sem a resposta, e o consumo dela se perderia. O formato
+     * pedido ao modelo é o mesmo do conversor padrão.
+     */
+    private static final class RoteiroOuNulo implements StructuredOutputConverter<RoteiroSugerido> {
+
+        private final BeanOutputConverter<RoteiroSugerido> conversor = new BeanOutputConverter<>(RoteiroSugerido.class);
+
+        @Override
+        public String getFormat() {
+            return conversor.getFormat();
+        }
+
+        @Override
+        public RoteiroSugerido convert(String texto) {
+            try {
+                return conversor.convert(texto);
+            } catch (RuntimeException e) {
+                LOG.warn("A resposta da sugestão não virou um roteiro: {}", e.getClass().getSimpleName());
+                return null;
+            }
+        }
     }
 
     private static <T> T doProvedor(Supplier<T> chamada) {

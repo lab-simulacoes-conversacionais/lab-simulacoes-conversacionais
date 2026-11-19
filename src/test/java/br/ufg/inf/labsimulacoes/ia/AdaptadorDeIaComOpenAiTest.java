@@ -30,7 +30,10 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>As respostas aparecem na saída, para leitura. Cada teste desfaz o que gravou.
  */
-@SpringBootTest(properties = "spring.ai.openai.api-key=${OPENAI_API_KEY}")
+@SpringBootTest(properties = {
+    "spring.ai.openai.api-key=${OPENAI_API_KEY}",
+    "ia.sugestao.modelo=${IA_MODELO_SUGESTAO:gpt-6.1-terra}"
+})
 @Import(InfraestruturaDeTeste.class)
 @Transactional
 @EnabledIfSystemProperty(named = "ia.teste-real", matches = "true")

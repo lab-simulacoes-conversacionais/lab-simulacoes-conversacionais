@@ -8,6 +8,8 @@ import br.ufg.inf.labsimulacoes.ia.PedidoDeSugestao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MontadorDePrompt;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
@@ -22,7 +24,43 @@ class ConfiguracaoDoAdaptadorTest {
                     "ia.preco.entrada-por-milhao=1.00",
                     "ia.preco.saida-por-milhao=5.00",
                     "ia.prompt.personagem=personagem-v1",
-                    "ia.prompt.sugestao=sugestao-v1");
+                    "ia.prompt.sugestao=sugestao-v1",
+                    "ia.sugestao.modelo=gpt-6.1-terra",
+                    "ia.sugestao.reasoning-effort=low",
+                    "ia.sugestao.service-tier=default",
+                    "ia.sugestao.max-tokens=4000");
+
+    @Test
+    void opcoesDaSugestaoVemDaConfiguracao() {
+        contexto.run(subido -> assertThat(subido.getBean(OpcoesDaSugestao.class))
+                .isEqualTo(new OpcoesDaSugestao("gpt-6.1-terra", "low", "default", 4000)));
+    }
+
+    /** Sem esforço nem nível próprios, a sugestão fica com os da fala. */
+    @Test
+    void esforcoENivelDaSugestaoSaoOpcionais() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(ConfiguracaoDoAdaptador.class)
+                .withPropertyValues(
+                        "ia.preco.entrada-por-milhao=1.00",
+                        "ia.preco.saida-por-milhao=5.00",
+                        "ia.prompt.personagem=personagem-v1",
+                        "ia.prompt.sugestao=sugestao-v1",
+                        "ia.sugestao.modelo=gpt-6.1-terra",
+                        "ia.sugestao.max-tokens=4000")
+                .run(subido -> assertThat(subido.getBean(OpcoesDaSugestao.class))
+                        .isEqualTo(new OpcoesDaSugestao("gpt-6.1-terra", null, null, 4000)));
+    }
+
+    /** Sem IA_MODELO_SUGESTAO, a aplicação sobe com a sugestão desligada; o chat continua. */
+    @ParameterizedTest
+    @ValueSource(strings = {"ia.sugestao.modelo=", "ia.sugestao.modelo=  "})
+    void semModeloDaSugestaoSobeComASugestaoDesligada(String propriedade) {
+        contexto.withPropertyValues(propriedade).run(subido -> {
+            assertThat(subido).hasNotFailed();
+            assertThat(subido.getBean(OpcoesDaSugestao.class).ligada()).isFalse();
+        });
+    }
 
     @Test
     void carregaOsTemplatesDoClasspathComAVersao() {

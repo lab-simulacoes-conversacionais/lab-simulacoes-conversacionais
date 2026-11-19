@@ -10,6 +10,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.Pagina;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
@@ -160,6 +161,73 @@ class CenariosJdbcTest {
 
         assertThatThrownBy(() -> cenarios.salvar(Cenario.novo(autor, conteudo)))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /** RN-04: a marca "Sugerido por IA" aponta para os metadados da geração (RNF-10). */
+    @Test
+    void cenarioSugeridoPelaIaEGravadoComAMarca() {
+        long geracao = inserirMetadadosDaGeracao();
+
+        Cenario salvo = cenarios.salvar(Cenario.sugeridoPelaIa(autor, ConteudosDeTeste.completo(), geracao));
+
+        assertThat(salvo.sugeridoPorIa()).isTrue();
+        assertThat(salvo.sugestaoDaIa()).isEqualTo(geracao);
+        assertThat(cenarios.buscar(salvo.id())).contains(salvo);
+        assertThat(cenarios.listarDoAutor(autor, new Pagina(0, 10)).itens()).containsExactly(salvo);
+        assertThat(cenarios.listarTodos(StatusDoCenario.RASCUNHO, new Pagina(0, 10)).itens()).contains(salvo);
+    }
+
+    @Test
+    void marcaDaSugestaoContinuaDepoisDeEnviarACuradoria() {
+        long geracao = inserirMetadadosDaGeracao();
+        Cenario salvo = cenarios.salvar(Cenario.sugeridoPelaIa(autor, ConteudosDeTeste.completo(), geracao));
+
+        Cenario enviado = cenarios.salvar(salvo.enviarACuradoria(autor));
+
+        assertThat(enviado.sugestaoDaIa()).isEqualTo(geracao);
+        assertThat(cenarios.buscar(salvo.id()).orElseThrow().sugestaoDaIa()).isEqualTo(geracao);
+    }
+
+    /** RN-04: a retenção apaga os metadados da geração, e o cenário continua marcado. */
+    @Test
+    void apagarOsMetadadosDaGeracaoMantemAMarca() {
+        long geracao = inserirMetadadosDaGeracao();
+        Cenario salvo = cenarios.salvar(Cenario.sugeridoPelaIa(autor, ConteudosDeTeste.completo(), geracao));
+
+        jdbc.update("DELETE FROM resposta_ia_meta WHERE id = ?", geracao);
+
+        Cenario lido = cenarios.buscar(salvo.id()).orElseThrow();
+        assertThat(lido.sugeridoPorIa()).isTrue();
+        assertThat(lido.sugestaoDaIa()).isNull();
+    }
+
+    @Test
+    void metadadosDaGeracaoSemAMarcaSaoRecusadosPeloBanco() {
+        long geracao = inserirMetadadosDaGeracao();
+        Cenario salvo = cenarios.salvar(Cenario.novo(autor, ConteudosDeTeste.completo()));
+
+        assertThatThrownBy(() -> jdbc.update(
+                        "UPDATE cenario SET sugestao_ia_meta_id = ? WHERE id = ?", geracao, salvo.id()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void cenarioCriadoDoZeroFicaSemAMarca() {
+        Cenario salvo = cenarios.salvar(Cenario.novo(autor, ConteudosDeTeste.completo()));
+
+        assertThat(cenarios.buscar(salvo.id()).orElseThrow().sugeridoPorIa()).isFalse();
+    }
+
+    @Test
+    void marcaSemMetadadosDaGeracaoERecusadaPeloBanco() {
+        assertThatThrownBy(() -> cenarios.salvar(Cenario.sugeridoPelaIa(autor, ConteudosDeTeste.completo(), -1L)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private long inserirMetadadosDaGeracao() {
+        return jdbc.queryForObject("""
+                INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt)
+                VALUES ('openai', 'modelo', 'sugestao-v1') RETURNING id""", Long.class);
     }
 
     private static ConteudoDoCenario comHabilidades(VinculoCurricular c, List<String> codigos) {

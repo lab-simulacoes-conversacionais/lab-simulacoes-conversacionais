@@ -14,21 +14,47 @@ import java.util.Objects;
  * @param versao a versão mais recente
  * @param ultimaDevolucao a devolução mais recente desta versão, para o autor saber o que mudar
  *     (RN-07); {@code null} se ela nunca foi devolvida
+ * @param sugeridoPorIa RN-04: o curador confere os fatos de um cenário sugerido pela IA com as fontes
+ * @param sugestaoDaIa metadados da geração que sugeriu o cenário (RNF-10); {@code null} se ele foi
+ *     criado do zero ou se os metadados já foram apagados pela retenção, o que não tira a marca
  */
-public record Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCenario versao, Devolucao ultimaDevolucao) {
+public record Cenario(
+        Long id, long autorId, StatusDoCenario status, VersaoDoCenario versao, Devolucao ultimaDevolucao,
+        boolean sugeridoPorIa, Long sugestaoDaIa) {
 
     public Cenario {
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(versao, "versao");
+        if (sugestaoDaIa != null && !sugeridoPorIa) {
+            throw new IllegalArgumentException("Um cenário com metadados de geração precisa da marca de sugerido por IA");
+        }
     }
 
-    /** Cenário cuja versão nunca foi devolvida. */
+    /**
+     * Cenário criado do zero cuja versão nunca foi devolvida. Não serve para copiar um cenário que já
+     * existe com outro estado: a marca de sugerido por IA se perderia (RN-04). Para isso, use o
+     * construtor completo ou uma transição.
+     */
     public Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCenario versao) {
-        this(id, autorId, status, versao, null);
+        this(id, autorId, status, versao, null, false, null);
     }
 
     public static Cenario novo(long autorId, ConteudoDoCenario conteudo) {
         return new Cenario(null, autorId, StatusDoCenario.RASCUNHO, VersaoDoCenario.primeira(autorId, conteudo));
+    }
+
+    /**
+     * RN-04: a sugestão da IA é só um ponto de partida. Entra sempre como um cenário novo, em Rascunho e
+     * marcado "Sugerido por IA", com quem pediu como autor; daí segue o mesmo caminho de curadoria de
+     * qualquer cenário, e quem aprova é um curador que não seja o autor (RN-05, RN-36). Não existe
+     * caminho para a sugestão alterar, aprovar ou publicar um cenário que já existe.
+     *
+     * @param quemPediu professor ou curador que pediu a sugestão
+     * @param geracao metadados da geração (RNF-10)
+     */
+    public static Cenario sugeridoPelaIa(long quemPediu, ConteudoDoCenario conteudo, long geracao) {
+        return new Cenario(null, quemPediu, StatusDoCenario.RASCUNHO, VersaoDoCenario.primeira(quemPediu, conteudo),
+                null, true, geracao);
     }
 
     public boolean temAutor(long usuarioId) {
@@ -38,7 +64,7 @@ public record Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCen
     /** Mantém o número da versão: só o que já saiu do rascunho vira histórico. */
     public Cenario alterarRascunho(ConteudoDoCenario conteudo) {
         exigirRascunho();
-        return new Cenario(id, autorId, status, versao.comConteudo(conteudo), ultimaDevolucao);
+        return new Cenario(id, autorId, status, versao.comConteudo(conteudo), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /**
@@ -57,7 +83,8 @@ public record Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCen
         if (!pendencias.isEmpty()) {
             throw new CenarioIncompleto(pendencias);
         }
-        return new Cenario(id, autorId, StatusDoCenario.EM_CURADORIA, versao.enviada(), ultimaDevolucao);
+        return new Cenario(
+                id, autorId, StatusDoCenario.EM_CURADORIA, versao.enviada(), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /**
@@ -76,7 +103,8 @@ public record Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCen
                     "Ninguém aprova um cenário que criou, mesmo com o perfil Curador (RN-36)");
         }
         var aprovacao = new Aprovacao(curador.id(), momento);
-        return new Cenario(id, autorId, StatusDoCenario.APROVADO, versao.aprovada(aprovacao), ultimaDevolucao);
+        return new Cenario(
+                id, autorId, StatusDoCenario.APROVADO, versao.aprovada(aprovacao), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /**
@@ -90,7 +118,7 @@ public record Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCen
         exigirCuradoria();
         exigirPerfilCurador(curador, "devolve");
         var devolucao = Devolucao.nova(curador.id(), comentario, momento);
-        return new Cenario(id, autorId, StatusDoCenario.RASCUNHO, versao.devolvida(), devolucao);
+        return new Cenario(id, autorId, StatusDoCenario.RASCUNHO, versao.devolvida(), devolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /** Olha a versão, e não o cenário, porque a edição de um aprovado gera versão nova em rascunho (RN-08). */

@@ -4,6 +4,8 @@ import br.ufg.inf.labsimulacoes.ia.dominio.MontadorComTemplates;
 import br.ufg.inf.labsimulacoes.ia.dominio.MontadorDePrompt;
 import br.ufg.inf.labsimulacoes.ia.dominio.TabelaDePrecos;
 import java.math.BigDecimal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,11 +15,31 @@ import org.springframework.core.io.ResourceLoader;
 @Configuration(proxyBeanMethods = false)
 class ConfiguracaoDoAdaptador {
 
+    private static final Logger LOG = LoggerFactory.getLogger(ConfiguracaoDoAdaptador.class);
+
     @Bean
     TabelaDePrecos tabelaDePrecos(
             @Value("${ia.preco.entrada-por-milhao}") BigDecimal entradaPorMilhao,
             @Value("${ia.preco.saida-por-milhao}") BigDecimal saidaPorMilhao) {
         return new TabelaDePrecos(entradaPorMilhao, saidaPorMilhao);
+    }
+
+    /**
+     * Opções do modelo só para a sugestão de cenário (RNF-03, RNF-13). Sem IA_MODELO_SUGESTAO, a
+     * aplicação sobe com a sugestão desligada, e o aviso fica no log da subida.
+     */
+    @Bean
+    OpcoesDaSugestao opcoesDaSugestao(
+            @Value("${ia.sugestao.modelo:}") String modelo,
+            @Value("${ia.sugestao.reasoning-effort:}") String esforcoDeRaciocinio,
+            @Value("${ia.sugestao.service-tier:}") String nivelDeServico,
+            @Value("${ia.sugestao.max-tokens}") int tetoDeTokens) {
+        var opcoes = new OpcoesDaSugestao(modelo, esforcoDeRaciocinio, nivelDeServico, tetoDeTokens);
+        if (!opcoes.ligada()) {
+            LOG.warn("A sugestão de cenário está desligada: defina a variável IA_MODELO_SUGESTAO com o modelo da"
+                    + " sugestão. O chat continua funcionando.");
+        }
+        return opcoes;
     }
 
     /**
