@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Consumo da IA · Administração')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Consumo da IA (RNF-13), do módulo de métricas. O custo é o registrado em cada resposta, em dólares, no
+  dia da escola (metricas.custo.fuso). Respostas sem tokens informados pelo provedor ficam sem custo, e
+  então o custo real é maior que o mostrado.
+-->
+<main class="page admin-page">
+  <div th:replace="~{fragmentos/base :: painelAdmin('consumo')}"></div>
+
+  <div class="admin-section-head">
+    <div>
+      <h2>Consumo da IA hoje</h2>
+      <p th:text="|Dia ${#temporals.format(hoje.dia(), 'dd/MM/yyyy')}, desde a meia-noite.|">Dia 19/11/2026, desde a meia-noite.</p>
+    </div>
+  </div>
+
+  <section class="stats-grid" aria-label="Consumo da IA hoje">
+    <div class="card">
+      <p>Custo de hoje</p>
+      <strong th:text="|US$ ${#numbers.formatDecimal(hoje.resumo().custo(), 1, 'POINT', 4, 'COMMA')}|">US$ 0,0000</strong>
+      <small th:if="${hoje.passouDoLimite()}" class="field-error">Acima do custo diário máximo.</small>
+    </div>
+    <div class="card">
+      <p>Custo diário máximo</p>
+      <strong th:if="${hoje.limite() != null}"
+              th:text="|US$ ${#numbers.formatDecimal(hoje.limite(), 1, 'POINT', 2, 'COMMA')}|">US$ 5,00</strong>
+      <strong th:unless="${hoje.limite() != null}">Sem limite</strong>
+      <small><a th:href="@{/admin/parametros}">Alterar nos parâmetros</a></small>
+    </div>
+    <div class="card">
+      <p>Respostas da IA hoje</p>
+      <strong th:text="${hoje.resumo().respostas()}">0</strong>
+      <small th:text="|${hoje.resumo().respostasSemCusto()} sem custo informado|">0 sem custo informado</small>
+    </div>
+  </section>
+
+  <div class="admin-section-head">
+    <div>
+      <h2>Custo de uma sessão</h2>
+      <p>Soma todas as respostas da sessão, inclusive as bloqueadas pelo filtro e as que vieram vazias.</p>
+    </div>
+  </div>
+
+  <form class="card" th:action="@{/admin/consumo}" method="get">
+    <label for="sessao">Número da sessão</label>
+    <input id="sessao" name="sessao" type="number" min="1" required th:value="${sessao}">
+    <button class="btn btn-primary" type="submit">Consultar</button>
+  </form>
+
+  <section class="stats-grid" th:if="${consumoDaSessao != null}"
+           th:attr="aria-label=|Consumo da sessão ${sessao}|">
+    <div class="card">
+      <p th:text="|Custo da sessão ${sessao}|">Custo da sessão</p>
+      <strong th:text="|US$ ${#numbers.formatDecimal(consumoDaSessao.custo(), 1, 'POINT', 4, 'COMMA')}|">US$ 0,0000</strong>
+      <small th:text="|${consumoDaSessao.respostas()} respostas, ${consumoDaSessao.respostasSemCusto()} sem custo informado|">
+        0 respostas</small>
+    </div>
+    <div class="card">
+      <p>Tokens</p>
+      <strong th:text="${consumoDaSessao.tokensEntrada() + consumoDaSessao.tokensSaida()}">0</strong>
+      <small th:text="|${consumoDaSessao.tokensEntrada()} de entrada e ${consumoDaSessao.tokensSaida()} de saída|">
+        0 de entrada e 0 de saída</small>
+    </div>
+  </section>
+</main>
+</body>
+</html>
