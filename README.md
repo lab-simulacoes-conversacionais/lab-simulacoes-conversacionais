@@ -128,6 +128,20 @@ As habilidades da BNCC ficam na tabela `habilidade_bncc` e vêm dos arquivos em 
 - **Cache:** cada busca fica no Redis (cache `habilidades-bncc`), com a chave formada pelos filtros normalizados. A importação limpa o cache inteiro depois que a gravação é confirmada. A validade de 24 horas (`bncc.cache.validade`) é só uma garantia a mais.
 - **Outra etapa:** basta criar um novo leitor que implemente `FonteDeHabilidades` na infraestrutura de `cenarios`. A importação junta as habilidades de todos os leitores.
 
+### Modo de teste do cenário
+
+Antes de aprovar, o curador conversa com o personagem da versão em curadoria (RF-09), pelo mesmo adaptador e pelo mesmo montador de prompt da sala.
+
+- **Caso de uso:** `TesteDoCenario.perguntar(cenarioId, texto)`, só com o perfil Curador. Só se testa a versão Em curadoria, e o autor do cenário ou da versão nunca testa a própria, mesmo tendo o perfil Curador (RN-05, RN-36). Devolve a `PerguntaDeTeste` gravada, com a resposta inteira.
+- **Filtro (RN-20):** síncrono. A pergunta é moderada, a resposta é gerada inteira e moderada de uma vez antes de voltar. Se a pergunta for bloqueada, ela não chega ao modelo. Se a resposta for bloqueada, ela não volta nem é guardada. Nos dois casos, a pergunta fica gravada com o desfecho, e a tela mostra o aviso neutro no lugar da resposta. Não abre caso na fila do curador nem publica evento.
+- **Não é sessão de turma:** o teste não cria sessão nem mensagem, não usa o Redis da sessão e não publica evento nenhum. Grava só em `pergunta_de_teste`, então não entra nas métricas. O consumo fica em `resposta_ia_meta`, apontado pela pergunta, como na sala (RNF-10, RNF-13).
+- **Contagem para o checklist (#27):** `PerguntasDeTeste.contar(versaoId, curadorId)` dá as perguntas que o curador que vai aprovar fez na rodada em aberto da versão. A pergunta bloqueada não conta; a resposta bloqueada conta. O mínimo do RN-06 é `PerguntasDeTeste.MINIMO_PARA_APROVAR` (5).
+- **Rodada:** a devolução volta a mesma versão a rascunho, na mesma linha. Por isso o `DevolucaoDeCenario` liga as perguntas em aberto da versão à devolução (`devolucao_id`), e a contagem e o histórico recomeçam na versão reenviada. Uma resposta que chega depois de a versão sair da curadoria ou mudar de conteúdo é descartada (`TesteNaoPermitido`).
+- **Histórico:** o modelo recebe as últimas 20 falas exibidas da rodada do próprio curador, sem as bloqueadas, como na sala.
+- **Teto:** `cenarios.teste.perguntas-por-versao` (40 por padrão, no mínimo 5) por curador e rodada, conferido antes de chamar o provedor (`LimiteDoTesteAtingido`). A conferência não trava, para a geração não ficar dentro de uma transação. Dois envios simultâneos do mesmo curador podem passar do teto por uma pergunta.
+- **Para a tela (#33):** `PerguntasDeTeste.daRodada(versaoId, curadorId)` traz a conversa da rodada, da mais antiga para a mais nova. A resposta só existe no desfecho `EXIBIDA`. `FalhaNoProvedorDeIa` não grava nada, e a pergunta pode ser feita de novo.
+- **Retenção:** o RN-33 cobre só as conversas das sessões, então `pergunta_de_teste` não é apagada por nenhum job. Ela guarda só o que o curador digitou e o que o personagem respondeu, sem dado de aluno. Se o PO quiser um prazo, ele entra no job de retenção do RNF-15.
+
 ### Sessão em sala
 
 A sessão fica ligada ao professor, à turma e à versão aprovada vigente no início (RF-14, RN-10). Ela tem três estados: Em andamento, Pausada e Encerrada.
