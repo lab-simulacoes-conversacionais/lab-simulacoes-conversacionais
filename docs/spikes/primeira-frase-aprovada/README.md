@@ -74,6 +74,22 @@ as três (73,3%, 63,3% e 56,7%) cabe no acaso de 30 amostras com a mediana perto
 
 O RNF-03 só conta como atingido com 95% em mais de uma execução.
 
+### Diagnóstico da conexão com o provedor
+
+O log do cliente HTTP do JDK mostra cada requisição, com a versão do protocolo e a porta local, e os
+quadros de controle do HTTP/2 (abertura, `GOAWAY`, `RST_STREAM`). Ele sai no relatório do Surefire, em
+`target/surefire-reports`, e é sobrescrito na execução seguinte:
+
+```sh
+./mvnw test -Dtest=PrimeiraFraseAprovadaComOpenAiTest -Dia.spike-primeira-frase=true -Djacoco.skip=true \
+  -Djdk.httpclient.HttpClient.log=errors,requests,frames:control \
+  -Dspike.estrategia="Diagnóstico: ..."
+```
+
+No `resultados09.md`, com a configuração final, as 178 requisições à OpenAI (31 gerações e 147
+moderações) foram todas pela mesma conexão HTTP/2, aberta pelo aquecimento ao subir, sem nenhum `GOAWAY`
+ou `RST_STREAM`. As requisições em HTTP/1.1 do log são as do próprio teste à aplicação.
+
 ## O que o teste faz
 
 - Sobe a aplicação inteira, com a configuração de `application.properties`: o modelo, o esforço de
