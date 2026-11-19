@@ -72,14 +72,18 @@ class ConexaoComOProvedorTest {
         PORTAS.clear();
     }
 
+    /**
+     * Confere a ordem de uma pergunta: a moderação dela e, logo depois, o streaming da resposta. O
+     * contrário (moderar a frase logo depois do streaming) não entra: aqui a conexão é HTTP/1.1, e o
+     * streaming pode ainda não ter devolvido a conexão quando a moderação começa. Com o provedor, em
+     * HTTP/2, as chamadas dividem a conexão mesmo ao mesmo tempo.
+     */
     @Test
-    void moderacaoEStreamingUsamAMesmaConexao() {
+    void streamingUsaAConexaoAbertaPelaModeracao() {
         assertThat(provedor.moderar("Oi!").sinalizado()).isFalse();
         assertThat(provedor.conversar(PROMPT, trecho -> {}).conteudo()).isEqualTo("Olá, turma.");
-        assertThat(provedor.moderar("Olá, turma.").sinalizado()).isFalse();
 
-        assertThat(PORTAS).hasSize(3);
-        assertThat(PORTAS).as("portas de origem da moderação, do streaming e da moderação").containsOnly(PORTAS.get(0));
+        assertThat(PORTAS).as("portas de origem da moderação e do streaming").hasSize(2).containsOnly(PORTAS.get(0));
     }
 
     private static HttpServer provedorSimulado() {
