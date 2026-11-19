@@ -22,7 +22,14 @@ public interface ProvedorDeIa {
      */
     Geracao<String> conversar(PromptMontado prompt, Consumer<String> aoReceberTrecho);
 
-    /** Gera um roteiro de cenário em formato estruturado. */
+    /**
+     * Gera um roteiro de cenário em formato estruturado.
+     *
+     * @return a geração com o conteúdo nulo se a resposta não virou um roteiro, para o consumo ser
+     *     registrado mesmo assim
+     * @throws br.ufg.inf.labsimulacoes.ia.SugestaoDesligada se o ambiente não definiu o modelo da
+     *     sugestão
+     */
     Geracao<RoteiroSugerido> sugerirRoteiro(PromptMontado prompt);
 
     ResultadoDaModeracao moderar(String texto);

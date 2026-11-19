@@ -88,7 +88,11 @@ public class ChamadasAoProvedor implements AdaptadorDeIa {
         PromptMontado prompt = montador.daSugestao(pedido);
         long inicio = System.nanoTime();
         Geracao<RoteiroSugerido> geracao = provedor.sugerirRoteiro(prompt);
-        return new SugestaoDeCenario(geracao.conteudo(), registrar(prompt, geracao, inicio).id());
+        long metadadosId = registrar(prompt, geracao, inicio).id();
+        if (geracao.conteudo() == null) {
+            throw new FalhaNoProvedorDeIa("O provedor de IA não devolveu um roteiro", null);
+        }
+        return new SugestaoDeCenario(geracao.conteudo(), metadadosId);
     }
 
     @Override

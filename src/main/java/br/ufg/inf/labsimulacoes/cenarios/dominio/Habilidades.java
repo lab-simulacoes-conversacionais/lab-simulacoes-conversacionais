@@ -18,4 +18,18 @@ public interface Habilidades {
 
     /** Quais destes códigos estão no catálogo. */
     Set<String> existentes(Collection<String> codigos);
+
+    /**
+     * RN-02: confere os códigos antes de gravar. A chave estrangeira também recusaria, mas sem dizer ao
+     * autor qual código está errado.
+     *
+     * @throws HabilidadesForaDoCatalogo com os códigos desconhecidos, na ordem pedida
+     */
+    default void exigirNoCatalogo(List<String> codigos) {
+        Set<String> conhecidos = existentes(codigos);
+        List<String> desconhecidos = codigos.stream().filter(codigo -> !conhecidos.contains(codigo)).toList();
+        if (!desconhecidos.isEmpty()) {
+            throw new HabilidadesForaDoCatalogo(desconhecidos);
+        }
+    }
 }

@@ -36,6 +36,8 @@ public interface AdaptadorDeIa {
      * "Sugerido por IA"; a IA nunca aprova nem altera um cenário.
      *
      * @throws FalhaNoProvedorDeIa se o provedor falhar ou devolver algo que não vira um roteiro
+     * @throws SugestaoDesligada se o ambiente não definiu IA_MODELO_SUGESTAO; o chat continua
+     *     funcionando
      */
     SugestaoDeCenario sugerirCenario(PedidoDeSugestao pedido);
 
