@@ -22,7 +22,7 @@ o provedor, aberta ao subir a aplicação. Ela é o padrão do `application.prop
 | Relatório | Esforço | Nível de serviço | Conexão única | Em até 3 s | Média | p95 | Espera do provedor (média) |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: |
 | 01 (issue #19, à 01h) | low | padrão | não | 93,3% | 2,28 | 3,07 | – |
-| 02 a 04 (linha de base) | low | padrão | não | 65,6% | 2,82 | 3,85 | 1,66 |
+| 02 a 04 (linha de base) | low | padrão | não | 64,4% | 2,82 | 3,85 | 1,66 |
 | 05 (E1) | none | padrão | não | 83,3% | 2,56 | 3,72 | 1,38 |
 | 06 (E2) | none | prioritário | não | 100% | 1,99 | 2,60 | 0,93 |
 | 07 (E3) | low | prioritário | sim | 96,7% | 2,08 | 2,65 | 1,14 |
@@ -147,7 +147,7 @@ formato do relatório mude.
 
 A linha de base foi repetida três vezes sem mudar nada no código nem nos parâmetros
 (`resultados02.md` a `resultados04.md`), e as 90 respostas juntas são a referência das estratégias:
-65,6% (59 de 90) com a primeira frase na tela em até 3 s, média de 2,82 s e p95 de 3,85 s.
+64,4% (58 de 90) com a primeira frase na tela em até 3 s, média de 2,82 s e p95 de 3,85 s.
 
 Nas três, as etapas da aplicação (banco, Redis, preparo, montagem do prompt, envio pelo SSE) somam cerca
 de 0,05 s e quase não mudaram. A diferença para a original, de 93,3%, está toda na espera da OpenAI até o

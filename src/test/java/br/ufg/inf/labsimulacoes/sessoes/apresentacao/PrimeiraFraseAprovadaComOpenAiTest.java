@@ -433,12 +433,14 @@ class PrimeiraFraseAprovadaComOpenAiTest {
 
     /**
      * A linha de base da issue #80: as 90 respostas dos {@code resultados02.md} a {@code resultados04.md},
-     * juntas. Média, p95 (posto mais próximo, a 86ª de 90) e máximo saem da tabela por pergunta; as médias
+     * juntas. A proporção soma o critério de cada relatório (22, 19 e 17), contado com os tempos sem
+     * arredondar; na tabela por pergunta, dois tempos do 04 pouco acima de 3 s aparecem como 3.00.
+     * Média, p95 (posto mais próximo, a 86ª de 90) e máximo saem da tabela por pergunta; as médias
      * das moderações, que não estão nela, são a média das três execuções, todas com 30 respostas.
      */
     static final class LinhaDeBase {
 
-        static final double PROPORCAO = 59.0 / 90;
+        static final double PROPORCAO = 58.0 / 90;
         static final double NA_TELA_MEDIA = 2.82;
         static final double NA_TELA_P95 = 3.85;
         static final double NA_TELA_MAXIMO = 4.69;

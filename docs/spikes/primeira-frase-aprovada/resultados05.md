@@ -16,7 +16,7 @@ A linha de base junta as 90 respostas dos `resultados02.md` a `resultados04.md`,
 
 | Indicador | Original (01) | Linha de base (02 a 04) | Esta execução | Diferença |
 | --- | ---: | ---: | ---: | ---: |
-| 1ª frase na tela em até 3 s | 93.3% | 65.6% | 83.3% | +17.8 p.p. |
+| 1ª frase na tela em até 3 s | 93.3% | 64.4% | 83.3% | +18.9 p.p. |
 | 1ª frase na tela, média | 2.28 | 2.82 | 2.56 | -0.26 |
 | 1ª frase na tela, p95 | 3.07 | 3.85 | 3.72 | -0.13 |
 | 1ª frase na tela, máximo | 3.16 | 4.69 | 3.90 | -0.79 |
