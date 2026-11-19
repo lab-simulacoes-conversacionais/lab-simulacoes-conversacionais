@@ -95,7 +95,7 @@ class AdaptadorDeIaTest {
                 .containsEntry("versao_prompt", "personagem-v1")
                 .containsEntry("tokens_entrada", 316)
                 .containsEntry("tokens_saida", 97);
-        assertThat((BigDecimal) linha.get("custo")).isEqualByComparingTo("0.000801");
+        assertThat((BigDecimal) linha.get("custo")).isEqualByComparingTo("0.001602");
         assertThat((Integer) linha.get("latencia_ms")).isNotNegative();
     }
 

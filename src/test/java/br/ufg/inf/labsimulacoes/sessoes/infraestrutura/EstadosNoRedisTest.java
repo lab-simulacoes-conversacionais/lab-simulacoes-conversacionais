@@ -9,6 +9,8 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.EventoDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.ThreadLocalRandom;
@@ -37,6 +39,9 @@ class EstadosNoRedisTest {
     @Autowired
     private TransactionTemplate transacao;
 
+    @Autowired
+    private MeterRegistry metricas;
+
     private long sessaoId;
 
     @BeforeEach
@@ -60,6 +65,24 @@ class EstadosNoRedisTest {
         estados.gravar(estado);
 
         assertThat(estados.buscar(sessaoId)).contains(estado);
+    }
+
+    /** RNF-03: o tempo do Redis aparece separado no caminho até a primeira frase. */
+    @Test
+    void leituraEGravacaoSaoMedidas() {
+        long gravacoes = medicoes("gravar");
+        long leituras = medicoes("buscar");
+
+        estados.gravar(inicial());
+        estados.buscar(sessaoId);
+
+        assertThat(medicoes("gravar")).isEqualTo(gravacoes + 1);
+        assertThat(medicoes("buscar")).isEqualTo(leituras + 1);
+    }
+
+    private long medicoes(String operacao) {
+        Timer timer = metricas.find(EstadosNoRedis.OBSERVACAO).tag(EstadosNoRedis.CHAVE, operacao).timer();
+        return timer == null ? 0 : timer.count();
     }
 
     @Test
