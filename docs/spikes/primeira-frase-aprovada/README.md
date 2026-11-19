@@ -110,6 +110,8 @@ O RNF-03 só conta como atingido com 95% em mais de uma execução.
 - Antes da medição, faz uma pergunta numa sessão à parte para aquecer a aplicação. Ela fica fora da
   conta, porque o servidor em produção já está rodando quando a aula começa. O tempo dela aparece no
   relatório.
+- O aquecimento da conexão com o provedor ao subir (`ia.aquecimento.habilitado`) fica ligado, como na
+  aplicação, e acontece antes da pergunta de aquecimento.
 - Se uma pergunta ou resposta for bloqueada, a sessão é retomada e a medição segue. Uma resposta
   bloqueada antes da primeira frase fica fora da conta, porque por regra nada aparece (RN-20). Uma falha
   do provedor no meio da resposta conta como acima da meta.

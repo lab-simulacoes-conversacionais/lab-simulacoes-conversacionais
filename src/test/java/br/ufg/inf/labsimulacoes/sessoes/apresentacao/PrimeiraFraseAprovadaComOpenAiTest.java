@@ -71,7 +71,11 @@ import org.springframework.web.util.HtmlUtils;
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"spring.ai.openai.api-key=${OPENAI_API_KEY}", "lab.teste.contexto=spike-primeira-frase"})
+        properties = {
+            "spring.ai.openai.api-key=${OPENAI_API_KEY}",
+            "lab.teste.contexto=spike-primeira-frase",
+            "ia.aquecimento.habilitado=true"
+        })
 @Import({InfraestruturaDeTeste.class, PrimeiraFraseAprovadaComOpenAiTest.Cronometragem.class})
 @EnabledIfSystemProperty(named = "ia.spike-primeira-frase", matches = "true")
 @EnabledIfEnvironmentVariable(named = "OPENAI_API_KEY", matches = ".+")
