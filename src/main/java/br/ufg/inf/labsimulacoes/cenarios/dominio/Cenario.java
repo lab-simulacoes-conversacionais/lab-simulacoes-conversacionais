@@ -30,14 +30,13 @@ public record Cenario(
         }
     }
 
-    /** Cenário criado do zero. */
-    public Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCenario versao, Devolucao ultimaDevolucao) {
-        this(id, autorId, status, versao, ultimaDevolucao, false, null);
-    }
-
-    /** Cenário criado do zero cuja versão nunca foi devolvida. */
+    /**
+     * Cenário criado do zero cuja versão nunca foi devolvida. Não serve para copiar um cenário que já
+     * existe com outro estado: a marca de sugerido por IA se perderia (RN-04). Para isso, use o
+     * construtor completo ou uma transição.
+     */
     public Cenario(Long id, long autorId, StatusDoCenario status, VersaoDoCenario versao) {
-        this(id, autorId, status, versao, null);
+        this(id, autorId, status, versao, null, false, null);
     }
 
     public static Cenario novo(long autorId, ConteudoDoCenario conteudo) {
