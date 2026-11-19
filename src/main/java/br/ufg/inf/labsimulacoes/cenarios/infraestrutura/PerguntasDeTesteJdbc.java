@@ -17,12 +17,45 @@ import org.springframework.stereotype.Repository;
 @Repository
 class PerguntasDeTesteJdbc implements PerguntasDeTeste {
 
-    private static final String COLUNAS = """
-            id, cenario_versao_id, curador_id, pergunta, situacao, resposta, resposta_ia_meta_id,
-            devolucao_id IS NOT NULL AS rodada_fechada""";
+    /*
+     * Cada consulta é um texto fixo, sem montar SQL em tempo de execução; todo valor vai por parâmetro.
+     * A rodada em aberto é a mesma condição em todas: cenario_versao_id, curador_id e devolucao_id nula.
+     */
 
-    private static final String RODADA_EM_ABERTO =
-            "cenario_versao_id = ? AND curador_id = ? AND devolucao_id IS NULL";
+    private static final String RESERVAR = """
+            INSERT INTO pergunta_de_teste (cenario_versao_id, curador_id, pergunta, situacao)
+            VALUES (?, ?, ?, 'PENDENTE')
+            RETURNING id""";
+
+    private static final String CONCLUIR = """
+            UPDATE pergunta_de_teste SET situacao = ?, resposta = ?, resposta_ia_meta_id = ?
+            WHERE id = ? AND situacao = 'PENDENTE'
+            RETURNING id, cenario_versao_id, curador_id, pergunta, situacao, resposta, resposta_ia_meta_id,
+                      devolucao_id IS NOT NULL AS rodada_fechada""";
+
+    private static final String DA_RODADA = """
+            SELECT id, cenario_versao_id, curador_id, pergunta, situacao, resposta, resposta_ia_meta_id,
+                   devolucao_id IS NOT NULL AS rodada_fechada
+            FROM pergunta_de_teste
+            WHERE cenario_versao_id = ? AND curador_id = ? AND devolucao_id IS NULL
+            ORDER BY id""";
+
+    /** Teto (RNF-13): todas as perguntas da rodada em aberto, de qualquer situação. */
+    private static final String OCUPADAS = """
+            SELECT count(*)
+            FROM pergunta_de_teste
+            WHERE cenario_versao_id = ? AND curador_id = ? AND devolucao_id IS NULL""";
+
+    /** RN-06: só as que testaram o personagem, concluídas e de resposta bloqueada. */
+    private static final String VALIDAS = """
+            SELECT count(*)
+            FROM pergunta_de_teste
+            WHERE cenario_versao_id = ? AND curador_id = ? AND devolucao_id IS NULL
+              AND situacao IN ('CONCLUIDA', 'RESPOSTA_BLOQUEADA')""";
+
+    private static final String FECHAR_RODADA = """
+            UPDATE pergunta_de_teste SET devolucao_id = ?
+            WHERE cenario_versao_id = ? AND devolucao_id IS NULL""";
 
     private final JdbcTemplate jdbc;
 
@@ -35,20 +68,13 @@ class PerguntasDeTesteJdbc implements PerguntasDeTeste {
         if (reservada.situacao() != Situacao.PENDENTE || reservada.id() != null) {
             throw new IllegalStateException("Só uma pergunta nova e pendente é reservada");
         }
-        Long id = jdbc.queryForObject("""
-                INSERT INTO pergunta_de_teste (cenario_versao_id, curador_id, pergunta, situacao)
-                VALUES (?, ?, ?, 'PENDENTE')
-                RETURNING id""",
-                Long.class, reservada.versaoId(), reservada.curadorId(), reservada.pergunta());
+        Long id = jdbc.queryForObject(RESERVAR, Long.class, reservada.versaoId(), reservada.curadorId(), reservada.pergunta());
         return reservada.comId(id);
     }
 
     @Override
     public PerguntaDeTeste concluir(PerguntaDeTeste comResultado) {
-        List<PerguntaDeTeste> atualizada = jdbc.query("""
-                        UPDATE pergunta_de_teste SET situacao = ?, resposta = ?, resposta_ia_meta_id = ?
-                        WHERE id = ? AND situacao = 'PENDENTE'
-                        RETURNING""" + " " + COLUNAS,
+        List<PerguntaDeTeste> atualizada = jdbc.query(CONCLUIR,
                 (linha, numero) -> paraPergunta(linha),
                 comResultado.situacao().name(), comResultado.resposta(), comResultado.respostaIaMetaId(),
                 comResultado.id());
@@ -61,31 +87,27 @@ class PerguntasDeTesteJdbc implements PerguntasDeTeste {
 
     @Override
     public List<PerguntaDeTeste> daRodada(long versaoId, long curadorId) {
-        return jdbc.query("SELECT " + COLUNAS + " FROM pergunta_de_teste WHERE " + RODADA_EM_ABERTO + " ORDER BY id",
-                (linha, numero) -> paraPergunta(linha), versaoId, curadorId);
+        return jdbc.query(DA_RODADA, (linha, numero) -> paraPergunta(linha), versaoId, curadorId);
     }
 
     @Override
     public int ocupadas(long versaoId, long curadorId) {
-        return contarOnde(RODADA_EM_ABERTO, versaoId, curadorId);
+        return contarCom(OCUPADAS, versaoId, curadorId);
     }
 
     @Override
     public int contar(long versaoId, long curadorId) {
-        return contarOnde(RODADA_EM_ABERTO + " AND situacao IN ('CONCLUIDA', 'RESPOSTA_BLOQUEADA')", versaoId, curadorId);
+        return contarCom(VALIDAS, versaoId, curadorId);
     }
 
     @Override
     public int fecharRodada(long versaoId, long devolucaoId) {
-        return jdbc.update(
-                "UPDATE pergunta_de_teste SET devolucao_id = ? WHERE cenario_versao_id = ? AND devolucao_id IS NULL",
-                devolucaoId,
-                versaoId);
+        return jdbc.update(FECHAR_RODADA, devolucaoId, versaoId);
     }
 
-    private int contarOnde(String condicao, long versaoId, long curadorId) {
-        Integer total = jdbc.queryForObject(
-                "SELECT count(*) FROM pergunta_de_teste WHERE " + condicao, Integer.class, versaoId, curadorId);
+    /** @param consulta {@link #OCUPADAS} ou {@link #VALIDAS}, que só diferem na condição de situação */
+    private int contarCom(String consulta, long versaoId, long curadorId) {
+        Integer total = jdbc.queryForObject(consulta, Integer.class, versaoId, curadorId);
         return total == null ? 0 : total;
     }
 
