@@ -91,8 +91,11 @@ class PrimeiraFraseAprovadaComOpenAiTest {
     static final double META_TOTAL_S = 10.0;
     static final double PROPORCAO_EXIGIDA = 0.95;
 
-    /** Sem a propriedade, a execução é uma nova linha de base, com os mesmos parâmetros da original. */
-    static final String ESTRATEGIA_PADRAO = "nenhuma (linha de base, com os mesmos parâmetros do resultados01)";
+    /**
+     * Sem a propriedade, a execução mede a configuração do application.properties, que desde a issue #80
+     * é a final (esforço none e nível prioritário), e não mais os parâmetros do resultados01.
+     */
+    static final String ESTRATEGIA_PADRAO = "nenhuma (configuração do application.properties)";
 
     private static final String SENHA = "uma senha de teste";
     private static final Cronometro CRONOMETRO = new Cronometro();
