@@ -15,9 +15,13 @@ relatório próprio, e comparada à linha de base das execuções 02 a 04 (veja 
 
 ## Resultado da issue #80
 
-**O RNF-03 foi atingido em duas execuções seguidas, e a moderação por frase continua.** A configuração
-final é o esforço de raciocínio `none`, o nível de serviço prioritário da OpenAI e uma conexão única com
-o provedor, aberta ao subir a aplicação. Ela é o padrão do `application.properties`.
+**O RNF-03 foi atingido nas duas execuções da configuração final, e a moderação por frase continua.**
+A configuração final é o esforço de raciocínio `none`, o nível de serviço prioritário da OpenAI e uma
+conexão única com o provedor, aberta ao subir a aplicação. Ela é o padrão do `application.properties`.
+As duas execuções (08 e 09) rodaram na mesma tarde, com 11 minutos de diferença (13h51 e 14h02), e a 09
+é uma execução de diagnóstico, com o log HTTP ligado. Sem o nível prioritário, a meta não é atingida: o
+`none` no nível padrão (05) ficou em 83,3%. Veja em "Pontos a observar" o que acontece se a OpenAI
+atender no nível padrão.
 
 | Relatório | Esforço | Nível de serviço | Conexão única | Em até 3 s | Média | p95 | Espera do provedor (média) |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: |
@@ -91,6 +95,10 @@ os que rodaram no nível prioritário; do 08 em diante, no prioritário.
 - **Conexão ociosa.** O cliente HTTP do JDK fecha, por padrão, a conexão parada há 30 s. Com intervalos
   maiores entre as perguntas, a moderação da pergunta reabre a conexão e paga o handshake; o streaming
   continua aproveitando a conexão que ela abriu.
+- **Rebaixamento do nível de serviço.** A OpenAI pode atender um pedido prioritário no nível padrão, e
+  informa isso no campo `service_tier` da resposta. A aplicação não lê esse campo: nesse caso, a
+  latência esperada volta à da 05 (83,3% em até 3 s, abaixo da meta), o custo gravado fica no dobro do
+  cobrado e os parâmetros gravados continuam dizendo `priority`.
 - **Horário.** A latência da OpenAI varia com o horário: a 01, de madrugada, foi bem mais rápida que as
   linhas de base, rodadas em horário comercial nos EUA. As execuções finais rodaram à tarde.
 
