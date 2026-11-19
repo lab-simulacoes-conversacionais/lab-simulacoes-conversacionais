@@ -66,7 +66,7 @@ class ProvedorSpringAiTest {
         provedor = new ProvedorSpringAi(modelo, moderacao, "openai", SUGESTAO);
     }
 
-    /** IA_MODELO definida sem valor vence o padrão e deixaria o pedido sem modelo (HTTP 400). */
+    /** IA_MODELO_CHAT definida sem valor vence o padrão e deixaria o pedido sem modelo (HTTP 400). */
     @Test
     void modeloVazioNaConfiguracaoImpedeASubida() {
         ChatModel semModelo = mock(ChatModel.class);
@@ -74,7 +74,7 @@ class ProvedorSpringAiTest {
 
         assertThatThrownBy(() -> new ProvedorSpringAi(semModelo, moderacao, "openai", SUGESTAO))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("IA_MODELO");
+                .hasMessageContaining("IA_MODELO_CHAT");
     }
 
     @Test

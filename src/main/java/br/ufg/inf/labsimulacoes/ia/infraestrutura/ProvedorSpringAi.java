@@ -63,7 +63,7 @@ class ProvedorSpringAi implements ProvedorDeIa {
     private final OpcoesDaSugestao sugestao;
 
     /**
-     * Uma variável IA_MODELO definida mas vazia vence o padrão do application.properties e deixa o modelo
+     * Uma variável IA_MODELO_CHAT definida mas vazia vence o padrão do application.properties e deixa o modelo
      * em branco. Sem esta conferência, a aplicação subiria e cada pergunta falharia com HTTP 400.
      *
      * @param sugestao opções do modelo só para a sugestão de cenário
@@ -75,7 +75,7 @@ class ProvedorSpringAi implements ProvedorDeIa {
             OpcoesDaSugestao sugestao) {
         ChatOptions padrao = modeloDeConversa.getDefaultOptions();
         if (padrao != null && (padrao.getModel() == null || padrao.getModel().isBlank())) {
-            throw new IllegalStateException("O modelo de conversa está vazio: confira a variável IA_MODELO, que não"
+            throw new IllegalStateException("O modelo de conversa está vazio: confira a variável IA_MODELO_CHAT, que não"
                     + " pode estar definida sem valor, e a propriedade spring.ai.openai.chat.options.model");
         }
         this.modeloDeConversa = modeloDeConversa;

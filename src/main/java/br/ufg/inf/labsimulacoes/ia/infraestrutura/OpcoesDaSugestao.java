@@ -15,7 +15,7 @@ record OpcoesDaSugestao(String modelo, String esforcoDeRaciocinio, String nivelD
     OpcoesDaSugestao {
         if (modelo == null || modelo.isBlank()) {
             throw new IllegalStateException("O modelo da sugestão está vazio: confira as variáveis IA_MODELO_SUGESTAO"
-                    + " e IA_MODELO, que não podem estar definidas sem valor, e a propriedade ia.sugestao.modelo");
+                    + " e IA_MODELO_CHAT, que não podem estar definidas sem valor, e a propriedade ia.sugestao.modelo");
         }
         if (tetoDeTokens < 1) {
             throw new IllegalStateException("O teto de tokens da sugestão precisa ser positivo: " + tetoDeTokens);
