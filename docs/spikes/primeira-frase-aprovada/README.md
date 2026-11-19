@@ -45,6 +45,15 @@ de base, com os mesmos parâmetros da original:
   -Dspike.estrategia="A: conexão de streaming aquecida ao subir"
 ```
 
+As propriedades da aplicação também podem ser trocadas na linha de comando, sem mexer no código. O
+cabeçalho do relatório mostra o modelo, o esforço de raciocínio e o nível de serviço usados:
+
+```sh
+./mvnw test -Dtest=PrimeiraFraseAprovadaComOpenAiTest -Dia.spike-primeira-frase=true -Djacoco.skip=true \
+  -Dspring.ai.openai.chat.options.reasoning-effort=minimal \
+  -Dspike.estrategia="E1: esforço de raciocínio minimal"
+```
+
 O relatório traz uma tabela que compara a execução com a linha de base: a proporção dentro da meta, a
 média, o p95 e o máximo da primeira frase na tela, a espera do provedor até o primeiro trecho e as
 etapas principais. Os números ficam copiados no teste, para a comparação continuar valendo mesmo que o

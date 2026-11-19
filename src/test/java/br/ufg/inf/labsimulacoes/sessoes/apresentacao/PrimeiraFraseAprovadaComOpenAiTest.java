@@ -275,12 +275,13 @@ class PrimeiraFraseAprovadaComOpenAiTest {
         var md = new StringBuilder();
         md.append("# Resultados: primeira frase aprovada na tela (issues #19 e #80)\n\n");
         md.append(String.format(Locale.ROOT,
-                "Gerado em %s. Modelo `%s`, esforço de raciocínio `%s`, moderação `%s`. %d perguntas de "
-                        + "referência numa sessão só, com %d s entre uma resposta e a próxima pergunta. Rodado em "
-                        + "Java %s, %s.%n%n",
+                "Gerado em %s. Modelo `%s`, esforço de raciocínio `%s`, nível de serviço `%s`, moderação `%s`. "
+                        + "%d perguntas de referência numa sessão só, com %d s entre uma resposta e a próxima "
+                        + "pergunta. Rodado em Java %s, %s.%n%n",
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")),
                 ambiente.getProperty("spring.ai.openai.chat.options.model"),
                 ambiente.getProperty("spring.ai.openai.chat.options.reasoning-effort"),
+                ambiente.getProperty("spring.ai.openai.chat.options.service-tier", "padrão do projeto"),
                 ambiente.getProperty("spring.ai.openai.moderation.options.model"),
                 medicoes.size(), intervaloS, System.getProperty("java.version"), System.getProperty("os.name")));
         md.append("**Estratégia:** ").append(estrategia).append("\n\n");
