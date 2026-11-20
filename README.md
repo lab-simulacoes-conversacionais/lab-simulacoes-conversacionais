@@ -129,6 +129,39 @@ As habilidades da BNCC ficam na tabela `habilidade_bncc` e vêm dos arquivos em 
 - **Cache:** cada busca fica no Redis (cache `habilidades-bncc`), com a chave formada pelos filtros normalizados. A importação limpa o cache inteiro depois que a gravação é confirmada. A validade de 24 horas (`bncc.cache.validade`) é só uma garantia a mais.
 - **Outra etapa:** basta criar um novo leitor que implemente `FonteDeHabilidades` na infraestrutura de `cenarios`. A importação junta as habilidades de todos os leitores.
 
+### Modo de teste do cenário
+
+Antes de aprovar, o curador conversa com o personagem da versão em curadoria (RF-09), pelo mesmo adaptador e pelo mesmo montador de prompt da sala.
+
+- **Caso de uso:** `TesteDoCenario.perguntar(cenarioId, texto)`, só com o perfil Curador. Só se testa a versão Em curadoria, e o autor do cenário ou da versão nunca testa a própria, mesmo tendo o perfil Curador (RN-05, RN-36). Devolve a `PerguntaDeTeste` com o resultado e a resposta inteira. A pergunta tem no máximo 1000 caracteres, depois de tirar os espaços das pontas, o mesmo limite do campo da pergunta na sala.
+- **Reserva antes da IA:** cada pergunta passa por três passos, e nenhuma chamada à IA fica dentro de transação.
+  1. Numa transação curta, com o cenário travado, o caso de uso confere a versão, o autor e o teto e grava a pergunta como `PENDENTE` na rodada em aberto.
+  2. Fora de transação, modera a pergunta, gera a resposta inteira e modera a resposta.
+  3. Noutra transação curta, grava o resultado na mesma linha: `CONCLUIDA`, `PERGUNTA_BLOQUEADA`, `RESPOSTA_BLOQUEADA` ou `FALHA`.
+
+  Com a trava, pedidos ao mesmo tempo nunca passam do teto. Uma resposta já gerada fica sempre ligada à pergunta, também quando a moderação falha depois: o `resposta_ia_meta_id` é único, e nenhum consumo da IA fica sem a pergunta que o gerou.
+- **Filtro (RN-20):** se a pergunta for bloqueada, ela não chega ao modelo. Se a resposta for bloqueada, ela não volta nem é guardada. Nos dois casos, a pergunta fica com a situação, e a tela mostra o aviso neutro no lugar da resposta. Não abre caso na fila do curador nem publica evento.
+- **Não é sessão de turma:** o teste não cria sessão nem mensagem, não usa o Redis da sessão e não publica evento nenhum. Grava só em `pergunta_de_teste`, então não entra nas métricas. O consumo fica em `resposta_ia_meta`, apontado pela pergunta, como na sala (RNF-10, RNF-13).
+- **Duas contagens da rodada em aberto:**
+  - **Teto (RNF-13):** `PerguntasDeTeste.ocupadas` conta todas as perguntas da rodada do curador, pendentes, concluídas, bloqueadas e com falha, porque qualquer tentativa gasta algo. O teto é `cenarios.teste.perguntas-por-versao` (40 por padrão, no mínimo 5), e passar dele é recusado antes de chamar a IA (`LimiteDoTesteAtingido`).
+  - **Checklist (RN-06, #27):** `PerguntasDeTeste.contar(versaoId, curadorId)` conta só as que testaram o personagem: concluídas e de resposta bloqueada. Pendentes, falhas e perguntas bloqueadas não contam. O mínimo é `PerguntasDeTeste.MINIMO_PARA_APROVAR` (5).
+- **Pendente presa:** se a aplicação cair entre a reserva e o resultado, a pergunta fica `PENDENTE`. Ela só ocupa a sua vaga do teto até a próxima devolução e não conta para o RN-06.
+- **Rodada:** a devolução volta a mesma versão a rascunho, na mesma linha. Por isso o `DevolucaoDeCenario` liga todas as perguntas em aberto da versão à devolução (`devolucao_id`), inclusive as pendentes, e as contagens e o histórico recomeçam na versão reenviada. Uma pergunta pendente fechada pela devolução recebe o resultado depois, mas continua na rodada fechada: o caso de uso responde com `TesteNaoPermitido`, e ela não conta na rodada nova, mesmo que a versão seja reenviada sem edição.
+- **Histórico:** o modelo recebe as últimas 20 falas concluídas da rodada do próprio curador, como na sala.
+- **Para a tela (#33):** `PerguntasDeTeste.daRodada(versaoId, curadorId)` traz a conversa da rodada, da mais antiga para a mais nova. A resposta só existe na situação `CONCLUIDA`. Com `FalhaNoProvedorDeIa`, a pergunta fica com a situação de falha, ocupando a vaga, e pode ser feita de novo.
+- **Retenção:** o RN-33 cobre só as conversas das sessões, então `pergunta_de_teste` não é apagada por nenhum job. Ela guarda só o que o curador digitou e o que o personagem respondeu, sem dado de aluno. Se o PO quiser um prazo, ele entra no job de retenção do RNF-15.
+
+### Sessão em sala
+
+A sessão fica ligada ao professor, à turma e à versão aprovada vigente no início (RF-14, RN-10). Ela tem três estados: Em andamento, Pausada e Encerrada.
+
+- **Início:** a `InicioDeSessao` recebe a turma e o cenário e só aceita o perfil Professor. Ela recusa uma turma que não existe e um cenário sem versão aprovada (RN-01).
+- **Controles:** a `ControlesDaSessao` pausa, retoma, reinicia e encerra (RF-17). Só o professor que iniciou a sessão a controla. Pausar e retomar gravam um evento em `evento_sessao`, com o motivo da pausa. Reiniciar grava o ponto de corte: a tela fica limpa, mas as mensagens continuam no banco (RN-19). Sessão encerrada não aceita nenhum controle.
+- **Uma sessão por turma:** só a sessão Em andamento bloqueia a turma, pelo índice único `uq_sessao_em_andamento_por_turma` (RN-10). A sessão pausada não impede outra, mas também não volta enquanto a outra estiver em andamento.
+- **Estado no Redis:** cada sessão tem a chave `sessao:<id>:estado`, com status, motivo da pausa, tempo em pausa, ponto de reinício, contador de perguntas e as 20 últimas mensagens da tela. A chave é gravada só depois que a transação é confirmada, e a validade recomeça a cada gravação (`sessoes.estado.validade`, 6 horas por padrão).
+- **Reconstrução:** o PostgreSQL é a fonte da verdade. Os controles (pausar, retomar, reiniciar e encerrar) sempre partem do estado refeito a partir de `sessao`, `evento_sessao` e `mensagem`, com a sessão travada, e nunca da chave do Redis, que pode ainda não ter recebido a gravação do controle anterior. A chave serve à leitura da tela: se ela sumir ou discordar do banco, o estado é refeito e gravado de novo (RNF-04). Falha do Redis não derruba a aula.
+- **Mensagens:** quem gravar mensagens (RF-16) precisa usar o horário da aplicação em `mensagem.criado_em`, porque o ponto de reinício também usa esse relógio.
+
 ### Observabilidade e custo da IA
 
 O RNF-13 pede latência, erros, tokens e custo por sessão, e um alerta ao administrador quando o custo do dia passar do custo diário máximo dos parâmetros.
@@ -141,17 +174,6 @@ O RNF-13 pede latência, erros, tokens e custo por sessão, e um alerta ao admin
 - **Contagem repetida de tokens:** o Spring AI já conta os tokens em `gen_ai.client.token.usage`, por modelo e tipo (`input` e `output`), o que foi confirmado em execução (`TetoDeTokensNaRequisicaoTest`). O `lab.ia.tokens` repete essa contagem para separar por finalidade, que o Spring AI não conhece.
 - **Exposição:** o Actuator continua expondo só o `health`, e o Caddy bloqueia o resto. Os contadores ficam na memória da aplicação até haver um coletor.
 - **Preço da sugestão superestimado:** a tabela de preços é uma só (`ia.preco.*`), com a tarifa do nível prioritário, mas a sugestão roda no nível padrão, que custa a metade. O custo gravado da sugestão, e com ele o custo do dia, fica acima do cobrado. A correção fica para uma issue separada.
-
-### Sessão em sala
-
-A sessão fica ligada ao professor, à turma e à versão aprovada vigente no início (RF-14, RN-10). Ela tem três estados: Em andamento, Pausada e Encerrada.
-
-- **Início:** a `InicioDeSessao` recebe a turma e o cenário e só aceita o perfil Professor. Ela recusa uma turma que não existe e um cenário sem versão aprovada (RN-01).
-- **Controles:** a `ControlesDaSessao` pausa, retoma, reinicia e encerra (RF-17). Só o professor que iniciou a sessão a controla. Pausar e retomar gravam um evento em `evento_sessao`, com o motivo da pausa. Reiniciar grava o ponto de corte: a tela fica limpa, mas as mensagens continuam no banco (RN-19). Sessão encerrada não aceita nenhum controle.
-- **Uma sessão por turma:** só a sessão Em andamento bloqueia a turma, pelo índice único `uq_sessao_em_andamento_por_turma` (RN-10). A sessão pausada não impede outra, mas também não volta enquanto a outra estiver em andamento.
-- **Estado no Redis:** cada sessão tem a chave `sessao:<id>:estado`, com status, motivo da pausa, tempo em pausa, ponto de reinício, contador de perguntas e as 20 últimas mensagens da tela. A chave é gravada só depois que a transação é confirmada, e a validade recomeça a cada gravação (`sessoes.estado.validade`, 6 horas por padrão).
-- **Reconstrução:** o PostgreSQL é a fonte da verdade. Os controles (pausar, retomar, reiniciar e encerrar) sempre partem do estado refeito a partir de `sessao`, `evento_sessao` e `mensagem`, com a sessão travada, e nunca da chave do Redis, que pode ainda não ter recebido a gravação do controle anterior. A chave serve à leitura da tela: se ela sumir ou discordar do banco, o estado é refeito e gravado de novo (RNF-04). Falha do Redis não derruba a aula.
-- **Mensagens:** quem gravar mensagens (RF-16) precisa usar o horário da aplicação em `mensagem.criado_em`, porque o ponto de reinício também usa esse relógio.
 
 ## Regras de fronteira
 
