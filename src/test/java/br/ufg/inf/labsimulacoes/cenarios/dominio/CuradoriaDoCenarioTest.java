@@ -40,7 +40,7 @@ class CuradoriaDoCenarioTest {
 
     @Test
     void curadorAprovaEAVersaoFicaAprovadaComQuemEQuando() {
-        Cenario aprovado = emCuradoria().aprovar(CURADORA, AGORA);
+        Cenario aprovado = emCuradoria().aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA);
 
         assertThat(aprovado.status()).isEqualTo(StatusDoCenario.APROVADO);
         assertThat(aprovado.versao().status()).isEqualTo(StatusDaVersao.APROVADA);
@@ -52,7 +52,7 @@ class CuradoriaDoCenarioTest {
     /** RN-05. */
     @Test
     void professorNaoAprova() {
-        assertThatThrownBy(() -> emCuradoria().aprovar(PROFESSORA, AGORA))
+        assertThatThrownBy(() -> emCuradoria().aprovar(PROFESSORA, ConteudosDeTeste.CONFERIDA, AGORA))
                 .isInstanceOf(DecisaoDeCuradoriaNaoPermitida.class)
                 .hasMessageContaining("RN-05");
     }
@@ -62,7 +62,7 @@ class CuradoriaDoCenarioTest {
     void curadorNaoAprovaOCenarioQueCriou() {
         var autoraCuradora = new Revisor(AUTOR, true);
 
-        assertThatThrownBy(() -> emCuradoria().aprovar(autoraCuradora, AGORA))
+        assertThatThrownBy(() -> emCuradoria().aprovar(autoraCuradora, ConteudosDeTeste.CONFERIDA, AGORA))
                 .isInstanceOf(DecisaoDeCuradoriaNaoPermitida.class)
                 .hasMessageContaining("RN-36");
     }
@@ -73,7 +73,7 @@ class CuradoriaDoCenarioTest {
         var versao = new VersaoDoCenario(2L, 1, StatusDaVersao.EM_CURADORIA, ConteudosDeTeste.completo(), CURADORA.id());
         var cenario = new Cenario(1L, AUTOR, StatusDoCenario.EM_CURADORIA, versao);
 
-        assertThatThrownBy(() -> cenario.aprovar(CURADORA, AGORA)).isInstanceOf(DecisaoDeCuradoriaNaoPermitida.class);
+        assertThatThrownBy(() -> cenario.aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA)).isInstanceOf(DecisaoDeCuradoriaNaoPermitida.class);
     }
 
     @ParameterizedTest
@@ -82,7 +82,7 @@ class CuradoriaDoCenarioTest {
         var versao = new VersaoDoCenario(2L, 1, status, ConteudosDeTeste.completo(), AUTOR);
         var cenario = new Cenario(1L, AUTOR, StatusDoCenario.RASCUNHO, versao);
 
-        assertThatThrownBy(() -> cenario.aprovar(CURADORA, AGORA))
+        assertThatThrownBy(() -> cenario.aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA))
                 .isInstanceOf(CenarioForaDeCuradoria.class)
                 .hasMessageContaining(status.name());
         assertThatThrownBy(() -> cenario.devolver(CURADORA, "Corrigir", AGORA))
@@ -91,9 +91,9 @@ class CuradoriaDoCenarioTest {
 
     @Test
     void aprovadoNaoEAprovadoDeNovo() {
-        Cenario aprovado = emCuradoria().aprovar(CURADORA, AGORA);
+        Cenario aprovado = emCuradoria().aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA);
 
-        assertThatThrownBy(() -> aprovado.aprovar(new Revisor(30L, true), AGORA)).isInstanceOf(CenarioForaDeCuradoria.class);
+        assertThatThrownBy(() -> aprovado.aprovar(new Revisor(30L, true), ConteudosDeTeste.CONFERIDA, AGORA)).isInstanceOf(CenarioForaDeCuradoria.class);
     }
 
     @Test
