@@ -1,6 +1,7 @@
 package br.ufg.inf.labsimulacoes.metricas.infraestrutura;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.metricas.dominio.AlertaDeCusto;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +62,24 @@ class AlertasDeCustoJdbcTest {
         assertThat(alertas.registrar(new AlertaDeCusto(DIA.plusDays(1), new BigDecimal("0.02"), new BigDecimal("0.01"))))
                 .isTrue();
         assertThat(alertas.doDia(DIA.plusDays(2))).isEmpty();
+    }
+
+    /**
+     * O banco segue a regra do alerta: custo igual ao limite não é alerta. Sem isso, uma linha inserida à
+     * mão derrubaria a leitura do alerta, a tela de Consumo e a conferência agendada.
+     */
+    @Test
+    void bancoRecusaAlertaComCustoIgualAoLimite() {
+        assertThatThrownBy(() -> jdbc.update(
+                        "INSERT INTO alerta_custo_diario (dia, custo, limite) VALUES (?, 0.01, 0.01)", DIA))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void bancoRecusaAlertaComCustoAbaixoDoLimite() {
+        assertThatThrownBy(() -> jdbc.update(
+                        "INSERT INTO alerta_custo_diario (dia, custo, limite) VALUES (?, 0.005, 0.01)", DIA))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     /** Um limite maior que qualquer custo de uma resposta cabe, porque o parâmetro não tem teto. */

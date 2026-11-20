@@ -17,10 +17,12 @@ CREATE INDEX ix_resposta_ia_meta_referencia ON resposta_ia_meta (finalidade, ref
 -- RNF-13: um alerta ao administrador por dia em que o custo passou do limite. A chave primária garante
 -- um só alerta por dia, mesmo com a conferência rodando de novo, depois de um reinício ou em duas
 -- instâncias. O custo e o limite são os do momento do alerta; sem precisão fixa, porque o parâmetro do
--- administrador não tem teto.
+-- administrador não tem teto. Só há alerta quando o custo passou do limite, estritamente, a mesma regra
+-- de AlertaDeCusto: uma linha fora dela derrubaria a leitura do alerta.
 CREATE TABLE alerta_custo_diario (
     dia       DATE        PRIMARY KEY,
     custo     NUMERIC     NOT NULL CHECK (custo >= 0),
     limite    NUMERIC     NOT NULL CHECK (limite > 0),
-    criado_em TIMESTAMPTZ NOT NULL DEFAULT now()
+    criado_em TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT ck_alerta_custo_diario_passou_do_limite CHECK (custo > limite)
 );
