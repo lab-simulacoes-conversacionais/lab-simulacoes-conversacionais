@@ -160,26 +160,131 @@ tbody tr:hover { background: #f8f9ff; }
 .stats-grid strong { display: block; font-size: 36px; color: var(--blue); }
 .stats-grid small { color: var(--muted); }
 
-.login-page { --mx: 0; --my: 0; --x: 50%; --y: 50%; min-height: 100vh; display: grid; place-items: center; background: var(--surface); position: relative; overflow: hidden; padding: 30px; isolation: isolate; }
-.login-page::before { content: ""; position: absolute; width: 52vw; height: 52vw; border-radius: 50%; background: var(--blue); left: -31vw; top: -27vw; z-index: -1; transform: translate3d(calc(var(--mx) * -26px), calc(var(--my) * -26px), 0); transition: transform .9s var(--ease); }
-.login-page::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(520px circle at var(--x) var(--y), rgba(255, 255, 255, .55), transparent 62%); opacity: 0; transition: opacity .6s var(--ease); }
-.login-page.interativo::after { opacity: 1; }
-.login-shapes { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
-.login-shapes span { position: absolute; transition: transform .9s var(--ease); will-change: transform; }
-.login-shapes span:nth-child(1) { right: 7vw; bottom: -80px; width: 230px; height: 230px; border-radius: 50%; background: var(--yellow); transform: translate3d(calc(var(--mx) * 34px), calc(var(--my) * 34px), 0); }
-.login-shapes span:nth-child(2) { right: -55px; top: 22%; width: 110px; height: 220px; border-radius: 110px 0 0 110px; background: var(--red); transform: translate3d(calc(var(--mx) * -18px), calc(var(--my) * 22px), 0); }
-.login-shapes span:nth-child(3) { left: 11%; bottom: 11%; width: 0; height: 0; border-top: 17px solid transparent; border-bottom: 17px solid transparent; border-left: 25px solid var(--yellow); filter: drop-shadow(40px 0 0 var(--yellow)) drop-shadow(40px 0 0 var(--yellow)); transform: translate3d(calc(var(--mx) * 48px), calc(var(--my) * -30px), 0); }
-.login-shapes span:nth-child(4) { left: 26%; top: 14%; width: 74px; height: 74px; border-radius: 50%; border: 12px solid var(--yellow); transform: translate3d(calc(var(--mx) * 60px), calc(var(--my) * 60px), 0) rotate(calc(var(--mx) * 20deg)); }
-.login-shapes span:nth-child(5) { right: 24%; top: 9%; width: 22px; height: 22px; border-radius: 50%; background: var(--blue); transform: translate3d(calc(var(--mx) * -70px), calc(var(--my) * -50px), 0); }
-.login-shapes span:nth-child(6) { left: 6%; top: 58%; width: 120px; height: 14px; border-radius: 999px; background: var(--red); opacity: .9; transform: translate3d(calc(var(--mx) * 40px), calc(var(--my) * 40px), 0) rotate(calc(-18deg + var(--mx) * 10deg)); }
-.login-card { width: min(460px, 100%); padding: 40px 44px; box-shadow: 0 30px 80px -20px rgba(14, 34, 130, .35); position: relative; z-index: 1; border-color: rgba(255, 255, 255, .7); animation: entrar .5s var(--ease) both; }
-.login-card .btn { min-height: 48px; font-size: 15px; }
-.login-brand { margin-bottom: 34px; }
-.login-copy h1 { font-size: 38px; margin-bottom: 8px; }
-.login-copy > p:last-child { color: var(--muted); line-height: 1.5; }
+/* ---------- Login ----------
+   À esquerda, a turma numa moldura arredondada; à direita, o formulário sobre fundo claro com as formas da marca.
+   A interação (formas do fundo acompanhando o mouse, olho da senha)
+   vem do login.js; sem JavaScript ou com movimento reduzido, a tela fica estática e completa. */
+.login-page { --mx: 0; --my: 0; --escala: max(15px, 1.15vw); min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow-x: clip; background: #fbfcff; }
+
+.login-hero { --respiro: max(16px, .85vw); padding: var(--respiro) 0 var(--respiro) var(--respiro); }
+.login-moldura { position: sticky; top: var(--respiro); height: calc(100vh - 2 * var(--respiro)); min-height: 560px; border-radius: max(28px, 1.5vw); overflow: hidden; isolation: isolate; background: #3d8bf0; color: var(--white); box-shadow: 0 24px 60px -24px rgba(8, 40, 199, .55); }
+.login-moldura > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 50% 78%; }
+/* Esfumado leve: as bordas da ilustração escurecem de leve em direção ao centro, para dar profundidade. */
+.login-moldura::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; background: radial-gradient(ellipse 85% 80% at 50% 55%, transparent 55%, rgba(5, 22, 90, .28) 100%); box-shadow: inset 0 0 3vw rgba(5, 22, 90, .18); }
+/* A marca no canto da ilustração, numa pílula de vidro claro que se lê sobre qualquer parte do céu. */
+.login-hero-marca { position: absolute; top: max(16px, 1.4vw); left: max(16px, 1.4vw); z-index: 1; font-size: var(--escala); gap: .75em; padding: .5em 1.25em .5em .5em; border-radius: 999px; background: rgba(255, 255, 255, .88); border: 1px solid rgba(255, 255, 255, .8); box-shadow: 0 12px 30px -14px rgba(3, 12, 70, .55); backdrop-filter: blur(12px) saturate(1.4); animation: entrar .6s var(--ease) both; }
+.login-hero-marca strong { font-size: 1.125em; }
+.login-hero-marca small { font-size: .6875em; margin-top: .36em; }
+.login-hero-marca .brand-mark { width: 2.3em; height: 2.3em; }
+.login-hero-marca .brand-mark::before { width: 1.06em; height: 1.06em; top: .25em; right: .19em; }
+.login-hero-marca .brand-mark span { width: 1.375em; height: 1em; bottom: -.25em; left: -.19em; }
+
+/* Robô: fora da tela por enquanto (o markup está comentado em login.html). Parado no céu, flutuando de leve;
+   só os olhos acompanham o mouse (login.js). */
+.robo { position: absolute; left: 62%; top: 9%; width: clamp(96px, 15vh, 160px); z-index: 1; pointer-events: none; }
+.robo-corpo { position: relative; animation: robo-flutuar 3.6s ease-in-out infinite; }
+.robo-corpo > img { display: block; width: 100%; height: auto; filter: drop-shadow(0 18px 18px rgba(3, 12, 70, .35)); }
+.robo-rosto { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.robo-rosto [data-robo-olhar] { transition: transform .12s linear; }
+.robo-olhos-abertos { fill: #7ff4ff; transform-box: fill-box; transform-origin: center; animation: robo-piscar 4.2s infinite; transition: opacity .2s var(--ease); }
+.robo-reflexo { fill: #fff; }
+.robo-olhos-felizes, .robo-boca { fill: none; stroke: #7ff4ff; stroke-width: 26; stroke-linecap: round; }
+.robo-olhos-felizes { opacity: 0; transition: opacity .2s var(--ease); }
+.robo-bochechas { fill: none; stroke: #ff7ad9; stroke-width: 10; stroke-linecap: round; opacity: .9; }
+/* Sem o mouse por perto (ou quando o cursor encosta nele), o robô fica com os olhinhos fechados de alegria. */
+.robo.feliz .robo-olhos-abertos { opacity: 0; }
+.robo.feliz .robo-olhos-felizes { opacity: 1; }
+@keyframes robo-flutuar { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+@keyframes robo-piscar { 0%, 92%, 100% { scale: 1 1; } 95% { scale: 1 .1; } }
+/* Lado do formulário. Tudo aqui é medido em em a partir de --escala, que é uma fração da largura da tela, sem
+   teto. Com Ctrl − a largura em CSS aumenta na mesma proporção em que o zoom diminui, então o formulário mantém
+   o tamanho na tela, igual à ilustração. O piso de 15px só vale em janelas estreitas, para a leitura. */
+.login-lado { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; padding: max(28px, 3.4vw) max(24px, 5vw); }
+.login-form-area { flex: 1; display: grid; place-items: center; padding: 2em 0; font-size: var(--escala); }
+.login-form { width: min(27em, 100%); font-size: var(--escala); animation: entrar .6s .08s var(--ease) both; }
+.login-cabecalho { margin-bottom: 2.5em; }
+.login-form h1 { font-size: 2.2em; line-height: 1.1; letter-spacing: -.02em; margin: 0 0 .4em; }
+.login-subtitulo { color: var(--muted); line-height: 1.55; margin: 0; }
+.login-form form label { font-size: .8125em; font-weight: 700; color: #3a3f4d; margin: 1.35em 0 .55em; }
+.login-form form > label:first-child { margin-top: 0; }
+
+.campo { position: relative; }
+.campo input { font: inherit; font-size: 1em; min-height: 3.25em; padding: 0 1em 0 2.9em; border-radius: .7em; background: #fff; border-color: #d9def0; }
+.campo input::placeholder { color: #a3a9ba; }
+.campo input[name="senha"]::placeholder { letter-spacing: .12em; }
+.campo svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.campo-icone { position: absolute; left: .95em; top: 50%; translate: 0 -50%; width: 1.25em; height: 1.25em; color: #8b92a6; pointer-events: none; transition: color var(--rapido) var(--ease), scale var(--medio) var(--ease); }
+.campo:focus-within .campo-icone { color: var(--blue); scale: 1.1; }
+.campo-ok { position: absolute; right: .875em; top: 50%; translate: 0 -50%; width: 1.375em; height: 1.375em; color: var(--green); pointer-events: none; opacity: 0; scale: .4; transition: opacity var(--medio) var(--ease), scale var(--medio) cubic-bezier(.34, 1.56, .64, 1); }
+.campo.valido .campo-ok { opacity: 1; scale: 1; }
+.campo.valido input { padding-right: 2.75em; }
+.campo input[name="senha"] { padding-right: 3.25em; }
+.campo-olho { position: absolute; right: .375em; top: 50%; translate: 0 -50%; width: 2.5em; height: 2.5em; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: #6b7287; display: grid; place-items: center; cursor: pointer; transition: background-color var(--rapido) var(--ease), color var(--rapido) var(--ease); }
+.campo-olho:hover { background: var(--surface); color: var(--blue); }
+/* O olho só aparece depois que a pessoa começa a digitar a senha (campo sem o placeholder à mostra). */
+.campo-olho { transition: background-color var(--rapido) var(--ease), color var(--rapido) var(--ease), opacity var(--medio) var(--ease), scale var(--medio) var(--ease), visibility var(--medio); }
+.campo input:placeholder-shown ~ .campo-olho { opacity: 0; scale: .6; visibility: hidden; }
+.campo-olho:focus-visible { outline: none; box-shadow: var(--ring); }
+.campo-olho svg { width: 1.25em; height: 1.25em; grid-area: 1 / 1; transition: opacity var(--rapido) var(--ease), scale var(--medio) var(--ease); }
+.campo-olho .olho-fechado, .campo-olho[aria-pressed="true"] .olho-aberto { opacity: 0; scale: .6; }
+.campo-olho[aria-pressed="true"] .olho-fechado { opacity: 1; scale: 1; }
+.campo-dica { display: flex; align-items: center; gap: .45em; margin: .65em 0 0; font-size: .78em; font-weight: 700; color: #7a5c00; animation: entrar var(--medio) var(--ease); }
+.campo-dica[hidden] { display: none; }
+.campo-dica svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+
+.login-entrar { position: relative; width: 100%; min-height: 3.47em; margin-top: 1.75em; padding: 0 1.5em; gap: .55em; font-size: .9375em; overflow: hidden; }
+.login-entrar svg { width: 1.2em; height: 1.2em; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: translate var(--medio) var(--ease); }
+.login-entrar:hover .entrar-seta { translate: .25em 0; }
+/* Brilho que atravessa o botão ao passar o mouse. */
+.login-entrar::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%); translate: -100% 0; transition: translate .7s var(--ease); pointer-events: none; }
+.login-entrar:hover::after { translate: 100% 0; }
+.entrar-girando { display: none; width: 1.2em; height: 1.2em; border-radius: 50%; border: .16em solid rgba(255, 255, 255, .35); border-top-color: var(--white); animation: girar .7s linear infinite; }
+.login-entrar.carregando { pointer-events: none; background: var(--blue-dark); }
+.login-entrar.carregando .entrar-seta { display: none; }
+.login-entrar.carregando .entrar-girando { display: inline-block; }
+@keyframes girar { to { rotate: 360deg; } }
+
+/* Avisos (erro, sessão expirada, saída) e a nota de acesso, na mesma escala do formulário. */
+.login-form .login-erro, .login-form .login-aviso, .login-form .success-notice { font-size: .8125em; padding: .85em 1em; gap: .7em; margin: 0 0 1.1em; border-radius: .77em; }
+.login-form .login-erro > span, .login-form .login-aviso > span, .login-form .success-notice > span { width: 1.77em; height: 1.77em; }
+.login-erro { display: flex; align-items: center; background: #fff0f0; border: 1px solid #f3b4b4; color: #9c0000; font-weight: 700; }
+.login-erro > span { border-radius: 50%; background: var(--red); color: var(--white); display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; }
+.com-erro .login-form form { animation: tremer .5s .55s var(--ease) both; }
+@keyframes tremer { 0%, 100% { translate: 0 0; } 20% { translate: -8px 0; } 40% { translate: 7px 0; } 60% { translate: -5px 0; } 80% { translate: 3px 0; } }
+.login-form .access-note { font-size: .75em; gap: .6em; margin-top: 2em; }
+.login-form .access-note span { width: 1.4em; height: 1.4em; font-size: .9em; }
+
+/* Formas da marca no fundo do lado do formulário. Duas camadas de movimento que não se atrapalham: o mouse
+   desloca cada forma em profundidades diferentes (translate, com a unidade em vw para não encolher com o zoom)
+   e, por conta própria, cada uma flutua no seu ritmo (transform, na animação). */
+.login-formas { position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+.login-formas span { position: absolute; transition: translate 1.2s cubic-bezier(.2, .8, .2, 1); animation: forma-flutuar 7s ease-in-out infinite; }
+.login-formas span:nth-child(1) { right: max(-90px, -4.7vw); bottom: max(-90px, -4.7vw); width: max(240px, 12.5vw); height: max(240px, 12.5vw); border-radius: 50%; background: var(--yellow); translate: calc(var(--mx) * 3.4vw) calc(var(--my) * 3.4vw); animation-duration: 9s; }
+.login-formas span:nth-child(2) { right: -1px; top: 16%; width: max(56px, 2.9vw); height: max(112px, 5.8vw); border-radius: 999px 0 0 999px; background: var(--red); translate: 0 calc(var(--my) * 3vw); animation-name: forma-deslizar; animation-duration: 6s; animation-delay: -2s; }
+.login-formas span:nth-child(3) { right: 12%; top: 7%; width: max(54px, 2.8vw); height: max(54px, 2.8vw); border-radius: 50%; border: max(9px, .47vw) solid var(--yellow); translate: calc(var(--mx) * -4.6vw) calc(var(--my) * -3.8vw); animation-name: forma-respirar; animation-duration: 5s; }
+.login-formas span:nth-child(4) { left: 8%; bottom: 9%; width: max(18px, .94vw); height: max(18px, .94vw); border-radius: 50%; background: var(--blue); translate: calc(var(--mx) * 5.4vw) calc(var(--my) * 4.2vw); animation-duration: 4.5s; animation-delay: -1.5s; }
+@keyframes forma-flutuar { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(.6vw, -1.6vw); } }
+@keyframes forma-deslizar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2.2vw); } }
+@keyframes forma-respirar { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-.8vw, 1vw) scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .login-formas span { animation: none; translate: none; } }
+
+/* Janela estreita: a ilustração vira uma faixa no alto e o formulário vem logo abaixo. */
+@media (max-width: 960px) {
+  .login-page { --escala: 15px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .login-hero { padding: 12px 12px 0; }
+  .login-moldura { position: relative; top: 0; height: clamp(240px, 50vw, 400px); min-height: 0; border-radius: 22px; }
+  .login-moldura > img { object-position: 50% 62%; }
+  .login-lado { padding: 36px 20px 40px; }
+  .login-form-area { padding: 0; place-items: start center; }
+  .login-hero-marca { top: 10px; left: 10px; font-size: 13px; }
+  .login-formas span:nth-child(1) { width: 160px; height: 160px; right: -70px; bottom: -70px; }
+  .login-formas span:nth-child(3) { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .com-erro .login-form form { animation: none; }
+}
 form label, .modal-body > label, .form-grid label, .quiz-panel label { display: block; font-size: 13px; font-weight: 800; margin: 16px 0 7px; }
 form input, .modal-body textarea { width: 100%; }
-.login-card form .btn { margin-top: 24px; }
 .access-note { display: flex; justify-content: center; align-items: center; gap: 7px; margin: 24px 0 0; font-size: 12px; color: var(--muted); }
 
 .back-link { border: 0; padding: 6px 0; background: transparent; color: var(--blue); font-size: 14px; font-weight: 800; margin-bottom: 24px; display: inline-flex; align-items: center; gap: 8px; }
@@ -550,7 +655,6 @@ kbd { font-family: inherit; font-size: 10px; border-radius: 4px; padding: 2px 5p
   .user-identity, .user-chevron, .brand small { display: none; }
   .user-menu > summary { padding: 4px; }
   .welcome-row, .step-heading { align-items: stretch; flex-direction: column; }
-  .login-card { padding: 30px 24px; }
   .library-heading, .admin-section-head, .editor-heading { align-items: stretch; flex-direction: column; }
   .editor-steps { grid-template-columns: 1fr; }
   .bncc-results li { align-items: stretch; flex-direction: column; }

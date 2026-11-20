@@ -1,37 +1,76 @@
-// Tela de login: as formas da marca acompanham o mouse em profundidades diferentes (parallax) e uma
-// luz suave segue o cursor. O formulário não se move, para não atrapalhar quem digita.
-// Só com mouse e sem o pedido de movimento reduzido do sistema; sem isto, a tela fica estática.
+// Tela de login. Tudo aqui é enfeite ou ajuda; sem este script, o formulário funciona igual.
+// - Formulário: ✓ no e-mail válido, mostrar/ocultar senha (o olho aparece pelo CSS quando
+//   há algo digitado), aviso de Caps Lock e o botão em "Entrando…" ao enviar.
+// - Ilustração: fica parada. As formas do fundo do formulário acompanham o mouse em profundidades diferentes.
+// Com o pedido de movimento reduzido do sistema, nada se mexe.
 (() => {
-  const tela = document.querySelector(".login-page");
-  const podeAnimar = window.matchMedia("(pointer: fine) and (prefers-reduced-motion: no-preference)");
-  if (!tela || !podeAnimar.matches) return;
+  const pagina = document.querySelector(".login-page");
+  if (!pagina) return;
+  const comMovimento = window.matchMedia("(prefers-reduced-motion: no-preference)").matches;
+  const comMouse = window.matchMedia("(pointer: fine)").matches;
 
-  let quadro = 0;
-  let x = 0;
-  let y = 0;
+  /* ---------- Formulário ---------- */
 
-  const aplicar = () => {
-    quadro = 0;
-    const largura = window.innerWidth;
-    const altura = window.innerHeight;
-    tela.style.setProperty("--mx", ((x / largura) * 2 - 1).toFixed(3));
-    tela.style.setProperty("--my", ((y / altura) * 2 - 1).toFixed(3));
-    tela.style.setProperty("--x", `${x}px`);
-    tela.style.setProperty("--y", `${y}px`);
+  const email = document.getElementById("email");
+  const campoEmail = document.querySelector("[data-campo-email]");
+  if (email && campoEmail) {
+    const conferir = () => campoEmail.classList.toggle("valido", email.value.trim() !== "" && email.checkValidity());
+    email.addEventListener("input", conferir);
+    conferir();
+  }
+
+  const senha = document.getElementById("senha");
+  const olho = document.querySelector("[data-mostrar-senha]");
+  const mostrarSenha = (mostrar) => {
+    senha.type = mostrar ? "text" : "password";
+    olho.setAttribute("aria-pressed", String(mostrar));
+    olho.setAttribute("aria-label", mostrar ? "Ocultar senha" : "Mostrar senha");
   };
+  olho?.addEventListener("click", () => {
+    mostrarSenha(senha.type === "password");
+    senha.focus();
+  });
+  // Apagou tudo: o olho some e a senha volta a ficar escondida.
+  senha?.addEventListener("input", () => { if (olho && senha.value === "") mostrarSenha(false); });
 
-  // Um cálculo por quadro, mesmo com muitos eventos do mouse.
-  tela.addEventListener("pointermove", (evento) => {
-    x = evento.clientX;
-    y = evento.clientY;
-    tela.classList.add("interativo");
-    if (!quadro) quadro = requestAnimationFrame(aplicar);
+  const caps = document.querySelector("[data-caps]");
+  if (senha && caps) {
+    const conferirCaps = (evento) => { if (evento.getModifierState) caps.hidden = !evento.getModifierState("CapsLock"); };
+    senha.addEventListener("keydown", conferirCaps);
+    senha.addEventListener("keyup", conferirCaps);
+    senha.addEventListener("blur", () => { caps.hidden = true; });
+  }
+
+  const formulario = document.querySelector("[data-login-form]");
+  const botao = formulario?.querySelector("[type=submit]");
+  const rotulo = botao?.querySelector("[data-rotulo]");
+  formulario?.addEventListener("submit", () => {
+    botao.classList.add("carregando");
+    botao.setAttribute("aria-busy", "true");
+    rotulo.textContent = "Entrando…";
+  });
+  // Ao voltar para esta página pelo histórico, o botão volta ao normal.
+  window.addEventListener("pageshow", (evento) => {
+    if (!evento.persisted || !botao) return;
+    botao.classList.remove("carregando");
+    botao.removeAttribute("aria-busy");
+    rotulo.textContent = "Entrar";
   });
 
-  // Ao sair da janela, as formas voltam devagar ao lugar.
-  tela.addEventListener("pointerleave", () => {
-    tela.classList.remove("interativo");
-    tela.style.setProperty("--mx", "0");
-    tela.style.setProperty("--my", "0");
-  });
+  /* ---------- Profundidade: as formas do fundo acompanham o mouse ---------- */
+
+  if (comMovimento && comMouse) {
+    let quadro = 0, mx = 0, my = 0;
+    const aplicar = () => {
+      quadro = 0;
+      pagina.style.setProperty("--mx", mx.toFixed(3));
+      pagina.style.setProperty("--my", my.toFixed(3));
+    };
+    pagina.addEventListener("pointermove", (evento) => {
+      mx = (evento.clientX / window.innerWidth) * 2 - 1;
+      my = (evento.clientY / window.innerHeight) * 2 - 1;
+      if (!quadro) quadro = requestAnimationFrame(aplicar);
+    });
+    document.documentElement.addEventListener("pointerleave", () => { mx = 0; my = 0; aplicar(); });
+  }
 })();
