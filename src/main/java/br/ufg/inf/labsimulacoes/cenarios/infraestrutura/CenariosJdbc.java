@@ -14,6 +14,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.TrechoDoAcervo;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoAprovadaDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoNoHistorico;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,8 +23,11 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -86,6 +90,7 @@ class CenariosJdbc implements Cenarios {
             """ + ULTIMA_DEVOLUCAO + """
 
             WHERE (CAST(? AS text) IS NULL OR c.status = ?)
+              AND (CAST(? AS text) IS NULL OR v.status = ?)
             ORDER BY v.titulo, c.id
             LIMIT ? OFFSET ?""";
 
@@ -150,6 +155,31 @@ class CenariosJdbc implements Cenarios {
                 faixa_etaria = ?, duracao_prevista_min = ?, aprovado_por_id = ?, aprovado_em = ?
             WHERE id = ? AND status <> 'APROVADA'""";
 
+    /**
+     * RF-11: da mais nova para a mais antiga. Vigente é a versão que vale em sala agora: a última
+     * aprovada, e só se o cenário estiver Aprovado (suspenso e arquivado não vão para a sala, RN-01).
+     */
+    private static final String HISTORICO = "SELECT " + COLUNAS_DA_VERSAO + """
+            ,
+            v.criado_em AS versao_criada_em,
+            v.id = c.versao_vigente_id AND c.status = 'APROVADO' AS vigente
+            FROM cenario_versao v
+            JOIN cenario c ON c.id = v.cenario_id
+            WHERE v.cenario_id = ?
+            ORDER BY v.numero DESC""";
+
+    /** A última versão aprovada de cada cenário pedido, que fica em versao_vigente_id (RN-08). */
+    private static final String ULTIMAS_APROVADAS = "SELECT c.id AS cenario_id, " + COLUNAS_DA_VERSAO + """
+
+            FROM cenario c
+            JOIN cenario_versao v ON v.id = c.versao_vigente_id
+            WHERE c.id = ANY(CAST(? AS bigint[]))""";
+
+    private static final String VERSAO_PELO_NUMERO = "SELECT " + COLUNAS_DA_VERSAO + """
+
+            FROM cenario_versao v
+            WHERE v.cenario_id = ? AND v.numero = ?""";
+
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
 
@@ -205,19 +235,58 @@ class CenariosJdbc implements Cenarios {
     /** Como na biblioteca, pede um item a mais só para saber se existe a próxima página. */
     @Override
     public TrechoDoAcervo listarTodos(StatusDoCenario status, Pagina pagina) {
-        String filtro = status == null ? null : status.name();
+        // Em curadoria filtra pela versão: a versão nova de um cenário Aprovado também espera o curador (RN-08).
+        boolean pelaVersao = status == StatusDoCenario.EM_CURADORIA;
+        String doCenario = status == null || pelaVersao ? null : status.name();
+        String daVersao = pelaVersao ? StatusDaVersao.EM_CURADORIA.name() : null;
         List<Cenario> lidos = jdbc.query(
-                ACERVO, this::paraCenario, filtro, filtro, pagina.tamanho() + 1, pagina.deslocamento());
-        boolean temProxima = lidos.size() > pagina.tamanho();
-        return new TrechoDoAcervo(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
+                ACERVO, this::paraCenario, doCenario, doCenario, daVersao, daVersao,
+                pagina.tamanho() + 1, pagina.deslocamento());
+        return trechoDoAcervo(lidos, pagina);
     }
 
     @Override
     public TrechoDoAcervo listarDoAutor(long autorId, Pagina pagina) {
         List<Cenario> lidos = jdbc.query(
                 DO_AUTOR, this::paraCenario, autorId, pagina.tamanho() + 1, pagina.deslocamento());
+        return trechoDoAcervo(lidos, pagina);
+    }
+
+    /**
+     * Corta o item a mais e lê, numa consulta só, a última versão aprovada dos cenários da página em que
+     * ela não é a mais recente (RN-08).
+     */
+    private TrechoDoAcervo trechoDoAcervo(List<Cenario> lidos, Pagina pagina) {
         boolean temProxima = lidos.size() > pagina.tamanho();
-        return new TrechoDoAcervo(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
+        List<Cenario> itens = temProxima ? lidos.subList(0, pagina.tamanho()) : lidos;
+        List<Cenario> comVersaoNova = itens.stream()
+                .filter(cenario -> cenario.versao().status() != StatusDaVersao.APROVADA)
+                .toList();
+        if (comVersaoNova.isEmpty()) {
+            return new TrechoDoAcervo(itens, temProxima);
+        }
+        String ids = comVersaoNova.stream()
+                .map(cenario -> cenario.id().toString())
+                .collect(Collectors.joining(",", "{", "}"));
+        Map<Long, VersaoDoCenario> ultimasAprovadas = new HashMap<>();
+        jdbc.query(ULTIMAS_APROVADAS, (ResultSet linha) -> {
+            ultimasAprovadas.put(linha.getLong("cenario_id"), paraVersao(linha));
+        }, ids);
+        return new TrechoDoAcervo(itens, ultimasAprovadas, temProxima);
+    }
+
+    @Override
+    public List<VersaoNoHistorico> historico(long cenarioId) {
+        return jdbc.query(
+                HISTORICO,
+                (linha, numero) -> new VersaoNoHistorico(
+                        paraVersao(linha), instante(linha, "versao_criada_em"), linha.getBoolean("vigente")),
+                cenarioId);
+    }
+
+    @Override
+    public Optional<VersaoDoCenario> versao(long cenarioId, int numero) {
+        return jdbc.query(VERSAO_PELO_NUMERO, (linha, n) -> paraVersao(linha), cenarioId, numero).stream().findFirst();
     }
 
     private Optional<Cenario> consultar(String sql, long id) {
@@ -234,13 +303,18 @@ class CenariosJdbc implements Cenarios {
                 cenario.status().name(),
                 cenario.sugeridoPorIa(),
                 cenario.sugestaoDaIa());
-        VersaoDoCenario versao = cenario.versao();
+        return new Cenario(id, cenario.autorId(), cenario.status(), inserirVersao(id, cenario.versao()), null,
+                cenario.sugeridoPorIa(), cenario.sugestaoDaIa());
+    }
+
+    /** Só para versões que ainda não foram aprovadas: a aprovação é gravada por {@link #atualizarVersao}. */
+    private VersaoDoCenario inserirVersao(long cenarioId, VersaoDoCenario versao) {
         ConteudoDoCenario conteudo = versao.conteudo();
         VinculoCurricular curriculo = conteudo.curriculo();
         Long versaoId = jdbc.queryForObject(
                 INSERIR_VERSAO,
                 Long.class,
-                id,
+                cenarioId,
                 versao.numero(),
                 versao.status().name(),
                 conteudo.titulo(),
@@ -252,10 +326,7 @@ class CenariosJdbc implements Cenarios {
                 conteudo.duracaoPrevistaMin(),
                 versao.criadaPorId());
         inserirHabilidades(versaoId, curriculo.habilidades());
-        var versaoSalva = new VersaoDoCenario(
-                versaoId, versao.numero(), versao.status(), conteudo, versao.criadaPorId());
-        return new Cenario(id, cenario.autorId(), cenario.status(), versaoSalva, null, cenario.sugeridoPorIa(),
-                cenario.sugestaoDaIa());
+        return new VersaoDoCenario(versaoId, versao.numero(), versao.status(), conteudo, versao.criadaPorId());
     }
 
     private Cenario atualizar(Cenario cenario) {
@@ -264,7 +335,12 @@ class CenariosJdbc implements Cenarios {
                 "UPDATE cenario SET status = ?, atualizado_em = now() WHERE id = ?",
                 cenario.status().name(),
                 cenario.id());
-        atualizarVersao(versao);
+        // RF-11, RN-08: a versão nova de um cenário que já tem vigente.
+        if (versao.id() == null) {
+            versao = inserirVersao(cenario.id(), versao);
+        } else {
+            atualizarVersao(versao);
+        }
         if (versao.status() == StatusDaVersao.APROVADA) {
             jdbc.update("UPDATE cenario SET versao_vigente_id = ? WHERE id = ?", versao.id(), cenario.id());
         }
