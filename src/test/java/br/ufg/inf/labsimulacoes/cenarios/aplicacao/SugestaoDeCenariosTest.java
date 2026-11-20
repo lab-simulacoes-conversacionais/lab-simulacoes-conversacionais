@@ -168,7 +168,7 @@ class SugestaoDeCenariosTest {
     void sugestaoNaoMexeNosCenariosQueJaExistem() {
         Cenario aprovado = cenarios.salvar(cenarios.salvar(Cenario.novo(professora, ConteudosDeTeste.completo())
                         .enviarACuradoria(professora))
-                .aprovar(new Revisor(curadora, true), Instant.parse("2026-11-14T13:00:00Z")));
+                .aprovar(new Revisor(curadora, true), ConteudosDeTeste.CONFERIDA, Instant.parse("2026-11-14T13:00:00Z")));
         logar(PROFESSORA, "ROLE_PROFESSOR");
 
         Cenario sugerido = sugestao.sugerir(PEDIDO);

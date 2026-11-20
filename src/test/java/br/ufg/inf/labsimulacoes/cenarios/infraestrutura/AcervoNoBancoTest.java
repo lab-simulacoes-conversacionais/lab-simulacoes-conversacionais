@@ -222,7 +222,7 @@ class AcervoNoBancoTest {
     }
 
     private long aprovado(String titulo, long autor) {
-        return cenarios.salvar(emCuradoria(titulo, autor).aprovar(curadora, AGORA)).id();
+        return cenarios.salvar(emCuradoria(titulo, autor).aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA)).id();
     }
 
     private static ConteudoDoCenario conteudo(String titulo) {

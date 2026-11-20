@@ -6,8 +6,9 @@
 
 <!--
   Fila do curador (RF-08), como no protótipo: a lista dos cenários em curadoria à esquerda e o aberto à
-  direita, com aprovar e devolver. A aba de sinalizações, o modo de teste, o checklist e o histórico de
-  versões chegam com as issues #33, #34 e #44.
+  direita, com aprovar e devolver. O checklist de curadoria (RF-10) fica antes dos botões, num formulário
+  simples; o acabamento do protótipo, a aba de sinalizações, o modo de teste e o histórico de versões
+  chegam com as issues #33, #34 e #44.
 -->
 <main class="page curator-page">
   <a class="back-link" th:href="@{/}">Voltar ao início</a>
@@ -64,6 +65,23 @@
 
       <div th:replace="~{cenarios/fragmentos :: conteudo(${conteudo})}"></div>
 
+      <!-- Checklist de curadoria (RF-10, RN-06): sem ele completo e sem 5 perguntas de teste, não se aprova. -->
+      <form th:unless="${souAutor}" id="aprovacao" class="card checklist-curadoria" method="post"
+            th:action="@{/curadoria/{id}/aprovar(id=${aberto})}">
+        <fieldset>
+          <legend>Checklist de curadoria</legend>
+          <label th:each="item : ${itensDoChecklist}">
+            <input type="checkbox" name="itens" th:value="${item}"
+                   th:checked="${marcados != null and marcados.contains(item.name())}">
+            <span th:text="${#strings.capitalize(item.descricao())}">Fatos conferidos com as fontes</span>
+          </label>
+        </fieldset>
+        <p class="checklist-teste" th:classappend="${perguntasDeTeste >= minimoDeTeste} ? 'completo'"
+           th:text="|Perguntas de teste feitas por você nesta versão: ${perguntasDeTeste} de ${minimoDeTeste}|">
+          Perguntas de teste feitas por você nesta versão: 0 de 5
+        </p>
+      </form>
+
       <div class="review-actions">
         <div>
           <strong th:text="${souAutor} ? 'Aprovação bloqueada por conflito de autoria.' : 'Revise o conteúdo antes de decidir.'">Revise o conteúdo antes de decidir.</strong>
@@ -71,11 +89,9 @@
         </div>
         <button class="btn btn-ghost" type="button" data-abrir-devolucao>Devolver</button>
         <!-- Critério de aceite da #23: o botão de aprovar não aparece para o autor (RN-36). -->
-        <form th:unless="${souAutor}" method="post" th:action="@{/curadoria/{id}/aprovar(id=${aberto})}">
-          <button class="btn btn-primary" type="submit">
-            <svg th:replace="~{fragmentos/base :: iconeCheck}"></svg> Aprovar
-          </button>
-        </form>
+        <button th:unless="${souAutor}" class="btn btn-primary" type="submit" form="aprovacao">
+          <svg th:replace="~{fragmentos/base :: iconeCheck}"></svg> Aprovar
+        </button>
       </div>
 
       <!-- Devolução com comentário obrigatório (RN-07), conferido também no servidor. -->
