@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.BibliotecaDeCenarios;
 import br.ufg.inf.labsimulacoes.cenarios.CenarioDaBiblioteca;
+import br.ufg.inf.labsimulacoes.cenarios.FiltroDaBiblioteca;
+import br.ufg.inf.labsimulacoes.cenarios.FiltrosDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.PaginaDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
@@ -192,6 +194,63 @@ class BibliotecaDeCenariosTest {
     @Test
     void semLoginABibliotecaERecusada() {
         assertThatThrownBy(() -> biblioteca.listar(0, 20)).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+    }
+
+    // Busca e filtros (E2). As combinações são testadas no FiltrosDaBibliotecaNoBancoTest.
+
+    @Test
+    void professorFiltraABiblioteca() {
+        Cenario aprovado = aprovado(PROFESSORA);
+        logar(OUTRA_PROFESSORA, "ROLE_PROFESSOR");
+
+        var achou = biblioteca.listar(new FiltroDaBiblioteca("14-BIS", "história", 8, "ef08hi03"), 0, 20);
+        var naoAchou = biblioteca.listar(new FiltroDaBiblioteca(null, "Ciências", null, null), 0, 20);
+
+        assertThat(achou.cenarios()).extracting(CenarioDaBiblioteca::cenarioId).containsExactly(aprovado.id());
+        assertThat(naoAchou.cenarios()).isEmpty();
+        assertThat(naoAchou.temProxima()).isFalse();
+    }
+
+    @Test
+    void filtroSemNadaEAMesmaBiblioteca() {
+        aprovado(PROFESSORA);
+        logar(CURADORA, "ROLE_CURADOR");
+
+        assertThat(biblioteca.listar(FiltroDaBiblioteca.NENHUM, 0, 20)).isEqualTo(biblioteca.listar(0, 20));
+        assertThat(biblioteca.listar(new FiltroDaBiblioteca(" ", "", null, null), 0, 20))
+                .isEqualTo(biblioteca.listar(0, 20));
+    }
+
+    @Test
+    void filtroInvalidoERecusado() {
+        logar(PROFESSORA, "ROLE_PROFESSOR");
+
+        assertThatThrownBy(() -> biblioteca.listar(new FiltroDaBiblioteca(null, null, 12, null), 0, 20))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> biblioteca.listar(new FiltroDaBiblioteca("a".repeat(101), null, null, null), 0, 20))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> biblioteca.listar(null, 0, 20)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void filtrosDisponiveisVemDaBiblioteca() {
+        aprovado(PROFESSORA);
+        logar(PROFESSORA, "ROLE_PROFESSOR");
+
+        FiltrosDaBiblioteca filtros = biblioteca.filtrosDisponiveis();
+
+        assertThat(filtros.componentes()).containsExactly("História");
+        assertThat(filtros.anos()).containsExactly(8);
+        assertThat(filtros.habilidades()).containsExactly("EF08HI03");
+    }
+
+    @Test
+    void administradorNaoVeOsFiltros() {
+        logar(ADMINISTRADORA, "ROLE_ADMINISTRADOR");
+
+        assertThatThrownBy(() -> biblioteca.filtrosDisponiveis()).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> biblioteca.listar(FiltroDaBiblioteca.NENHUM, 0, 20))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     private Cenario aprovado(String autora) {

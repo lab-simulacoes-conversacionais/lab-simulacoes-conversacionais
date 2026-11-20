@@ -115,7 +115,7 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | `acesso` | `ParametrosDeUso` | Ler o limite de perguntas por sessão e o custo diário máximo |
 | `acesso` | `TurmasDaEscola` | Listar e buscar turmas, só para leitura, com qualquer perfil autenticado |
 | `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
-| `cenarios` | `BibliotecaDeCenarios` | Listar, em páginas de até 100, os cenários aprovados da escola (RF-12), com perfil Professor ou Curador |
+| `cenarios` | `BibliotecaDeCenarios` | Listar, em páginas de até 100, os cenários aprovados da escola, com busca por tema e filtros combináveis por componente, ano e habilidade BNCC (RF-12), com perfil Professor ou Curador |
 | `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
 
 ### Catálogo da BNCC
