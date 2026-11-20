@@ -23,6 +23,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.TesteNaoPermitido;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa.Autor;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
@@ -154,6 +155,15 @@ class TesteDoCenarioTest {
                 roteiro.limitesDeAssunto(), roteiro.fontes(), "História", 8, List.of("EF08HI03"), "13 a 14 anos"));
         assertThat(pedido.pergunta()).isEqualTo("Oi!");
         assertThat(pedido.historico()).isEmpty();
+    }
+
+    /** RNF-13: o consumo do teste fica ligado à versão testada, com a finalidade própria. */
+    @Test
+    void pedidoLevaAFinalidadeTesteDoCuradorEAVersao() {
+        teste.perguntar(cenario, "Oi!");
+
+        assertThat(pedidoEnviado().finalidade()).isEqualTo(FinalidadeDoConsumo.TESTE_DO_CURADOR);
+        assertThat(pedidoEnviado().referenciaId()).isEqualTo(versao);
     }
 
     /** O histórico é o da rodada da curadora, sem as falas bloqueadas, como na sala (RN-20). */
