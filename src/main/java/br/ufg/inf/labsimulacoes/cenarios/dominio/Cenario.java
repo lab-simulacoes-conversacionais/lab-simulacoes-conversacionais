@@ -11,6 +11,11 @@ import java.util.Objects;
  * <p>Na E1 o ciclo é Rascunho, Em curadoria e Aprovado; a devolução volta a Rascunho (Figura 3 dos
  * requisitos). A aprovação é só registrada, sem checklist (RN-06).
  *
+ * <p>Editar um cenário que já tem versão vigente gera uma versão nova em rascunho (RF-11, RN-08). Ela
+ * passa pela mesma curadoria, mas o cenário continua Aprovado (ou Suspenso) enquanto isso, porque a
+ * versão vigente segue valendo em sala até a nova ser aprovada. O status da versão é que diz se ela
+ * está em rascunho ou em curadoria.
+ *
  * @param versao a versão mais recente
  * @param ultimaDevolucao a devolução mais recente desta versão, para o autor saber o que mudar
  *     (RN-07); {@code null} se ela nunca foi devolvida
@@ -83,8 +88,8 @@ public record Cenario(
         if (!pendencias.isEmpty()) {
             throw new CenarioIncompleto(pendencias);
         }
-        return new Cenario(
-                id, autorId, StatusDoCenario.EM_CURADORIA, versao.enviada(), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
+        return new Cenario(id, autorId, statusEnquantoEmCuradoria(StatusDoCenario.EM_CURADORIA), versao.enviada(),
+                ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /**
@@ -118,7 +123,83 @@ public record Cenario(
         exigirCuradoria();
         exigirPerfilCurador(curador, "devolve");
         var devolucao = Devolucao.nova(curador.id(), comentario, momento);
-        return new Cenario(id, autorId, StatusDoCenario.RASCUNHO, versao.devolvida(), devolucao, sugeridoPorIa, sugestaoDaIa);
+        return new Cenario(id, autorId, statusEnquantoEmCuradoria(StatusDoCenario.RASCUNHO), versao.devolvida(),
+                devolucao, sugeridoPorIa, sugestaoDaIa);
+    }
+
+    /**
+     * RF-11, RN-08: o autor edita um cenário que já tem versão vigente. A versão nova começa em
+     * rascunho, com o conteúdo da vigente, e o cenário continua na sala com a vigente até a nova ser
+     * aprovada.
+     *
+     * @throws VersaoNaoPermitida se quem pede não for o autor, se o cenário não tiver versão vigente
+     *     (rascunho, em curadoria ou arquivado) ou se já houver uma versão em rascunho ou em curadoria
+     */
+    public Cenario novaVersao(long quemPede) {
+        return novaVersaoCom(quemPede, versao.conteudo());
+    }
+
+    /**
+     * RF-11: uma versão aprovada anterior volta como versão nova em rascunho, com o próximo número. A
+     * versão antiga não muda, e a nova passa pela curadoria como qualquer outra (RN-08).
+     *
+     * @param anterior a versão a restaurar, que precisa ter sido aprovada
+     * @throws VersaoNaoPermitida nos mesmos casos de {@link #novaVersao}, ou se a versão a restaurar não
+     *     tiver sido aprovada
+     */
+    public Cenario restaurar(long quemPede, VersaoDoCenario anterior) {
+        exigirAutorDaVersao(quemPede);
+        if (anterior.status() != StatusDaVersao.APROVADA) {
+            throw new VersaoNaoPermitida("Só uma versão aprovada pode ser restaurada (RF-11), e a versão "
+                    + anterior.numero() + " está em " + anterior.status());
+        }
+        // Restaurar a própria versão aprovada mais recente só criaria uma cópia para a curadoria revisar.
+        if (anterior.numero() == versao.numero()) {
+            throw new VersaoNaoPermitida("A versão " + anterior.numero()
+                    + " já é a última aprovada, e não há o que restaurar");
+        }
+        return novaVersaoCom(quemPede, anterior.conteudo());
+    }
+
+    /**
+     * RN-37: o curador vê todos os cenários, e o professor só os que criou. Vale para ver o cenário, o
+     * histórico e a comparação de versões.
+     */
+    public boolean podeSerVistoPor(Revisor quem) {
+        return quem.curador() || temAutor(quem.id());
+    }
+
+    private Cenario novaVersaoCom(long quemPede, ConteudoDoCenario conteudo) {
+        exigirAutorDaVersao(quemPede);
+        if (!temVersaoVigente()) {
+            throw new VersaoNaoPermitida("O cenário " + id + " está " + status
+                    + " e não tem versão vigente para editar: rascunho e em curadoria são editados na própria"
+                    + " versão, e arquivado não muda mais (RN-09)");
+        }
+        if (versao.status() != StatusDaVersao.APROVADA) {
+            throw new VersaoNaoPermitida("O cenário " + id + " já tem a versão " + versao.numero() + " em "
+                    + versao.status() + ". Continue por ela antes de criar outra");
+        }
+        var nova = new VersaoDoCenario(null, versao.numero() + 1, StatusDaVersao.RASCUNHO, conteudo, quemPede);
+        // A marca de sugerido por IA é do cenário, e não da versão: continua nas versões novas (RN-04).
+        return new Cenario(id, autorId, status, nova, null, sugeridoPorIa, sugestaoDaIa);
+    }
+
+    /** Como a edição do rascunho, criar versões é do autor (Figura 3 dos requisitos). */
+    private void exigirAutorDaVersao(long quemPede) {
+        if (!temAutor(quemPede)) {
+            throw new VersaoNaoPermitida("Só o autor cria versões do cenário " + id);
+        }
+    }
+
+    /** Aprovado ou suspenso: tem uma versão aprovada que continua sendo a vigente (RN-08, RN-23b). */
+    private boolean temVersaoVigente() {
+        return status == StatusDoCenario.APROVADO || status == StatusDoCenario.SUSPENSO;
+    }
+
+    /** Com versão vigente, o cenário não muda de status enquanto a versão nova vai e volta da curadoria. */
+    private StatusDoCenario statusEnquantoEmCuradoria(StatusDoCenario semVigente) {
+        return temVersaoVigente() ? status : semVigente;
     }
 
     /** Olha a versão, e não o cenário, porque a edição de um aprovado gera versão nova em rascunho (RN-08). */
