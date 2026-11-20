@@ -28,6 +28,29 @@ class AlertaDeCustoTest {
         assertThat(AlertaDeCusto.seUltrapassou(DIA, BigDecimal.ZERO, LIMITE)).isEmpty();
     }
 
+    /** A regra compartilhada pelo alerta e pela tela de consumo: estritamente acima do limite. */
+    @Test
+    void passouDoLimiteEEstritamenteAcima() {
+        assertThat(AlertaDeCusto.passouDoLimite(new BigDecimal("0.010001"), new BigDecimal("0.01"))).isTrue();
+        assertThat(AlertaDeCusto.passouDoLimite(new BigDecimal("0.010000"), new BigDecimal("0.01"))).isFalse();
+        assertThat(AlertaDeCusto.passouDoLimite(new BigDecimal("0.009"), new BigDecimal("0.01"))).isFalse();
+        assertThatThrownBy(() -> AlertaDeCusto.passouDoLimite(null, BigDecimal.ONE))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> AlertaDeCusto.passouDoLimite(BigDecimal.ONE, null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    /** seUltrapassou e o construtor seguem a mesma regra: um alerta só existe quando passouDoLimite. */
+    @Test
+    void alertaSegueAMesmaRegra() {
+        for (String custo : new String[] {"0.009", "0.01", "0.0100", "0.011", "5"}) {
+            var valor = new BigDecimal(custo);
+            assertThat(AlertaDeCusto.seUltrapassou(DIA, valor, LIMITE).isPresent())
+                    .as(custo)
+                    .isEqualTo(AlertaDeCusto.passouDoLimite(valor, LIMITE.orElseThrow()));
+        }
+    }
+
     /** Sem custo diário máximo definido pelo administrador, não há alerta. */
     @Test
     void semLimiteNaoGeraAlerta() {

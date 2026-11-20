@@ -21,9 +21,12 @@ class ConsumoController {
         this.consumo = consumo;
     }
 
+    /** O aviso do topo vem do mesmo consumo do dia, somado uma vez só; o AvisoDeCustoNaAdministracao pula esta tela. */
     @GetMapping
     String consumo(@RequestParam(required = false) Long sessao, Model modelo) {
-        modelo.addAttribute("hoje", consumo.hoje());
+        ConsumoDaIaNaAdministracao.ConsumoDoDia hoje = consumo.hoje();
+        modelo.addAttribute("hoje", hoje);
+        hoje.aviso().ifPresent(aviso -> modelo.addAttribute(AvisoDeCustoNaAdministracao.ATRIBUTO, aviso));
         if (sessao != null) {
             modelo.addAttribute("sessao", sessao);
             modelo.addAttribute("consumoDaSessao", consumo.daSessao(sessao));

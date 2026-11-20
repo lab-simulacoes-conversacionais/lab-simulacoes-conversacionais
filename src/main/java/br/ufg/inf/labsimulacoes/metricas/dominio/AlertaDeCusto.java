@@ -22,19 +22,29 @@ public record AlertaDeCusto(LocalDate dia, BigDecimal custo, BigDecimal limite) 
         if (limite.signum() <= 0) {
             throw new IllegalArgumentException("O limite do custo diário precisa ser maior que zero: " + limite);
         }
-        if (custo.compareTo(limite) <= 0) {
+        if (!passouDoLimite(custo, limite)) {
             throw new IllegalArgumentException("Só há alerta quando o custo passa do limite: " + custo + " e " + limite);
         }
     }
 
     /**
-     * Regra do alerta: o custo do dia passou do limite, estritamente. Igual ao limite ainda não passou.
+     * A regra do RNF-13, num lugar só: o custo passou do limite, estritamente. Igual ao limite ainda não
+     * passou. Vale para gravar o alerta e para a tela de consumo mostrar que o dia está acima do limite.
+     */
+    public static boolean passouDoLimite(BigDecimal custo, BigDecimal limite) {
+        Objects.requireNonNull(custo, "custo");
+        Objects.requireNonNull(limite, "limite");
+        return custo.compareTo(limite) > 0;
+    }
+
+    /**
+     * Regra do alerta: o custo do dia passou do limite ({@link #passouDoLimite}).
      *
      * @param limite vazio quando o administrador não definiu um custo diário máximo, e então não há alerta
      * @return o alerta, ou vazio se o custo não passou do limite
      */
     public static Optional<AlertaDeCusto> seUltrapassou(LocalDate dia, BigDecimal custo, Optional<BigDecimal> limite) {
         Objects.requireNonNull(custo, "custo");
-        return limite.filter(valor -> custo.compareTo(valor) > 0).map(valor -> new AlertaDeCusto(dia, custo, valor));
+        return limite.filter(valor -> passouDoLimite(custo, valor)).map(valor -> new AlertaDeCusto(dia, custo, valor));
     }
 }

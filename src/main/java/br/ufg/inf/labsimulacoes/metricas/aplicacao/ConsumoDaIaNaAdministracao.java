@@ -49,9 +49,17 @@ public class ConsumoDaIaNaAdministracao {
      */
     public record ConsumoDoDia(LocalDate dia, ResumoDoConsumo resumo, BigDecimal limite, AlertaDeCusto alerta) {
 
-        /** O custo de agora passou do limite de agora, mesmo que a conferência agendada ainda não tenha rodado. */
+        /**
+         * O custo de agora passou do limite de agora, mesmo que a conferência agendada ainda não tenha
+         * rodado, pela mesma regra do alerta ({@link AlertaDeCusto#passouDoLimite}).
+         */
         public boolean passouDoLimite() {
-            return limite != null && resumo.custo().compareTo(limite) > 0;
+            return limite != null && AlertaDeCusto.passouDoLimite(resumo.custo(), limite);
+        }
+
+        /** O aviso do topo, com o custo já somado aqui, sem somar o dia de novo. Vazio sem alerta hoje. */
+        public Optional<AvisoDeCusto> aviso() {
+            return Optional.ofNullable(alerta).map(gravado -> new AvisoDeCusto(dia, resumo.custo(), gravado.limite()));
         }
     }
 
@@ -81,7 +89,10 @@ public class ConsumoDaIaNaAdministracao {
         return consumo.daReferencia(FinalidadeDoConsumo.FALA_EM_SALA, sessaoId);
     }
 
-    /** Vazio enquanto hoje não houver alerta. */
+    /**
+     * Vazio enquanto hoje não houver alerta; o custo do dia só é somado quando há. Quem já leu {@link
+     * #hoje()} usa {@link ConsumoDoDia#aviso()}, que não soma de novo.
+     */
     public Optional<AvisoDeCusto> avisoDeHoje() {
         DiaDeConsumo dia = DiaDeConsumo.de(Instant.now(), fuso);
         return alertas.doDia(dia.dia()).map(alerta -> new AvisoDeCusto(
