@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Critérios de aceite da issue 23: fila de curadoria com aprovar e devolver (RF-08, RN-05, RN-07,
@@ -34,8 +35,15 @@ class CuradoriaEBibliotecaTest {
     private static final AtomicInteger SEQUENCIA = new AtomicInteger();
     private static final String HABILIDADE = "EF07HI97";
 
+    /** O checklist inteiro, como o formulário da fila manda (RF-10). */
+    private static final String CHECKLIST_COMPLETO = "itens=FATOS_CONFERIDOS&itens=LINGUAGEM_ADEQUADA"
+            + "&itens=OBJETIVOS_COERENTES&itens=LIMITES_RESPEITADOS";
+
     @LocalServerPort
     private int porta;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Autowired
     private CadastroDeUsuarios cadastro;
@@ -118,9 +126,11 @@ class CuradoriaEBibliotecaTest {
     void aprovacaoTiraDaFilaEPoeNaBiblioteca() throws Exception {
         String titulo = titulo("Aprovado");
         long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo);
-        var curador = logado(novoUsuario(Perfil.CURADOR));
+        String email = novoUsuario(Perfil.CURADOR);
+        var curador = logado(email);
+        TesteDoPersonagemFeito.pelo(jdbc, email, id);
 
-        var resposta = curador.postForm("/curadoria/" + id + "/aprovar", "");
+        var resposta = curador.postForm("/curadoria/" + id + "/aprovar", CHECKLIST_COMPLETO);
 
         assertThat(local(resposta)).endsWith("/curadoria");
         assertThat(curador.get("/curadoria").body()).contains("foi aprovado e já está na biblioteca")
@@ -143,8 +153,10 @@ class CuradoriaEBibliotecaTest {
     @Test
     void curadorArquivaEOCenarioSaiDaBiblioteca() throws Exception {
         long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Arquivado"));
-        var curador = logado(novoUsuario(Perfil.CURADOR));
-        curador.postForm("/curadoria/" + id + "/aprovar", "");
+        String email = novoUsuario(Perfil.CURADOR);
+        var curador = logado(email);
+        TesteDoPersonagemFeito.pelo(jdbc, email, id);
+        curador.postForm("/curadoria/" + id + "/aprovar", CHECKLIST_COMPLETO);
         curador.get("/curadoria"); // consome o aviso da aprovação
 
         var resposta = curador.postForm("/curadoria/" + id + "/arquivar", "");
@@ -172,6 +184,45 @@ class CuradoriaEBibliotecaTest {
         var outro = logado(novoUsuario(Perfil.PROFESSOR));
 
         assertThat(outro.postForm("/curadoria/" + id + "/arquivar", "").statusCode()).isEqualTo(403);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Checklist de curadoria (RF-10, RN-06)
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    void filaMostraOChecklistEAsPerguntasDeTesteFeitas() throws Exception {
+        long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Com checklist"));
+        String email = novoUsuario(Perfil.CURADOR);
+        var curador = logado(email);
+
+        assertThat(curador.get("/curadoria?cenario=" + id).body())
+                .contains("Checklist de curadoria")
+                .contains("Fatos conferidos com as fontes")
+                .contains("Limites de assunto respeitados no teste")
+                .contains("Perguntas de teste feitas por você nesta versão: 0 de 5");
+        TesteDoPersonagemFeito.pelo(jdbc, email, id);
+        assertThat(curador.get("/curadoria?cenario=" + id).body())
+                .contains("Perguntas de teste feitas por você nesta versão: 5 de 5");
+    }
+
+    /** Critério de aceite: sem checklist completo e sem 5 perguntas de teste, não aprova. */
+    @Test
+    void aprovacaoSemChecklistESemTesteERecusadaComOQueFalta() throws Exception {
+        long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Sem checklist"));
+        var curador = logado(novoUsuario(Perfil.CURADOR));
+
+        var resposta = curador.postForm("/curadoria/" + id + "/aprovar", "itens=FATOS_CONFERIDOS");
+
+        assertThat(local(resposta)).endsWith("/curadoria?cenario=" + id);
+        assertThat(curador.get("/curadoria?cenario=" + id).body())
+                .contains("Para aprovar, falta marcar")
+                .contains("linguagem adequada à faixa etária")
+                .contains("fazer mais 5 perguntas de teste ao personagem")
+                // O item marcado volta marcado.
+                .containsPattern("value=\"FATOS_CONFERIDOS\"[^>]*checked");
+        var professor = logado(novoUsuario(Perfil.PROFESSOR));
+        assertThat(professor.get("/biblioteca?pagina=0").body()).doesNotContain("/biblioteca/" + id + "\"");
     }
 
     // ---------------------------------------------------------------------------------------------

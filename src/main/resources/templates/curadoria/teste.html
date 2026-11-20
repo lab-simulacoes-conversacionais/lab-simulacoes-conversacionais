@@ -15,6 +15,7 @@
   <div class="section-title">
     <div class="section-title-main"><span>1</span><h2 id="modo-teste-titulo">Modo teste</h2></div>
     <span class="test-counter" th:if="${rodada}" data-contador-do-teste
+          th:attr="data-contagem=${rodada.contam()},data-minimo=${rodada.minimo()}"
           th:text="|${rodada.contam()}/${rodada.minimo()} perguntas mínimas|">3/5 perguntas mínimas</span>
   </div>
 

@@ -156,6 +156,16 @@ Antes de aprovar, o curador conversa com o personagem da versão em curadoria (R
 - **Para a tela (#33):** `PerguntasDeTeste.daRodada(versaoId, curadorId)` traz a conversa da rodada, da mais antiga para a mais nova. A resposta só existe na situação `CONCLUIDA`. Com `FalhaNoProvedorDeIa`, a pergunta fica com a situação de falha, ocupando a vaga, e pode ser feita de novo.
 - **Retenção:** o RN-33 cobre só as conversas das sessões, então `pergunta_de_teste` não é apagada por nenhum job. Ela guarda só o que o curador digitou e o que o personagem respondeu, sem dado de aluno. Se o PO quiser um prazo, ele entra no job de retenção do RNF-15.
 
+### Checklist de curadoria
+
+A partir da E2, o curador só aprova depois de conferir o checklist e de testar o personagem (RF-10, RN-06).
+
+- **Itens:** fatos conferidos com as fontes, linguagem adequada à faixa etária, objetivos coerentes com a BNCC e limites de assunto respeitados no teste (`ItemDoChecklist`). Todos são obrigatórios.
+- **Teste:** pelo menos 5 perguntas na rodada em aberto do próprio curador, pela contagem do modo de teste (`PerguntasDeTeste.contar`). Perguntas de outro curador ou de antes de uma devolução não contam.
+- **Regra no domínio:** `Cenario.aprovar(curador, conferencia, momento)` recusa com `AprovacaoIncompleta`, que diz tudo o que falta de uma vez. As regras de quem aprova (RN-05, RN-36) são conferidas antes.
+- **Registro:** a aprovação grava em `checklist_curadoria` os itens e quantas perguntas o curador tinha feito, uma linha por versão aprovada. Como a versão aprovada (RN-08), a linha não muda nem é apagada (trigger), e o banco também recusa checklist incompleto.
+- **Tela:** a fila do curador mostra o checklist e quantas perguntas de teste ele já fez. O acabamento do protótipo fica com a #34, e a tela do modo de teste com a #33.
+
 ### Sessão em sala
 
 A sessão fica ligada ao professor, à turma e à versão aprovada vigente no início (RF-14, RN-10). Ela tem três estados: Em andamento, Pausada e Encerrada.

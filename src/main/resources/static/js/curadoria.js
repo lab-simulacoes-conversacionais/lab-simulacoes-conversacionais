@@ -30,9 +30,23 @@ document.querySelectorAll("dialog[data-devolucao]").forEach((dialogo) => {
 // Modo de teste (RF-09): a pergunta vai pelo HTMX, que troca a seção inteira com a resposta. A conversa
 // rola até a pergunta mais nova ao abrir e a cada troca.
 {
+  const atualizarContadorDoChecklist = () => {
+    const contadorTeste = document.querySelector("[data-contador-do-teste]");
+    const contadorChecklist = document.querySelector("[data-contador-checklist]");
+    if (!contadorTeste || !contadorChecklist) return;
+
+    const perguntas = Number(contadorTeste.dataset.contagem);
+    const minimo = Number(contadorTeste.dataset.minimo);
+    contadorChecklist.textContent = perguntas > minimo
+      ? `Perguntas de teste feitas por você nesta versão: ${perguntas} (mínimo ${minimo})`
+      : `Perguntas de teste feitas por você nesta versão: ${perguntas} de ${minimo}`;
+    contadorChecklist.classList.toggle("completo", perguntas >= minimo);
+  };
+
   const rolarConversaDoTeste = () => {
     const mensagens = document.querySelector("[data-mensagens-do-teste]");
     if (mensagens) mensagens.scrollTop = mensagens.scrollHeight;
+    atualizarContadorDoChecklist();
   };
   document.body.addEventListener("htmx:afterSwap", rolarConversaDoTeste);
   rolarConversaDoTeste();
