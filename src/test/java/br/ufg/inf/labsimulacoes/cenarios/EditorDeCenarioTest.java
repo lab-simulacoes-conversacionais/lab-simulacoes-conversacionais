@@ -203,7 +203,7 @@ class EditorDeCenarioTest {
         long id = idPeloTitulo("Completo para envio");
         var edicao = navegador.get("/cenarios/" + id + "/editar");
         assertThat(edicao.statusCode()).isEqualTo(302);
-        assertThat(navegador.get("/cenarios").body()).contains("não pode ser editado agora");
+        assertThat(navegador.get("/cenarios").body()).contains("está em curadoria e não pode ser editada agora");
     }
 
     /** Critério de aceite: o envio incompleto diz o que falta, e o rascunho não se perde. */

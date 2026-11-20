@@ -41,6 +41,7 @@
         <span class="badge badge-pending"><span aria-hidden="true">◷</span>Em curadoria</span>
         <strong th:text="${item.titulo}">Título</strong>
         <small th:text="|${item.componente} · ${item.ano}º ano|">Ciências · 6º ano</small>
+        <small th:if="${item.aviso}" th:text="${item.aviso}">Versão nova de um cenário aprovado: a versão 1 é a que está em sala.</small>
       </a>
       <p class="review-list-more" th:if="${haMais}">Há mais cenários na fila; eles aparecem quando estes forem decididos.</p>
     </nav>

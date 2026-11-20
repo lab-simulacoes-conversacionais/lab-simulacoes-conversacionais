@@ -67,7 +67,9 @@ class CuradoriaController {
     String fila(@RequestParam(required = false) Long cenario, Model modelo) {
         var trecho = acervo.listar(StatusDoCenario.EM_CURADORIA, 0, TAMANHO_DA_FILA);
         List<Cenario> fila = trecho.itens();
-        modelo.addAttribute("fila", fila.stream().map(CenariosController.ItemDaLista::de).toList());
+        modelo.addAttribute("fila", fila.stream()
+                .map(item -> CenariosController.ItemDaLista.naFila(item, trecho.ultimaAprovada(item)))
+                .toList());
         modelo.addAttribute("haMais", trecho.temProxima());
         fila.stream()
                 .filter(item -> cenario == null || item.id().equals(cenario))
