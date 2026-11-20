@@ -66,7 +66,7 @@ class OuvinteDeAcoesCriticas {
                 AcaoCritica.ARQUIVAR_CENARIO,
                 evento.arquivadoPorId(),
                 String.valueOf(evento.cenarioId()),
-                Map.of(),
+                Map.of("versaoId", evento.versaoId()),
                 evento.ocorridoEm()));
     }
 

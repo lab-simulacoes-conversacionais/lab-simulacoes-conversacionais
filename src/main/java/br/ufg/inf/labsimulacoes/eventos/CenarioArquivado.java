@@ -7,7 +7,8 @@ import java.time.Instant;
  * auditoria (RN-35).
  *
  * @param cenarioId cenário arquivado
+ * @param versaoId versão que era a vigente no arquivamento
  * @param arquivadoPorId quem arquivou
  * @param ocorridoEm momento do arquivamento
  */
-public record CenarioArquivado(long cenarioId, long arquivadoPorId, Instant ocorridoEm) {}
+public record CenarioArquivado(long cenarioId, long versaoId, long arquivadoPorId, Instant ocorridoEm) {}
