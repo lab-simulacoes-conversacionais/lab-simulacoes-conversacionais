@@ -77,13 +77,13 @@ class OuvinteDeAcoesCriticasTest {
 
     @Test
     void arquivamentoRegistraQuemArquivou() {
-        ouvinte.cenarioArquivado(new CenarioArquivado(10, 6, MOMENTO));
+        ouvinte.cenarioArquivado(new CenarioArquivado(10, 30, 6, MOMENTO));
 
         RegistroDeAuditoria linha = registrado();
         assertThat(linha.acao()).isEqualTo(AcaoCritica.ARQUIVAR_CENARIO);
         assertThat(linha.usuarioId()).isEqualTo(6);
         assertThat(linha.entidadeId()).isEqualTo("10");
-        assertThat(linha.detalhes()).isEmpty();
+        assertThat(linha.detalhes()).containsExactly(Map.entry("versaoId", 30L));
     }
 
     @Test

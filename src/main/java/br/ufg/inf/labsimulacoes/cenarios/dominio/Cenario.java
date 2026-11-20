@@ -9,7 +9,8 @@ import java.util.Objects;
  * que cada regra tenha um teste próprio, sem banco nem tela (Stack, seção 5).
  *
  * <p>Na E1 o ciclo é Rascunho, Em curadoria e Aprovado; a devolução volta a Rascunho (Figura 3 dos
- * requisitos). A aprovação é só registrada, sem checklist (RN-06).
+ * requisitos). A aprovação é só registrada, sem checklist (RN-06). O curador arquiva o aprovado ou o
+ * suspenso, que sai da biblioteca sem perder o histórico (RF-13, RN-09).
  *
  * @param versao a versão mais recente
  * @param ultimaDevolucao a devolução mais recente desta versão, para o autor saber o que mudar
@@ -119,6 +120,26 @@ public record Cenario(
         exigirPerfilCurador(curador, "devolve");
         var devolucao = Devolucao.nova(curador.id(), comentario, momento);
         return new Cenario(id, autorId, StatusDoCenario.RASCUNHO, versao.devolvida(), devolucao, sugeridoPorIa, sugestaoDaIa);
+    }
+
+    /**
+     * RF-13: o curador tira o cenário da biblioteca. Versões, devoluções e sessões continuam guardadas
+     * para consulta e auditoria (RN-09). Só se arquiva o que está na biblioteca ou foi suspenso
+     * (Figura 3 dos requisitos): rascunho e em curadoria nunca chegaram a ela.
+     *
+     * <p>O curador pode arquivar um cenário que ele mesmo criou: o RN-36 impede só a aprovação, porque é
+     * ela que põe conteúdo na sala, e o arquivamento só o tira de lá.
+     *
+     * @throws DecisaoDeCuradoriaNaoPermitida se quem arquiva não for curador
+     * @throws ArquivamentoNaoPermitido se o cenário não estiver Aprovado nem Suspenso
+     */
+    public Cenario arquivar(Revisor curador) {
+        exigirPerfilCurador(curador, "arquiva");
+        if (status != StatusDoCenario.APROVADO && status != StatusDoCenario.SUSPENSO) {
+            throw new ArquivamentoNaoPermitido(id, status);
+        }
+        return new Cenario(
+                id, autorId, StatusDoCenario.ARQUIVADO, versao, ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /** Olha a versão, e não o cenário, porque a edição de um aprovado gera versão nova em rascunho (RN-08). */

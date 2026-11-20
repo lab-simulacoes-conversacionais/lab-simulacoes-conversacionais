@@ -4,7 +4,9 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.Aprovacao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Devolucao;
 import br.ufg.inf.labsimulacoes.eventos.CenarioAprovado;
+import br.ufg.inf.labsimulacoes.eventos.CenarioArquivado;
 import br.ufg.inf.labsimulacoes.eventos.CenarioDevolvido;
+import java.time.Instant;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +29,15 @@ public class EventosDeCenarios {
         Aprovacao aprovacao = cenario.versao().aprovacao();
         publicador.publishEvent(
                 new CenarioAprovado(cenario.id(), cenario.versao().id(), aprovacao.curadorId(), aprovacao.em()));
+    }
+
+    /**
+     * @param cenario já arquivado e salvo; a versão dele é a que era a vigente
+     * @param curadorId quem arquivou
+     * @param momento quando arquivou
+     */
+    public void cenarioArquivado(Cenario cenario, long curadorId, Instant momento) {
+        publicador.publishEvent(new CenarioArquivado(cenario.id(), cenario.versao().id(), curadorId, momento));
     }
 
     /** @param cenario já devolvido e salvo */

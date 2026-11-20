@@ -78,9 +78,10 @@ class AcoesCriticasNoLogTest {
     @Test
     void arquivamentoDeCenarioVaiParaOLog() throws InterruptedException {
         long cenario = CENARIO.incrementAndGet();
-        publicar(new CenarioArquivado(cenario, usuario, momento));
+        publicar(new CenarioArquivado(cenario, 3, usuario, momento));
 
-        aguardarLinha("ARQUIVAR_CENARIO", cenario);
+        assertThat(aguardarLinha("ARQUIVAR_CENARIO", cenario).get("detalhes").toString())
+                .isEqualTo("{\"versaoId\": 3}");
     }
 
     @Test
