@@ -23,6 +23,7 @@ import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
 import br.ufg.inf.labsimulacoes.ia.SugestaoDeCenario;
 import br.ufg.inf.labsimulacoes.ia.dominio.Geracao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MetadadosDaResposta;
+import br.ufg.inf.labsimulacoes.ia.dominio.PrecosPorUso;
 import br.ufg.inf.labsimulacoes.ia.dominio.PromptMontado;
 import br.ufg.inf.labsimulacoes.ia.dominio.ProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.dominio.RegistroDeMetadados;
@@ -45,6 +46,9 @@ class ChamadasAoProvedorTest {
     private static final CenarioDaConversa CENARIO = CenariosDeTeste.VOO_DO_14_BIS;
     private static final PedidoDeFala PEDIDO = new PedidoDeFala(CENARIO, List.of(), "Quem é você?");
     private static final TabelaDePrecos PRECOS = new TabelaDePrecos(new BigDecimal("1.00"), new BigDecimal("5.00"));
+    /** A sugestão com outra tarifa, para os testes distinguirem qual foi usada. */
+    private static final TabelaDePrecos PRECOS_DA_SUGESTAO =
+            new TabelaDePrecos(new BigDecimal("0.50"), new BigDecimal("2.50"));
 
     private ProvedorDeIa provedor;
     private RegistroDeMetadados registro;
@@ -61,7 +65,8 @@ class ChamadasAoProvedorTest {
         observacoes = new ObservacoesGravadas();
         metricas = new SimpleMeterRegistry();
         chamadas = new ChamadasAoProvedor(
-                provedor, TemplatesDeTeste.montador(), registro, PRECOS, observacoes.registro(), metricas);
+                provedor, TemplatesDeTeste.montador(), registro, new PrecosPorUso(PRECOS, PRECOS_DA_SUGESTAO),
+                observacoes.registro(), metricas);
     }
 
     @Test
@@ -374,6 +379,31 @@ class ChamadasAoProvedorTest {
                 .isInstanceOf(FalhaNoProvedorDeIa.class);
 
         assertThat(observada("sugestao").erro()).isInstanceOf(FalhaNoProvedorDeIa.class);
+    }
+
+    /**
+     * RNF-13: cada uso tem a tarifa do que usa. A fala (na sala e no teste do curador) usa a tabela da
+     * conversa; a sugestão, a própria, do nível de serviço padrão.
+     */
+    @Test
+    void falaETesteDoCuradorUsamATarifaDaFala() {
+        when(provedor.conversar(any(), any())).thenReturn(new Geracao<>("Olá.", "m", Map.of(), new UsoDoModelo(316, 97)));
+
+        chamadas.responder(new PedidoDeFala(CENARIO, List.of(), "Oi", FinalidadeDoConsumo.TESTE_DO_CURADOR, 3L), t -> {});
+
+        assertThat(gravados().custo()).isEqualByComparingTo("0.000801");
+    }
+
+    @Test
+    void sugestaoUsaATarifaDaSugestao() {
+        when(provedor.sugerirRoteiro(any())).thenReturn(new Geracao<>(roteiro(), "m", Map.of(), new UsoDoModelo(400, 100)));
+
+        chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null));
+
+        // 400 × 0,50 + 100 × 2,50, por milhão; como fala, pela outra tabela, seriam 0,000900.
+        assertThat(gravados().custo()).isEqualByComparingTo("0.000450");
+        assertThat(metricas.get(ChamadasAoProvedor.CUSTO).tag(ChamadasAoProvedor.FINALIDADE, "sugestao").counter().count())
+                .isEqualTo(0.00045);
     }
 
     private double tokens(String finalidade, String tipo) {

@@ -6,6 +6,9 @@ import br.ufg.inf.labsimulacoes.ia.CenariosDeTeste;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeSugestao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MontadorDePrompt;
+import br.ufg.inf.labsimulacoes.ia.dominio.PrecosPorUso;
+import br.ufg.inf.labsimulacoes.ia.dominio.TabelaDePrecos;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,12 +26,24 @@ class ConfiguracaoDoAdaptadorTest {
             .withPropertyValues(
                     "ia.preco.entrada-por-milhao=1.00",
                     "ia.preco.saida-por-milhao=5.00",
+                    "ia.sugestao.preco.entrada-por-milhao=0.50",
+                    "ia.sugestao.preco.saida-por-milhao=2.50",
                     "ia.prompt.personagem=personagem-v1",
                     "ia.prompt.sugestao=sugestao-v1",
                     "ia.sugestao.modelo=gpt-6.1-terra",
                     "ia.sugestao.reasoning-effort=low",
                     "ia.sugestao.service-tier=default",
                     "ia.sugestao.max-tokens=4000");
+
+    /** RNF-13: a fala e a sugestão têm cada uma a sua tarifa, lida da configuração. */
+    @Test
+    void precosDaFalaEDaSugestaoVemDaConfiguracao() {
+        contexto.run(subido -> {
+            PrecosPorUso precos = subido.getBean(PrecosPorUso.class);
+            assertThat(precos.fala()).isEqualTo(new TabelaDePrecos(new BigDecimal("1.00"), new BigDecimal("5.00")));
+            assertThat(precos.sugestao()).isEqualTo(new TabelaDePrecos(new BigDecimal("0.50"), new BigDecimal("2.50")));
+        });
+    }
 
     @Test
     void opcoesDaSugestaoVemDaConfiguracao() {
@@ -44,6 +59,10 @@ class ConfiguracaoDoAdaptadorTest {
                 .withPropertyValues(
                         "ia.preco.entrada-por-milhao=1.00",
                         "ia.preco.saida-por-milhao=5.00",
+                        "ia.sugestao.preco.entrada-por-milhao=0.50",
+                        "ia.sugestao.preco.saida-por-milhao=2.50",
+                    "ia.sugestao.preco.entrada-por-milhao=0.50",
+                    "ia.sugestao.preco.saida-por-milhao=2.50",
                         "ia.prompt.personagem=personagem-v1",
                         "ia.prompt.sugestao=sugestao-v1",
                         "ia.sugestao.modelo=gpt-6.1-terra",

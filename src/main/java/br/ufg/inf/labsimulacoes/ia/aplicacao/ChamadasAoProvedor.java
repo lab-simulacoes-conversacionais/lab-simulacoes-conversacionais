@@ -15,7 +15,7 @@ import br.ufg.inf.labsimulacoes.ia.dominio.MontadorDePrompt;
 import br.ufg.inf.labsimulacoes.ia.dominio.PromptMontado;
 import br.ufg.inf.labsimulacoes.ia.dominio.ProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.dominio.RegistroDeMetadados;
-import br.ufg.inf.labsimulacoes.ia.dominio.TabelaDePrecos;
+import br.ufg.inf.labsimulacoes.ia.dominio.PrecosPorUso;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.observation.Observation;
@@ -72,7 +72,7 @@ public class ChamadasAoProvedor implements AdaptadorDeIa {
     private final ProvedorDeIa provedor;
     private final MontadorDePrompt montador;
     private final RegistroDeMetadados registro;
-    private final TabelaDePrecos precos;
+    private final PrecosPorUso precos;
     private final ObservationRegistry observacoes;
     private final MeterRegistry metricas;
 
@@ -80,7 +80,7 @@ public class ChamadasAoProvedor implements AdaptadorDeIa {
             ProvedorDeIa provedor,
             MontadorDePrompt montador,
             RegistroDeMetadados registro,
-            TabelaDePrecos precos,
+            PrecosPorUso precos,
             ObservationRegistry observacoes,
             MeterRegistry metricas) {
         this.provedor = provedor;
@@ -175,7 +175,7 @@ public class ChamadasAoProvedor implements AdaptadorDeIa {
             PromptMontado prompt, Geracao<?> geracao, long inicio, FinalidadeDoConsumo finalidade, Long referenciaId) {
         Duration latencia = Duration.ofNanos(System.nanoTime() - inicio);
         MetadadosDaResposta gravados = registro.gravar(MetadadosDaResposta.daChamada(provedor.nome(),
-                geracao.modelo(), geracao.parametros(), prompt.versao(), geracao.uso(), precos, latencia,
+                geracao.modelo(), geracao.parametros(), prompt.versao(), geracao.uso(), precos.para(finalidade), latencia,
                 finalidade, referenciaId));
         contarConsumo(gravados);
         return gravados;
