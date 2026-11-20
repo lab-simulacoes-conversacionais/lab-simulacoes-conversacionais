@@ -1,9 +1,11 @@
 package br.ufg.inf.labsimulacoes.cenarios.aplicacao;
 
+import static br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito.CHECKLIST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
@@ -83,7 +85,8 @@ class AcervoDaCuradoriaTest {
         long aprovado = enviado(OUTRA_PROFESSORA);
         logar(CURADORA, "ROLE_CURADOR");
         devolucao.devolver(devolvido, "Corrigir");
-        aprovacao.aprovar(aprovado);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, aprovado);
+        aprovacao.aprovar(aprovado, CHECKLIST);
 
         TrechoDoAcervo trecho = acervo.listar(0, 20);
 

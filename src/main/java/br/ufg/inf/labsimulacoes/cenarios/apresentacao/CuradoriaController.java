@@ -4,12 +4,16 @@ import br.ufg.inf.labsimulacoes.acesso.UsuarioLogado;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AcervoDaCuradoria;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AprovacaoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.DevolucaoDeCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.AprovacaoIncompleta;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioForaDeCuradoria;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaoEncontrado;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ComentarioObrigatorio;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.DecisaoDeCuradoriaNaoPermitida;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.ItemDoChecklist;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntasDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -72,16 +76,41 @@ class CuradoriaController {
         return "curadoria/fila";
     }
 
+    /**
+     * @param itens os itens do checklist marcados (RF-10); sem nenhum marcado, o navegador não manda o
+     *     parâmetro
+     */
     @PostMapping("/{id}/aprovar")
-    String aprovar(@PathVariable long id, RedirectAttributes mensagens) {
+    String aprovar(
+            @PathVariable long id,
+            @RequestParam(name = "itens", required = false) List<ItemDoChecklist> itens,
+            RedirectAttributes mensagens) {
+        List<ItemDoChecklist> marcados = itens == null ? List.of() : itens;
         try {
-            Cenario aprovado = aprovacao.aprovar(id);
+            Cenario aprovado = aprovacao.aprovar(id, marcados);
             mensagens.addFlashAttribute("sucesso",
                     "“" + aprovado.versao().conteudo().titulo() + "” foi aprovado e já está na biblioteca.");
             return "redirect:/curadoria";
+        } catch (AprovacaoIncompleta incompleta) {
+            mensagens.addFlashAttribute("erro", oQueFalta(incompleta));
+            // O checklist volta como estava, para o curador não marcar tudo de novo.
+            mensagens.addFlashAttribute("marcados", marcados.stream().map(ItemDoChecklist::name).toList());
+            return "redirect:/curadoria?cenario=" + id;
         } catch (DecisaoDeCuradoriaNaoPermitida | CenarioForaDeCuradoria | CenarioNaoEncontrado erro) {
             return recusado(id, erro, mensagens);
         }
+    }
+
+    /** RN-06, na linguagem da tela: os itens que faltam marcar e as perguntas que faltam fazer. */
+    private static String oQueFalta(AprovacaoIncompleta incompleta) {
+        var faltas = new ArrayList<String>();
+        incompleta.itensFaltando().forEach(item -> faltas.add("marcar “" + item.descricao() + "”"));
+        int perguntas = incompleta.perguntasFaltando();
+        if (perguntas > 0) {
+            faltas.add("fazer mais " + perguntas + (perguntas == 1 ? " pergunta" : " perguntas")
+                    + " de teste ao personagem");
+        }
+        return "Para aprovar, falta " + String.join("; ", faltas) + ".";
     }
 
     @PostMapping("/{id}/devolver")
@@ -109,7 +138,12 @@ class CuradoriaController {
         modelo.addAttribute("conteudo",
                 ConteudoExibido.de(cenario.versao().conteudo(), cenario.versao().numero(), descricoes));
         // RN-36: nem o autor do cenário nem quem criou a versão aprova, mesmo com o perfil Curador.
-        modelo.addAttribute("souAutor", cenario.temAutor(eu) || cenario.versao().criadaPorId() == eu);
+        boolean souAutor = cenario.temAutor(eu) || cenario.versao().criadaPorId() == eu;
+        modelo.addAttribute("souAutor", souAutor);
+        // RF-10, RN-06: o checklist e quantas perguntas de teste o curador já fez nesta versão.
+        modelo.addAttribute("itensDoChecklist", ItemDoChecklist.values());
+        modelo.addAttribute("minimoDeTeste", PerguntasDeTeste.MINIMO_PARA_APROVAR);
+        modelo.addAttribute("perguntasDeTeste", souAutor ? 0 : aprovacao.perguntasDeTesteFeitas(cenario.id()));
     }
 
     private static String recusado(long id, RuntimeException erro, RedirectAttributes mensagens) {

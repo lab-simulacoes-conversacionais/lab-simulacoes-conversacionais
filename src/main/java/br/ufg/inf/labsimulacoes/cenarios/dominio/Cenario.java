@@ -101,18 +101,6 @@ public record Cenario(
      *     cenário ou da versão, mesmo tendo também o perfil Curador (RN-36)
      * @throws AprovacaoIncompleta com tudo o que falta do checklist e do teste (RN-06)
      */
-    public Cenario aprovar(Revisor curador, Instant momento) {
-        exigirCuradoria();
-        exigirPerfilCurador(curador, "aprova");
-        if (temAutor(curador.id()) || versao.criadaPorId() == curador.id()) {
-            throw new DecisaoDeCuradoriaNaoPermitida(
-                    "Ninguém aprova um cenário que criou, mesmo com o perfil Curador (RN-36)");
-        }
-        var aprovacao = new Aprovacao(curador.id(), momento);
-        return new Cenario(
-                id, autorId, StatusDoCenario.APROVADO, versao.aprovada(aprovacao), ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
-    }
-
     public Cenario aprovar(Revisor curador, ConferenciaDaCuradoria conferencia, Instant momento) {
         exigirCuradoria();
         exigirPerfilCurador(curador, "aprova");

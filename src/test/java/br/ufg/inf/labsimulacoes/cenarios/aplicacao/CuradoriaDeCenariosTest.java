@@ -1,9 +1,11 @@
 package br.ufg.inf.labsimulacoes.cenarios.aplicacao;
 
+import static br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito.CHECKLIST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
 import br.ufg.inf.labsimulacoes.cenarios.CenariosAprovados;
 import br.ufg.inf.labsimulacoes.cenarios.VersaoAprovada;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
@@ -139,7 +141,9 @@ class CuradoriaDeCenariosTest {
         long id = enviadoPor(PROFESSORA);
         logar(CURADORA, "ROLE_CURADOR");
 
-        Cenario aprovado = aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, id);
+
+        Cenario aprovado = aprovacao.aprovar(id, CHECKLIST);
 
         assertThat(aprovado.status()).isEqualTo(StatusDoCenario.APROVADO);
         assertThat(aprovado.versao().status()).isEqualTo(StatusDaVersao.APROVADA);
@@ -154,7 +158,7 @@ class CuradoriaDeCenariosTest {
         long id = enviadoPor(PROFESSORA);
         logar(OUTRA_PROFESSORA, "ROLE_PROFESSOR");
 
-        assertThatThrownBy(() -> aprovacao.aprovar(id)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> aprovacao.aprovar(id, CHECKLIST)).isInstanceOf(AccessDeniedException.class);
         assertThat(eventos.stream(CenarioAprovado.class)).isEmpty();
     }
 
@@ -164,7 +168,7 @@ class CuradoriaDeCenariosTest {
         long id = enviadoPor(PROFESSORA_E_CURADORA);
         logar(PROFESSORA_E_CURADORA, "ROLE_PROFESSOR", "ROLE_CURADOR");
 
-        assertThatThrownBy(() -> aprovacao.aprovar(id))
+        assertThatThrownBy(() -> aprovacao.aprovar(id, CHECKLIST))
                 .isInstanceOf(DecisaoDeCuradoriaNaoPermitida.class)
                 .hasMessageContaining("RN-36");
         assertThat(eventos.stream(CenarioAprovado.class)).isEmpty();
@@ -176,7 +180,9 @@ class CuradoriaDeCenariosTest {
         long id = enviadoPor(PROFESSORA_E_CURADORA);
         logar(CURADORA, "ROLE_CURADOR");
 
-        assertThat(aprovacao.aprovar(id).status()).isEqualTo(StatusDoCenario.APROVADO);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, id);
+
+        assertThat(aprovacao.aprovar(id, CHECKLIST).status()).isEqualTo(StatusDoCenario.APROVADO);
     }
 
     @Test
@@ -184,7 +190,7 @@ class CuradoriaDeCenariosTest {
         long id = criarComo(PROFESSORA, "ROLE_PROFESSOR");
         logar(CURADORA, "ROLE_CURADOR");
 
-        assertThatThrownBy(() -> aprovacao.aprovar(id)).isInstanceOf(CenarioForaDeCuradoria.class);
+        assertThatThrownBy(() -> aprovacao.aprovar(id, CHECKLIST)).isInstanceOf(CenarioForaDeCuradoria.class);
     }
 
     // Devolução
@@ -245,7 +251,8 @@ class CuradoriaDeCenariosTest {
     void professorConsultaAVersaoAprovadaVigente() {
         long id = enviadoPor(PROFESSORA);
         logar(CURADORA, "ROLE_CURADOR");
-        Cenario aprovado = aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, id);
+        Cenario aprovado = aprovacao.aprovar(id, CHECKLIST);
 
         logar(OUTRA_PROFESSORA, "ROLE_PROFESSOR");
         VersaoAprovada vigente = aprovados.versaoVigente(id).orElseThrow();
@@ -265,7 +272,8 @@ class CuradoriaDeCenariosTest {
     void professorConsultaUmaVersaoAprovadaPeloId() {
         long id = enviadoPor(PROFESSORA);
         logar(CURADORA, "ROLE_CURADOR");
-        Cenario aprovado = aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, id);
+        Cenario aprovado = aprovacao.aprovar(id, CHECKLIST);
 
         logar(OUTRA_PROFESSORA, "ROLE_PROFESSOR");
         VersaoAprovada versao = aprovados.versaoAprovada(aprovado.versao().id()).orElseThrow();
@@ -297,7 +305,7 @@ class CuradoriaDeCenariosTest {
         logar(CURADORA, "ROLE_CURADOR");
 
         assertThatThrownBy(() -> envio.enviar(-1)).isInstanceOf(CenarioNaoEncontrado.class);
-        assertThatThrownBy(() -> aprovacao.aprovar(-1)).isInstanceOf(CenarioNaoEncontrado.class);
+        assertThatThrownBy(() -> aprovacao.aprovar(-1, CHECKLIST)).isInstanceOf(CenarioNaoEncontrado.class);
         assertThatThrownBy(() -> devolucao.devolver(-1, "Corrigir")).isInstanceOf(CenarioNaoEncontrado.class);
     }
 
@@ -308,7 +316,7 @@ class CuradoriaDeCenariosTest {
         logar(ADMINISTRADORA, "ROLE_ADMINISTRADOR");
 
         assertThatThrownBy(() -> envio.enviar(id)).isInstanceOf(AccessDeniedException.class);
-        assertThatThrownBy(() -> aprovacao.aprovar(id)).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> aprovacao.aprovar(id, CHECKLIST)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> devolucao.devolver(id, "Corrigir")).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> aprovados.versaoVigente(id)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> aprovados.versaoAprovada(id)).isInstanceOf(AccessDeniedException.class);
@@ -320,7 +328,7 @@ class CuradoriaDeCenariosTest {
         SecurityContextHolder.clearContext();
 
         assertThatThrownBy(() -> envio.enviar(id)).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
-        assertThatThrownBy(() -> aprovacao.aprovar(id)).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+        assertThatThrownBy(() -> aprovacao.aprovar(id, CHECKLIST)).isInstanceOf(AuthenticationCredentialsNotFoundException.class);
         assertThatThrownBy(() -> devolucao.devolver(id, "Corrigir"))
                 .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
         assertThatThrownBy(() -> aprovados.versaoVigente(id))
