@@ -34,10 +34,18 @@ public interface Cenarios {
 
     /**
      * Biblioteca (RF-12): os cenários Aprovados com a versão vigente, de todos os autores, pelo mesmo
-     * critério de {@link #versaoVigente}. Em ordem de título, com desempate pelo id do cenário, para
-     * que a mesma página traga sempre os mesmos cenários.
+     * critério de {@link #versaoVigente}, que atendem a todos os filtros da busca. Em ordem de título,
+     * com desempate pelo id do cenário, para que a mesma página traga sempre os mesmos cenários.
      */
-    TrechoDaBiblioteca listarAprovados(Pagina pagina);
+    TrechoDaBiblioteca listarAprovados(BuscaNaBiblioteca busca, Pagina pagina);
+
+    /** A biblioteca inteira, sem filtro. */
+    default TrechoDaBiblioteca listarAprovados(Pagina pagina) {
+        return listarAprovados(BuscaNaBiblioteca.TUDO, pagina);
+    }
+
+    /** Componentes, anos e habilidades das versões vigentes da biblioteca, para os filtros (RF-12). */
+    OpcoesDaBiblioteca opcoesDaBiblioteca();
 
     /**
      * Acervo do curador (RN-37): os cenários de todos os autores, cada um com a versão mais recente,

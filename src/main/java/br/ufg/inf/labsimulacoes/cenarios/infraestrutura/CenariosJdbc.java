@@ -1,11 +1,13 @@
 package br.ufg.inf.labsimulacoes.cenarios.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Aprovacao;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.BuscaNaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Devolucao;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.OpcoesDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Pagina;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
@@ -125,14 +127,50 @@ class CenariosJdbc implements Cenarios {
             WHERE v.id = ? AND v.status = 'APROVADA'""";
 
     /**
-     * RF-12, mesmo critério da versão vigente. O id desempata títulos iguais, para que a ordem não
-     * mude de uma consulta para a outra e nenhuma página repita ou pule cenário.
+     * A regra de {@link BuscaNaBiblioteca#semAcento} no banco, com a mesma lista de letras: junta o acento
+     * separado da letra (NFC), passa para minúsculas e tira o acento. Antes e depois do texto da coluna.
      */
-    private static final String BIBLIOTECA = """
-            SELECT c.id AS cenario_id, %s
-            %s
-            ORDER BY v.titulo, c.id
-            LIMIT ? OFFSET ?""".formatted(COLUNAS_DA_VERSAO, APROVADOS_COM_VERSAO_VIGENTE);
+    private static final String SEM_ACENTO_ANTES = "translate(lower(normalize(";
+    private static final String SEM_ACENTO_DEPOIS = ", NFC)), '" + BuscaNaBiblioteca.COM_ACENTO + "', '"
+            + BuscaNaBiblioteca.SEM_ACENTO + "')";
+
+    /**
+     * Onde aparece o tema do cenário (RF-12), em minúsculas e sem acento. Os objetivos são uma lista em
+     * JSON, então entram como texto, um depois do outro, e não como o JSON cru com aspas e colchetes.
+     */
+    private static final String TEXTO_DO_CENARIO = SEM_ACENTO_ANTES + "concat_ws(' ', v.titulo, v.componente, "
+            + "v.conteudo->>'personagem', v.conteudo->>'contexto', "
+            + "(SELECT string_agg(objetivo, ' ') FROM jsonb_array_elements_text(v.conteudo->'objetivos') objetivo))"
+            + SEM_ACENTO_DEPOIS;
+
+    /**
+     * RF-12, mesmo critério da versão vigente. Cada filtro nulo é ignorado, e os preenchidos se
+     * combinam. O id desempata títulos iguais, para que a ordem não mude de uma consulta para a outra e
+     * nenhuma página repita ou pule cenário.
+     */
+    private static final String BIBLIOTECA = "SELECT c.id AS cenario_id, " + COLUNAS_DA_VERSAO + "\n"
+            + APROVADOS_COM_VERSAO_VIGENTE + "\n"
+            + "  AND (CAST(? AS text) IS NULL OR " + TEXTO_DO_CENARIO + " LIKE ? ESCAPE '\\')\n"
+            + "  AND (CAST(? AS text) IS NULL OR " + SEM_ACENTO_ANTES + "v.componente" + SEM_ACENTO_DEPOIS + " = ?)\n"
+            + "  AND (CAST(? AS text) IS NULL OR v.ano = ?)\n"
+            + "  AND (CAST(? AS text) IS NULL OR EXISTS (SELECT 1 FROM versao_habilidade h\n"
+            + "       WHERE h.cenario_versao_id = v.id AND h.habilidade_codigo = ?))\n"
+            + "ORDER BY v.titulo, c.id\n"
+            + "LIMIT ? OFFSET ?";
+
+    private static final String COMPONENTES_DA_BIBLIOTECA = "SELECT DISTINCT v.componente\n"
+            + APROVADOS_COM_VERSAO_VIGENTE + " AND v.componente IS NOT NULL ORDER BY v.componente";
+
+    private static final String ANOS_DA_BIBLIOTECA = "SELECT DISTINCT v.ano\n"
+            + APROVADOS_COM_VERSAO_VIGENTE + " AND v.ano IS NOT NULL";
+
+    private static final String HABILIDADES_DA_BIBLIOTECA = """
+            SELECT DISTINCT h.habilidade_codigo
+            FROM cenario c
+            JOIN cenario_versao v ON v.id = c.versao_vigente_id
+            JOIN versao_habilidade h ON h.cenario_versao_id = v.id
+            WHERE c.status = 'APROVADO' AND v.status = 'APROVADA'
+            ORDER BY h.habilidade_codigo""";
 
     private static final String INSERIR_VERSAO = """
             INSERT INTO cenario_versao (cenario_id, numero, status, titulo, conteudo, componente, etapa, ano,
@@ -192,14 +230,37 @@ class CenariosJdbc implements Cenarios {
 
     /** Pede um item a mais que a página, só para saber se existe a próxima, sem contar a tabela. */
     @Override
-    public TrechoDaBiblioteca listarAprovados(Pagina pagina) {
+    public TrechoDaBiblioteca listarAprovados(BuscaNaBiblioteca busca, Pagina pagina) {
+        String trecho = busca.texto() == null ? null : "%" + semCuringas(busca.texto()) + "%";
+        String ano = busca.ano() == null ? null : busca.ano().toString();
         List<CenarioNaBiblioteca> lidos = jdbc.query(
                 BIBLIOTECA,
                 (linha, numero) -> new CenarioNaBiblioteca(linha.getLong("cenario_id"), paraVersao(linha)),
+                trecho, trecho,
+                busca.componenteSemAcento(), busca.componenteSemAcento(),
+                ano, ano,
+                busca.habilidade(), busca.habilidade(),
                 pagina.tamanho() + 1,
                 pagina.deslocamento());
         boolean temProxima = lidos.size() > pagina.tamanho();
         return new TrechoDaBiblioteca(temProxima ? lidos.subList(0, pagina.tamanho()) : lidos, temProxima);
+    }
+
+    @Override
+    public OpcoesDaBiblioteca opcoesDaBiblioteca() {
+        List<Integer> anos = jdbc.queryForList(ANOS_DA_BIBLIOTECA, String.class).stream()
+                .map(Integer::valueOf)
+                .sorted()
+                .toList();
+        return new OpcoesDaBiblioteca(
+                jdbc.queryForList(COMPONENTES_DA_BIBLIOTECA, String.class),
+                anos,
+                jdbc.queryForList(HABILIDADES_DA_BIBLIOTECA, String.class));
+    }
+
+    /** O que a pessoa digitou é procurado ao pé da letra: % e _ não viram curingas do LIKE. */
+    private static String semCuringas(String texto) {
+        return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
     /** Como na biblioteca, pede um item a mais só para saber se existe a próxima página. */
