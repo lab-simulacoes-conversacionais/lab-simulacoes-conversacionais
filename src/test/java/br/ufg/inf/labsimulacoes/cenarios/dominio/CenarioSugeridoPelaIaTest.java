@@ -79,7 +79,7 @@ class CenarioSugeridoPelaIaTest {
     void curadorAprovaOSugeridoEAMarcaFicaNoCenarioAprovado() {
         Cenario aprovado = Cenario.sugeridoPelaIa(PROFESSORA, ConteudosDeTeste.completo(), GERACAO)
                 .enviarACuradoria(PROFESSORA)
-                .aprovar(CURADORA, AGORA);
+                .aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA);
 
         assertThat(aprovado.status()).isEqualTo(StatusDoCenario.APROVADO);
         assertThat(aprovado.versao().aprovacao().curadorId()).isEqualTo(CURADORA.id());
@@ -92,7 +92,7 @@ class CenarioSugeridoPelaIaTest {
         Cenario emCuradoria = Cenario.sugeridoPelaIa(CURADORA.id(), ConteudosDeTeste.completo(), GERACAO)
                 .enviarACuradoria(CURADORA.id());
 
-        assertThatThrownBy(() -> emCuradoria.aprovar(CURADORA, AGORA))
+        assertThatThrownBy(() -> emCuradoria.aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA))
                 .isInstanceOf(DecisaoDeCuradoriaNaoPermitida.class)
                 .hasMessageContaining("RN-36");
     }
