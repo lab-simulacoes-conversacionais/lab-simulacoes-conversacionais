@@ -14,6 +14,7 @@ import br.ufg.inf.labsimulacoes.ObservacoesGravadas.Observada;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
 import br.ufg.inf.labsimulacoes.ia.CenariosDeTeste;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeSugestao;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
@@ -22,12 +23,14 @@ import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
 import br.ufg.inf.labsimulacoes.ia.SugestaoDeCenario;
 import br.ufg.inf.labsimulacoes.ia.dominio.Geracao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MetadadosDaResposta;
+import br.ufg.inf.labsimulacoes.ia.dominio.PrecosPorUso;
 import br.ufg.inf.labsimulacoes.ia.dominio.PromptMontado;
 import br.ufg.inf.labsimulacoes.ia.dominio.ProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.dominio.RegistroDeMetadados;
 import br.ufg.inf.labsimulacoes.ia.dominio.TabelaDePrecos;
 import br.ufg.inf.labsimulacoes.ia.dominio.TemplatesDeTeste;
 import br.ufg.inf.labsimulacoes.ia.dominio.UsoDoModelo;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,10 +46,14 @@ class ChamadasAoProvedorTest {
     private static final CenarioDaConversa CENARIO = CenariosDeTeste.VOO_DO_14_BIS;
     private static final PedidoDeFala PEDIDO = new PedidoDeFala(CENARIO, List.of(), "Quem é você?");
     private static final TabelaDePrecos PRECOS = new TabelaDePrecos(new BigDecimal("1.00"), new BigDecimal("5.00"));
+    /** A sugestão com outra tarifa, para os testes distinguirem qual foi usada. */
+    private static final TabelaDePrecos PRECOS_DA_SUGESTAO =
+            new TabelaDePrecos(new BigDecimal("0.50"), new BigDecimal("2.50"));
 
     private ProvedorDeIa provedor;
     private RegistroDeMetadados registro;
     private ObservacoesGravadas observacoes;
+    private SimpleMeterRegistry metricas;
     private ChamadasAoProvedor chamadas;
 
     @BeforeEach
@@ -56,7 +63,10 @@ class ChamadasAoProvedorTest {
         when(provedor.nome()).thenReturn("openai");
         when(registro.gravar(any())).thenAnswer(gravacao -> gravacao.<MetadadosDaResposta>getArgument(0).comId(42));
         observacoes = new ObservacoesGravadas();
-        chamadas = new ChamadasAoProvedor(provedor, TemplatesDeTeste.montador(), registro, PRECOS, observacoes.registro());
+        metricas = new SimpleMeterRegistry();
+        chamadas = new ChamadasAoProvedor(
+                provedor, TemplatesDeTeste.montador(), registro, new PrecosPorUso(PRECOS, PRECOS_DA_SUGESTAO),
+                observacoes.registro(), metricas);
     }
 
     @Test
@@ -243,6 +253,171 @@ class ChamadasAoProvedorTest {
         chamadas.moderar("texto");
 
         assertThat(etapas()).containsExactly("moderacao");
+    }
+
+    /** RNF-13: a finalidade e a referência de quem chamou vão para os metadados. */
+    @Test
+    void respostaGravaAFinalidadeEAReferenciaDoPedido() {
+        when(provedor.conversar(any(), any())).thenReturn(new Geracao<>("Olá.", "m", Map.of(), null));
+
+        chamadas.responder(new PedidoDeFala(CENARIO, List.of(), "Oi", FinalidadeDoConsumo.FALA_EM_SALA, 7L), t -> {});
+
+        assertThat(gravados().finalidade()).isEqualTo(FinalidadeDoConsumo.FALA_EM_SALA);
+        assertThat(gravados().referenciaId()).isEqualTo(7L);
+    }
+
+    @Test
+    void pedidoSemFinalidadeGravaOsMetadadosSemEla() {
+        when(provedor.conversar(any(), any())).thenReturn(new Geracao<>("Olá.", "m", Map.of(), null));
+
+        chamadas.responder(PEDIDO, trecho -> {});
+
+        assertThat(gravados().finalidade()).isNull();
+        assertThat(gravados().referenciaId()).isNull();
+    }
+
+    @Test
+    void sugestaoGravaAFinalidadeSugestaoSemReferencia() {
+        when(provedor.sugerirRoteiro(any())).thenReturn(new Geracao<>(roteiro(), "m", Map.of(), null));
+
+        chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null));
+
+        assertThat(gravados().finalidade()).isEqualTo(FinalidadeDoConsumo.SUGESTAO);
+        assertThat(gravados().referenciaId()).isNull();
+    }
+
+    /** RNF-13: custo e tokens por finalidade e modelo, sem nenhum id como tag. */
+    @Test
+    void consumoDaRespostaViraContadoresComAsTags() {
+        when(provedor.conversar(any(), any())).thenReturn(
+                new Geracao<>("Olá.", "gpt-6.1-terra", Map.of(), new UsoDoModelo(316, 97)));
+
+        chamadas.responder(new PedidoDeFala(CENARIO, List.of(), "Oi", FinalidadeDoConsumo.FALA_EM_SALA, 7L), t -> {});
+
+        assertThat(metricas.get(ChamadasAoProvedor.CUSTO)
+                        .tags(ChamadasAoProvedor.FINALIDADE, "fala-em-sala", ChamadasAoProvedor.MODELO, "gpt-6.1-terra")
+                        .counter().count())
+                .isEqualTo(0.000801);
+        assertThat(tokens("fala-em-sala", "entrada")).isEqualTo(316);
+        assertThat(tokens("fala-em-sala", "saida")).isEqualTo(97);
+        assertThat(metricas.getMeters())
+                .filteredOn(m -> m.getId().getName().startsWith("lab.ia."))
+                .allSatisfy(m -> assertThat(m.getId().getTags()).extracting(t -> t.getKey())
+                        .isSubsetOf(ChamadasAoProvedor.FINALIDADE, ChamadasAoProvedor.MODELO, ChamadasAoProvedor.TIPO,
+                                ChamadasAoProvedor.MOTIVO, ChamadasAoProvedor.CHAVE, "error"));
+        assertThat(metricas.getMeters()).flatMap(m -> m.getId().getTags()).extracting(t -> t.getValue())
+                .doesNotContain("7");
+    }
+
+    @Test
+    void consumoSemFinalidadeContaComoNaoInformada() {
+        when(provedor.conversar(any(), any())).thenReturn(
+                new Geracao<>("Olá.", "m", Map.of(), new UsoDoModelo(10, 20)));
+
+        chamadas.responder(PEDIDO, trecho -> {});
+
+        assertThat(tokens("nao-informada", "entrada")).isEqualTo(10);
+    }
+
+    /** Sem tokens informados não há custo: nenhum contador de custo ou de tokens é criado. */
+    @Test
+    void consumoDesconhecidoNaoSomaNada() {
+        when(provedor.conversar(any(), any())).thenReturn(new Geracao<>("Olá.", "m", Map.of(), null));
+
+        chamadas.responder(PEDIDO, trecho -> {});
+
+        assertThat(metricas.find(ChamadasAoProvedor.CUSTO).counters()).isEmpty();
+        assertThat(metricas.find(ChamadasAoProvedor.TOKENS).counters()).isEmpty();
+    }
+
+    @Test
+    void respostaVaziaContaComoFalha() {
+        when(provedor.conversar(any(), any())).thenReturn(
+                new Geracao<>(" ", "m", Map.of(), new UsoDoModelo(316, 2048)));
+
+        assertThatThrownBy(() -> chamadas.responder(PEDIDO, trecho -> {})).isInstanceOf(FalhaNoProvedorDeIa.class);
+
+        assertThat(falhas("resposta-vazia")).isEqualTo(1);
+        assertThat(tokens("nao-informada", "saida")).isEqualTo(2048);
+    }
+
+    @Test
+    void sugestaoSemRoteiroContaComoFalha() {
+        when(provedor.sugerirRoteiro(any())).thenReturn(new Geracao<>(null, "m", Map.of(), new UsoDoModelo(5, 6)));
+
+        assertThatThrownBy(() -> chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null)))
+                .isInstanceOf(FalhaNoProvedorDeIa.class);
+
+        assertThat(falhas("sem-roteiro")).isEqualTo(1);
+        assertThat(tokens("sugestao", "entrada")).isEqualTo(5);
+    }
+
+    @Test
+    void respostaComConteudoNaoContaFalha() {
+        when(provedor.conversar(any(), any())).thenReturn(new Geracao<>("Olá.", "m", Map.of(), null));
+
+        chamadas.responder(PEDIDO, trecho -> {});
+
+        assertThat(metricas.find(ChamadasAoProvedor.FALHA).counters()).isEmpty();
+    }
+
+    /** RNF-13: a sugestão também é medida, como etapa própria. */
+    @Test
+    void sugestaoEObservada() {
+        when(provedor.sugerirRoteiro(any())).thenReturn(new Geracao<>(roteiro(), "m", Map.of(), null));
+
+        chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null));
+
+        assertThat(etapas()).containsExactly("sugestao");
+    }
+
+    @Test
+    void falhaDaSugestaoFicaNaObservacao() {
+        when(provedor.sugerirRoteiro(any())).thenThrow(new FalhaNoProvedorDeIa("fora do ar", null));
+
+        assertThatThrownBy(() -> chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null)))
+                .isInstanceOf(FalhaNoProvedorDeIa.class);
+
+        assertThat(observada("sugestao").erro()).isInstanceOf(FalhaNoProvedorDeIa.class);
+    }
+
+    /**
+     * RNF-13: cada uso tem a tarifa do que usa. A fala (na sala e no teste do curador) usa a tabela da
+     * conversa; a sugestão, a própria, do nível de serviço padrão.
+     */
+    @Test
+    void falaETesteDoCuradorUsamATarifaDaFala() {
+        when(provedor.conversar(any(), any())).thenReturn(new Geracao<>("Olá.", "m", Map.of(), new UsoDoModelo(316, 97)));
+
+        chamadas.responder(new PedidoDeFala(CENARIO, List.of(), "Oi", FinalidadeDoConsumo.TESTE_DO_CURADOR, 3L), t -> {});
+
+        assertThat(gravados().custo()).isEqualByComparingTo("0.000801");
+    }
+
+    @Test
+    void sugestaoUsaATarifaDaSugestao() {
+        when(provedor.sugerirRoteiro(any())).thenReturn(new Geracao<>(roteiro(), "m", Map.of(), new UsoDoModelo(400, 100)));
+
+        chamadas.sugerirCenario(new PedidoDeSugestao("Voo", null, null, null, null));
+
+        // 400 × 0,50 + 100 × 2,50, por milhão; como fala, pela outra tabela, seriam 0,000900.
+        assertThat(gravados().custo()).isEqualByComparingTo("0.000450");
+        assertThat(metricas.get(ChamadasAoProvedor.CUSTO).tag(ChamadasAoProvedor.FINALIDADE, "sugestao").counter().count())
+                .isEqualTo(0.00045);
+    }
+
+    private double tokens(String finalidade, String tipo) {
+        return metricas.get(ChamadasAoProvedor.TOKENS)
+                .tags(ChamadasAoProvedor.FINALIDADE, finalidade, ChamadasAoProvedor.TIPO, tipo)
+                .counters().stream().mapToDouble(c -> c.count()).sum();
+    }
+
+    private double falhas(String motivo) {
+        return metricas.get(ChamadasAoProvedor.FALHA).tag(ChamadasAoProvedor.MOTIVO, motivo).counter().count();
+    }
+
+    private static RoteiroSugerido roteiro() {
+        return new RoteiroSugerido("O voo do 14-bis", "Santos Dumont", null, null, null, null, null, null, null, 20);
     }
 
     private List<String> etapas() {

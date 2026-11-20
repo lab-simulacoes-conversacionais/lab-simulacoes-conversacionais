@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.ia.infraestrutura;
 
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.dominio.MetadadosDaResposta;
 import br.ufg.inf.labsimulacoes.ia.dominio.RegistroDeMetadados;
 import br.ufg.inf.labsimulacoes.ia.dominio.UsoDoModelo;
@@ -31,8 +32,9 @@ class RegistroDeMetadadosJdbc implements RegistroDeMetadados {
     public MetadadosDaResposta gravar(MetadadosDaResposta metadados) {
         Long id = jdbc.queryForObject("""
                 INSERT INTO resposta_ia_meta
-                    (provedor, modelo, parametros, versao_prompt, tokens_entrada, tokens_saida, custo, latencia_ms)
-                VALUES (?, ?, ?::jsonb, ?, ?, ?, ?, ?)
+                    (provedor, modelo, parametros, versao_prompt, tokens_entrada, tokens_saida, custo, latencia_ms,
+                     finalidade, referencia_id)
+                VALUES (?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id""",
                 Long.class,
                 metadados.provedor(),
@@ -42,7 +44,9 @@ class RegistroDeMetadadosJdbc implements RegistroDeMetadados {
                 metadados.uso().tokensEntrada(),
                 metadados.uso().tokensSaida(),
                 metadados.custo(),
-                metadados.latenciaMs());
+                metadados.latenciaMs(),
+                metadados.finalidade() == null ? null : metadados.finalidade().name(),
+                metadados.referenciaId());
         return metadados.comId(id);
     }
 
@@ -50,7 +54,7 @@ class RegistroDeMetadadosJdbc implements RegistroDeMetadados {
     public Optional<MetadadosDaResposta> buscar(long id) {
         return jdbc.query("""
                         SELECT id, provedor, modelo, parametros::text AS parametros, versao_prompt,
-                               tokens_entrada, tokens_saida, custo, latencia_ms
+                               tokens_entrada, tokens_saida, custo, latencia_ms, finalidade, referencia_id
                         FROM resposta_ia_meta WHERE id = ?""",
                         this::paraMetadados,
                         id)
@@ -59,6 +63,7 @@ class RegistroDeMetadadosJdbc implements RegistroDeMetadados {
     }
 
     private MetadadosDaResposta paraMetadados(ResultSet linha, int numero) throws SQLException {
+        FinalidadeDoConsumo finalidade = finalidade(linha.getString("finalidade"));
         return new MetadadosDaResposta(
                 linha.getLong("id"),
                 linha.getString("provedor"),
@@ -69,7 +74,24 @@ class RegistroDeMetadadosJdbc implements RegistroDeMetadados {
                         linha.getObject("tokens_entrada", Integer.class),
                         linha.getObject("tokens_saida", Integer.class)),
                 linha.getBigDecimal("custo"),
-                linha.getInt("latencia_ms"));
+                linha.getInt("latencia_ms"),
+                finalidade,
+                finalidade == null ? null : linha.getObject("referencia_id", Long.class));
+    }
+
+    /**
+     * Uma finalidade que esta imagem não conhece, gravada por uma mais nova (RNF-12), vira nula, e a
+     * referência dela também, porque não se sabe o que ela identifica.
+     */
+    private static FinalidadeDoConsumo finalidade(String valor) {
+        if (valor == null) {
+            return null;
+        }
+        try {
+            return FinalidadeDoConsumo.valueOf(valor);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private String paraJson(Map<String, Object> parametros) {

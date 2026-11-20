@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.ia.infraestrutura;
 
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
@@ -58,6 +59,52 @@ class RegistroDeMetadadosJdbcTest {
         assertThat(lido.uso()).isEqualTo(UsoDoModelo.desconhecido());
         assertThat(lido.custo()).isNull();
         assertThat(lido.parametros()).isEmpty();
+    }
+
+    @Test
+    void finalidadeEReferenciaVoltamIguaisDoBanco() {
+        MetadadosDaResposta gravado = registro.gravar(MetadadosDaResposta.daChamada(
+                "openai", "gpt-6.1-terra", Map.of(), "personagem-v1", new UsoDoModelo(1, 2), PRECOS,
+                Duration.ofMillis(5), FinalidadeDoConsumo.FALA_EM_SALA, 7L));
+
+        MetadadosDaResposta lido = registro.buscar(gravado.id()).orElseThrow();
+
+        assertThat(lido.finalidade()).isEqualTo(FinalidadeDoConsumo.FALA_EM_SALA);
+        assertThat(lido.referenciaId()).isEqualTo(7L);
+        assertThat(jdbc.queryForObject("SELECT finalidade FROM resposta_ia_meta WHERE id = ?", String.class, lido.id()))
+                .isEqualTo("FALA_EM_SALA");
+    }
+
+    /** RNF-12: depois de uma reversão, uma finalidade gravada por uma imagem mais nova é lida como nula. */
+    @Test
+    void finalidadeDesconhecidaELidaComoNula() {
+        Long id = jdbc.queryForObject("""
+                INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt, finalidade, referencia_id)
+                VALUES ('openai', 'gpt-6.1-terra', 'personagem-v1', 'FINALIDADE_DO_FUTURO', 3)
+                RETURNING id""", Long.class);
+
+        MetadadosDaResposta lido = registro.buscar(id).orElseThrow();
+
+        assertThat(lido.finalidade()).isNull();
+        assertThat(lido.referenciaId()).isNull();
+    }
+
+    /**
+     * RNF-12: a imagem anterior, que não conhece a finalidade nem a referência, continua gravando os
+     * metadados com o INSERT dela, e as colunas novas ficam nulas.
+     */
+    @Test
+    void imagemAnteriorGravaSemAsColunasNovas() {
+        Long id = jdbc.queryForObject("""
+                INSERT INTO resposta_ia_meta
+                    (provedor, modelo, parametros, versao_prompt, tokens_entrada, tokens_saida, custo, latencia_ms)
+                VALUES ('openai', 'gpt-6.1-terra', '{}'::jsonb, 'personagem-v1', 10, 20, 0.000110, 900)
+                RETURNING id""", Long.class);
+
+        assertThat(registro.buscar(id)).isPresent();
+        assertThat(jdbc.queryForMap("SELECT finalidade, referencia_id FROM resposta_ia_meta WHERE id = ?", id))
+                .containsEntry("finalidade", null)
+                .containsEntry("referencia_id", null);
     }
 
     @Test

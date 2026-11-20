@@ -94,7 +94,7 @@ Cada módulo é um subpacote direto de `br.ufg.inf.labsimulacoes`:
 | `cenarios` | Cenários | Cenários, versões, catálogo da BNCC, quiz, curadoria e biblioteca |
 | `sessoes` | Sessões | Sessões em sala, mensagens, controles, aplicação do quiz e engajamento |
 | `auditoria` | Auditoria | Conteúdo bloqueado, sinalizações, triagem, suspensão e log de ações críticas |
-| `metricas` | Métricas | Indicadores, comparação com sessões de controle, painel e exportação |
+| `metricas` | Métricas | Indicadores, comparação com sessões de controle, painel, exportação e alerta de custo diário da IA |
 | `ia` | Adaptador de IA | Porta única para o provedor de IA |
 
 O pacote `eventos`, no mesmo nível, guarda só os tipos dos eventos de domínio. Ele não é um módulo de negócio, mas existe para que dois módulos possam publicar e escutar eventos um do outro sem formar um ciclo.
@@ -117,6 +117,7 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
 | `cenarios` | `BibliotecaDeCenarios` | Listar, em páginas de até 100, os cenários aprovados da escola, com busca por tema e filtros combináveis por componente, ano e habilidade BNCC (RF-12), com perfil Professor ou Curador |
 | `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
+| `ia` | `ConsumoDaIa` | Somar o consumo da IA (respostas, tokens, custo e respostas sem custo) num intervalo ou de uma sessão (RNF-13), sem conferir perfil, porque a conferência agendada roda sem login |
 
 ### Catálogo da BNCC
 
@@ -161,6 +162,19 @@ A sessão fica ligada ao professor, à turma e à versão aprovada vigente no in
 - **Reconstrução:** o PostgreSQL é a fonte da verdade. Os controles (pausar, retomar, reiniciar e encerrar) sempre partem do estado refeito a partir de `sessao`, `evento_sessao` e `mensagem`, com a sessão travada, e nunca da chave do Redis, que pode ainda não ter recebido a gravação do controle anterior. A chave serve à leitura da tela: se ela sumir ou discordar do banco, o estado é refeito e gravado de novo (RNF-04). Falha do Redis não derruba a aula.
 - **Mensagens:** quem gravar mensagens (RF-16) precisa usar o horário da aplicação em `mensagem.criado_em`, porque o ponto de reinício também usa esse relógio.
 
+### Observabilidade e custo da IA
+
+O RNF-13 pede latência, erros, tokens e custo por sessão, e um alerta ao administrador quando o custo do dia passar do custo diário máximo dos parâmetros.
+
+- **Metadados de cada resposta:** `resposta_ia_meta` guarda tokens, custo e latência (RNF-10), e agora a `finalidade` (`FALA_EM_SALA`, `TESTE_DO_CURADOR` ou `SUGESTAO`) e a `referencia_id`, que quem chama informa no `PedidoDeFala` (na sala, o id da sessão). O adaptador grava sem saber o que a referência significa. A sugestão grava `SUGESTAO` sozinha. Os metadados gravados antes da #31 ficam sem finalidade. Um pedido montado com o construtor antigo, de três argumentos, também.
+- **Custo por sessão:** `ConsumoDaIa.daReferencia(FALA_EM_SALA, sessaoId)` soma todas as respostas da sessão, inclusive as bloqueadas pelo filtro e as que vieram vazias, que não viram mensagem. O administrador consulta na aba **Consumo** (`/admin/consumo`), pelo número da sessão. Nada é agrupado por professor (RN-31).
+- **Custo do dia:** soma `resposta_ia_meta` da meia-noite à meia-noite no fuso `metricas.custo.fuso` (`America/Sao_Paulo`). O banco é a fonte da verdade. Entram a fala em sala, o teste do curador e a sugestão; a moderação não tem custo. Respostas sem tokens informados ficam sem custo e são contadas à parte, e então o custo real é maior que o mostrado.
+- **Preço de cada uso:** cada resposta é precificada pela tarifa do modelo e do nível de serviço que usa. A fala do personagem, na sala e no teste do curador, usa `ia.preco.*` (`IA_PRECO_ENTRADA` e `IA_PRECO_SAIDA`, com a tarifa do nível prioritário por padrão). A sugestão de cenário, que roda no nível padrão, usa `ia.sugestao.preco.*` (`IA_PRECO_SUGESTAO_ENTRADA` e `IA_PRECO_SUGESTAO_SAIDA`, com a tarifa desse nível). Ao trocar o modelo ou o nível de um uso, troque o preço dele junto.
+- **Alerta:** a `VerificacaoDoCustoDiario` roda a cada `metricas.custo.verificacao` (5 minutos) e, quando o custo do dia passa do limite (estritamente), grava uma linha em `alerta_custo_diario` e escreve um WARN no log. É um alerta por dia, garantido pela chave primária, mesmo depois de um reinício ou com duas instâncias. Ele não se repete se o limite mudar no mesmo dia. Sem limite definido, não há alerta. Enquanto houver alerta hoje, todas as abas da administração mostram o aviso no topo, com o custo calculado na hora. A conferência agendada fica desligada nos testes (`metricas.custo.verificar-automaticamente`, variável `METRICAS_CUSTO_VERIFICAR`).
+- **Micrometer:** além dos timers do RNF-03, o adaptador registra os contadores `lab.ia.custo` (em dólares) e `lab.ia.tokens` (tag `tipo`, `entrada` ou `saida`), as duas com as tags `finalidade` e `modelo`, e `lab.ia.falha` (tag `motivo`: `resposta-vazia` ou `sem-roteiro`). A sugestão virou a etapa `sugestao` de `lab.ia.chamada`. Nenhum id de sessão, usuário ou cenário vira tag. Os contadores recomeçam a cada subida da aplicação.
+- **Contagem repetida de tokens:** o Spring AI já conta os tokens em `gen_ai.client.token.usage`, por modelo e tipo (`input` e `output`), o que foi confirmado em execução (`TetoDeTokensNaRequisicaoTest`). O `lab.ia.tokens` repete essa contagem para separar por finalidade, que o Spring AI não conhece.
+- **Exposição:** o Actuator continua expondo só o `health`, e o Caddy bloqueia o resto. Os contadores ficam na memória da aplicação até haver um coletor.
+
 ## Regras de fronteira
 
 - A API de um módulo é só o seu pacote raiz. Os subpacotes são internos e inacessíveis aos outros módulos.
@@ -173,7 +187,7 @@ A sessão fica ligada ao professor, à turma e à versão aprovada vigente no in
 | `cenarios` | `acesso`, `ia`, `eventos` |
 | `sessoes` | `acesso`, `cenarios`, `ia`, `eventos` |
 | `auditoria` | `acesso`, `eventos` |
-| `metricas` | `acesso`, `eventos` |
+| `metricas` | `acesso`, `ia`, `eventos` |
 | `ia` | nenhum |
 | `eventos` | nenhum |
 

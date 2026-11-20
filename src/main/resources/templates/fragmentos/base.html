@@ -63,7 +63,9 @@
 
 <!--
   Título e abas da área de administração, iguais em todas as abas, como no protótipo.
-  'ativa' é 'usuarios', 'turmas' ou 'parametros'. O log de auditoria ganha a sua aba quando a tela existir.
+  'ativa' é 'usuarios', 'turmas', 'parametros' ou 'consumo'. O log de auditoria ganha a sua aba quando a
+  tela existir. O aviso de custo (RNF-13) aparece em todas as abas enquanto houver alerta hoje; quem põe
+  'avisoDeCusto' no modelo é o módulo de métricas (AvisoDeCustoNaAdministracao).
 -->
 <div th:fragment="painelAdmin(ativa)">
   <a class="back-link" th:href="@{/}">Voltar ao início</a>
@@ -82,7 +84,14 @@
        th:attr="aria-current=${ativa == 'turmas'} ? 'page' : null">Turmas</a>
     <a th:href="@{/admin/parametros}" th:classappend="${ativa == 'parametros'} ? 'active'"
        th:attr="aria-current=${ativa == 'parametros'} ? 'page' : null">Parâmetros</a>
+    <a th:href="@{/admin/consumo}" th:classappend="${ativa == 'consumo'} ? 'active'"
+       th:attr="aria-current=${ativa == 'consumo'} ? 'page' : null">Consumo</a>
   </nav>
+  <p class="field-error aviso-de-custo" role="alert" th:if="${avisoDeCusto != null}">
+    O custo da IA hoje passou do custo diário máximo:
+    <th:block th:text="|US$ ${#numbers.formatDecimal(avisoDeCusto.custoAgora(), 1, 'POINT', 4, 'COMMA')} de US$ ${#numbers.formatDecimal(avisoDeCusto.limiteDoAlerta(), 1, 'POINT', 2, 'COMMA')}.|">US$ 5,1000 de US$ 5,00.</th:block>
+    <a th:href="@{/admin/consumo}">Ver o consumo</a>
+  </p>
 </div>
 
 <!--

@@ -2,6 +2,7 @@ package br.ufg.inf.labsimulacoes.ia.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.ia.dominio.MontadorComTemplates;
 import br.ufg.inf.labsimulacoes.ia.dominio.MontadorDePrompt;
+import br.ufg.inf.labsimulacoes.ia.dominio.PrecosPorUso;
 import br.ufg.inf.labsimulacoes.ia.dominio.TabelaDePrecos;
 import java.math.BigDecimal;
 import org.slf4j.Logger;
@@ -17,11 +18,19 @@ class ConfiguracaoDoAdaptador {
 
     private static final Logger LOG = LoggerFactory.getLogger(ConfiguracaoDoAdaptador.class);
 
+    /**
+     * As tarifas da fala e da sugestão (RNF-13), cada uma do modelo e do nível de serviço que ela usa
+     * (ia.preco.* e ia.sugestao.preco.*).
+     */
     @Bean
-    TabelaDePrecos tabelaDePrecos(
-            @Value("${ia.preco.entrada-por-milhao}") BigDecimal entradaPorMilhao,
-            @Value("${ia.preco.saida-por-milhao}") BigDecimal saidaPorMilhao) {
-        return new TabelaDePrecos(entradaPorMilhao, saidaPorMilhao);
+    PrecosPorUso precosPorUso(
+            @Value("${ia.preco.entrada-por-milhao}") BigDecimal falaEntradaPorMilhao,
+            @Value("${ia.preco.saida-por-milhao}") BigDecimal falaSaidaPorMilhao,
+            @Value("${ia.sugestao.preco.entrada-por-milhao}") BigDecimal sugestaoEntradaPorMilhao,
+            @Value("${ia.sugestao.preco.saida-por-milhao}") BigDecimal sugestaoSaidaPorMilhao) {
+        return new PrecosPorUso(
+                new TabelaDePrecos(falaEntradaPorMilhao, falaSaidaPorMilhao),
+                new TabelaDePrecos(sugestaoEntradaPorMilhao, sugestaoSaidaPorMilhao));
     }
 
     /**

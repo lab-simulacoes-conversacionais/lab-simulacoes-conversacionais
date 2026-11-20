@@ -13,6 +13,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.TesteNaoPermitido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
@@ -142,8 +143,10 @@ public class TesteDoCenario {
             if (adaptador.moderar(pendente.pergunta()).sinalizado()) {
                 return pendente.comPerguntaBloqueada();
             }
+            // RNF-13: o consumo do teste fica ligado à versão testada, separado do da sala.
             RespostaDoPersonagem resposta = adaptador.responder(
-                    new PedidoDeFala(paraCenario(reserva.conteudo()), reserva.historico(), pendente.pergunta()),
+                    new PedidoDeFala(paraCenario(reserva.conteudo()), reserva.historico(), pendente.pergunta(),
+                            FinalidadeDoConsumo.TESTE_DO_CURADOR, pendente.versaoId()),
                     trecho -> {});
             metadados = resposta.metadadosId();
             return adaptador.moderar(resposta.texto()).sinalizado()

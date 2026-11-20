@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.ia.dominio;
 
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -35,6 +36,37 @@ class MetadadosDaRespostaTest {
                 UsoDoModelo.desconhecido(), PRECOS, Duration.ofMillis(10));
 
         assertThat(metadados.custo()).isNull();
+    }
+
+    @Test
+    void daChamadaLevaAFinalidadeEAReferencia() {
+        MetadadosDaResposta metadados = MetadadosDaResposta.daChamada(
+                "openai", "gpt-6.1-terra", Map.of(), "personagem-v1", new UsoDoModelo(1, 2), PRECOS,
+                Duration.ofMillis(10), FinalidadeDoConsumo.FALA_EM_SALA, 7L);
+
+        assertThat(metadados.finalidade()).isEqualTo(FinalidadeDoConsumo.FALA_EM_SALA);
+        assertThat(metadados.referenciaId()).isEqualTo(7L);
+        assertThat(metadados.comId(42).finalidade()).isEqualTo(FinalidadeDoConsumo.FALA_EM_SALA);
+        assertThat(metadados.comId(42).referenciaId()).isEqualTo(7L);
+    }
+
+    @Test
+    void daChamadaDeAntesFicaSemFinalidade() {
+        MetadadosDaResposta metadados = MetadadosDaResposta.daChamada(
+                "openai", "gpt-6.1-terra", Map.of(), "personagem-v1", new UsoDoModelo(1, 2), PRECOS,
+                Duration.ofMillis(10));
+
+        assertThat(metadados.finalidade()).isNull();
+        assertThat(metadados.referenciaId()).isNull();
+    }
+
+    @Test
+    void referenciaSemFinalidadeERecusada() {
+        assertThatThrownBy(() -> MetadadosDaResposta.daChamada(
+                        "openai", "gpt-6.1-terra", Map.of(), "personagem-v1", new UsoDoModelo(1, 2), PRECOS,
+                        Duration.ofMillis(10), null, 7L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("finalidade");
     }
 
     @Test

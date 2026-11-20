@@ -16,6 +16,7 @@ import static org.mockito.Mockito.when;
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
+import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
@@ -181,6 +182,18 @@ class ConversaEmSalaTest {
                         Long.class,
                         sessao))
                 .isEqualTo(metadados.getFirst());
+    }
+
+    /** RNF-13: o pedido liga o consumo à sessão, para somar o custo dela. */
+    @Test
+    void pedidoLevaAFinalidadeFalaEmSalaEOIdDaSessao() {
+        respondeEmTrechos("Olá.");
+        conversa.enviarPergunta(sessao, "Oi!");
+
+        conversa.responderPendente(sessao, new Tela());
+
+        assertThat(ultimoPedido().finalidade()).isEqualTo(FinalidadeDoConsumo.FALA_EM_SALA);
+        assertThat(ultimoPedido().referenciaId()).isEqualTo(sessao);
     }
 
     /** O prompt usa a versão da sessão, e a pergunta pendente não se repete no histórico. */
