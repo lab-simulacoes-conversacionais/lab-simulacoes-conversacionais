@@ -15,8 +15,10 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadesForaDoCatalogo;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PendenciaDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.security.access.AccessDeniedException;
@@ -87,7 +89,9 @@ class CenariosController {
     @GetMapping
     String meusCenarios(@RequestParam(defaultValue = "0") int pagina, Model modelo) {
         var trecho = autoria.meusCenarios(Math.max(pagina, 0), TAMANHO_DA_LISTA);
-        modelo.addAttribute("cenarios", trecho.itens().stream().map(ItemDaLista::de).toList());
+        modelo.addAttribute("cenarios", trecho.itens().stream()
+                .map(cenario -> ItemDaLista.naLista(cenario, trecho.ultimaAprovada(cenario)))
+                .toList());
         modelo.addAttribute("pagina", Math.max(pagina, 0));
         modelo.addAttribute("temProxima", trecho.temProxima());
         return "cenarios/lista";
@@ -126,10 +130,13 @@ class CenariosController {
             mensagens.addFlashAttribute("erro", "Este cenário não existe.");
             return "redirect:/cenarios";
         }
-        if (cenario.versao().status() != StatusDaVersao.RASCUNHO) {
-            mensagens.addFlashAttribute("erro", "“" + cenario.versao().conteudo().titulo()
-                    + "” está " + ItemDaLista.rotulo(cenario.status()).toLowerCase(Locale.ROOT)
-                    + " e não pode ser editado agora.");
+        // O motivo é o status da versão: o cenário aprovado pode ter a versão nova em curadoria (RN-08).
+        VersaoDoCenario versao = cenario.versao();
+        if (versao.status() != StatusDaVersao.RASCUNHO) {
+            mensagens.addFlashAttribute("erro", "A versão " + versao.numero() + " de “"
+                    + versao.conteudo().titulo() + "” está "
+                    + (versao.status() == StatusDaVersao.EM_CURADORIA ? "em curadoria" : "aprovada")
+                    + " e não pode ser editada agora.");
             return "redirect:/cenarios";
         }
         modelo.addAttribute("devolucao", cenario.ultimaDevolucao());
@@ -259,7 +266,15 @@ class CenariosController {
         return texto == null || texto.isBlank();
     }
 
-    /** Um cenário na lista do autor e na confirmação do envio. */
+    /**
+     * Um cenário na lista do autor, no acervo, na fila do curador e na confirmação do envio.
+     *
+     * @param devolucao o comentário da curadoria, se a versão mais recente foi devolvida (RN-07)
+     * @param editavel se a versão mais recente está em rascunho. Olha a versão, e não o cenário, porque a
+     *     versão nova de um cenário aprovado fica em rascunho com o cenário ainda Aprovado (RN-08)
+     * @param aviso o que dizer sobre a outra versão, quando o cenário aprovado tem uma versão nova:
+     *     nas listas, a versão nova; na fila do curador, a versão que continua em sala
+     */
     record ItemDaLista(
             long id,
             String titulo,
@@ -268,11 +283,51 @@ class CenariosController {
             Integer ano,
             List<String> habilidades,
             StatusDoCenario status,
-            String devolucao) {
+            String devolucao,
+            boolean editavel,
+            String aviso) {
 
+        /** A versão mais recente, como na confirmação do envio, que mostra o que acabou de ir à curadoria. */
         static ItemDaLista de(Cenario cenario) {
-            var conteudo = cenario.versao().conteudo();
-            boolean devolvido = cenario.status() == StatusDoCenario.RASCUNHO && cenario.ultimaDevolucao() != null;
+            return com(cenario, cenario.versao(), null);
+        }
+
+        /**
+         * Nas listas do autor e do acervo, a última versão aprovada, que é a que vale (RN-08), e um aviso
+         * da versão nova, se houver.
+         */
+        static ItemDaLista naLista(Cenario cenario, Optional<VersaoDoCenario> ultimaAprovada) {
+            VersaoDoCenario nova = cenario.versao();
+            return ultimaAprovada
+                    .map(aprovada -> com(cenario, aprovada, "Versão " + nova.numero() + " "
+                            + situacao(nova, cenario.ultimaDevolucao() != null)
+                            + "; a versão " + aprovada.numero() + " continua valendo."))
+                    .orElseGet(() -> de(cenario));
+        }
+
+        private static String situacao(VersaoDoCenario versao, boolean devolvida) {
+            if (versao.status() == StatusDaVersao.EM_CURADORIA) {
+                return "em curadoria";
+            }
+            return devolvida ? "devolvida pela curadoria" : "em rascunho";
+        }
+
+        /**
+         * Na fila do curador, a versão nova, que é a que está em revisão, com o aviso de que o cenário já
+         * tem uma versão aprovada.
+         */
+        static ItemDaLista naFila(Cenario cenario, Optional<VersaoDoCenario> ultimaAprovada) {
+            return com(cenario, cenario.versao(), ultimaAprovada
+                    .map(aprovada -> "Versão nova de um cenário " + rotulo(cenario.status()).toLowerCase(Locale.ROOT)
+                            + ": a versão " + aprovada.numero() + " é a "
+                            + (cenario.status() == StatusDoCenario.APROVADO ? "que está em sala." : "última aprovada."))
+                    .orElse(null));
+        }
+
+        private static ItemDaLista com(Cenario cenario, VersaoDoCenario exibida, String aviso) {
+            var conteudo = exibida.conteudo();
+            boolean emRascunho = cenario.versao().status() == StatusDaVersao.RASCUNHO;
+            boolean devolvido = emRascunho && cenario.ultimaDevolucao() != null;
             return new ItemDaLista(
                     cenario.id(),
                     conteudo.titulo(),
@@ -281,16 +336,23 @@ class CenariosController {
                     conteudo.curriculo().ano(),
                     conteudo.curriculo().habilidades(),
                     cenario.status(),
-                    devolvido ? cenario.ultimaDevolucao().comentario() : null);
+                    devolvido ? cenario.ultimaDevolucao().comentario() : null,
+                    emRascunho,
+                    aviso);
         }
 
+        /** O selo é o do cenário; a devolução de uma versão nova aparece no aviso, e não no selo. */
         public String rotuloDoStatus() {
-            return devolucao != null ? "Devolvido" : rotulo(status);
+            return devolvidoSemVersaoAprovada() ? "Devolvido" : rotulo(status);
+        }
+
+        private boolean devolvidoSemVersaoAprovada() {
+            return devolucao != null && status == StatusDoCenario.RASCUNHO;
         }
 
         /** Classe do selo, nas cores do protótipo. */
         public String classeDoStatus() {
-            if (devolucao != null) {
+            if (devolvidoSemVersaoAprovada()) {
                 return "badge-danger";
             }
             return switch (status) {
@@ -303,7 +365,7 @@ class CenariosController {
 
         /** Ícone do selo, como no protótipo. */
         public String iconeDoStatus() {
-            if (devolucao != null) {
+            if (devolvidoSemVersaoAprovada()) {
                 return "!";
             }
             return switch (status) {
@@ -313,10 +375,6 @@ class CenariosController {
                 case SUSPENSO -> "!";
                 case ARQUIVADO -> "×";
             };
-        }
-
-        public boolean editavel() {
-            return status == StatusDoCenario.RASCUNHO;
         }
 
         static String rotulo(StatusDoCenario status) {
