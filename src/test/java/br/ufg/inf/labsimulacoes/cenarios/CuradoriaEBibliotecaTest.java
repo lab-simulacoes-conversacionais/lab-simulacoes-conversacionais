@@ -137,6 +137,44 @@ class CuradoriaEBibliotecaTest {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Arquivamento (RF-13, RN-09)
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    void curadorArquivaEOCenarioSaiDaBiblioteca() throws Exception {
+        long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Arquivado"));
+        var curador = logado(novoUsuario(Perfil.CURADOR));
+        curador.postForm("/curadoria/" + id + "/aprovar", "");
+        curador.get("/curadoria"); // consome o aviso da aprovação
+
+        var resposta = curador.postForm("/curadoria/" + id + "/arquivar", "");
+
+        assertThat(local(resposta)).endsWith("/curadoria");
+        assertThat(curador.get("/curadoria").body()).contains("foi arquivado e saiu da biblioteca");
+        var professor = logado(novoUsuario(Perfil.PROFESSOR));
+        assertThat(professor.get("/biblioteca?pagina=0").body()).doesNotContain("/biblioteca/" + id + "\"");
+        assertThat(local(professor.get("/biblioteca/" + id))).endsWith("/biblioteca");
+    }
+
+    @Test
+    void cenarioForaDaBibliotecaNaoEArquivado() throws Exception {
+        long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Ainda na fila"));
+        var curador = logado(novoUsuario(Perfil.CURADOR));
+
+        curador.postForm("/curadoria/" + id + "/arquivar", "");
+
+        assertThat(curador.get("/curadoria").body()).contains("Só um cenário aprovado ou suspenso pode ser arquivado.");
+    }
+
+    @Test
+    void professorNaoArquivaPorRequisicaoDireta() throws Exception {
+        long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Não arquiva"));
+        var outro = logado(novoUsuario(Perfil.PROFESSOR));
+
+        assertThat(outro.postForm("/curadoria/" + id + "/arquivar", "").statusCode()).isEqualTo(403);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Devolução (RN-07)
     // ---------------------------------------------------------------------------------------------
 

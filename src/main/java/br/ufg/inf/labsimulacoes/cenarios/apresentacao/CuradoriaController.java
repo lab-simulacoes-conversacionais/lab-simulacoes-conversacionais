@@ -3,7 +3,9 @@ package br.ufg.inf.labsimulacoes.cenarios.apresentacao;
 import br.ufg.inf.labsimulacoes.acesso.UsuarioLogado;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AcervoDaCuradoria;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AprovacaoDeCenario;
+import br.ufg.inf.labsimulacoes.cenarios.aplicacao.ArquivamentoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.DevolucaoDeCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.ArquivamentoNaoPermitido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioForaDeCuradoria;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaoEncontrado;
@@ -39,6 +41,7 @@ class CuradoriaController {
     private final AcervoDaCuradoria acervo;
     private final AprovacaoDeCenario aprovacao;
     private final DevolucaoDeCenario devolucao;
+    private final ArquivamentoDeCenario arquivamento;
     private final DescricoesDaBncc descricoes;
     private final UsuarioLogado usuarioLogado;
 
@@ -46,11 +49,13 @@ class CuradoriaController {
             AcervoDaCuradoria acervo,
             AprovacaoDeCenario aprovacao,
             DevolucaoDeCenario devolucao,
+            ArquivamentoDeCenario arquivamento,
             DescricoesDaBncc descricoes,
             UsuarioLogado usuarioLogado) {
         this.acervo = acervo;
         this.aprovacao = aprovacao;
         this.devolucao = devolucao;
+        this.arquivamento = arquivamento;
         this.descricoes = descricoes;
         this.usuarioLogado = usuarioLogado;
     }
@@ -101,6 +106,24 @@ class CuradoriaController {
         } catch (DecisaoDeCuradoriaNaoPermitida | CenarioForaDeCuradoria | CenarioNaoEncontrado erro) {
             return recusado(id, erro, mensagens);
         }
+    }
+
+    /**
+     * RF-13: tira o cenário da biblioteca sem apagar o histórico (RN-09). O botão fica no detalhe da
+     * biblioteca, que chega com a #34; a rota já fica pronta para ele.
+     */
+    @PostMapping("/{id}/arquivar")
+    String arquivar(@PathVariable long id, RedirectAttributes mensagens) {
+        try {
+            Cenario arquivado = arquivamento.arquivar(id);
+            mensagens.addFlashAttribute("sucesso", "“" + arquivado.versao().conteudo().titulo()
+                    + "” foi arquivado e saiu da biblioteca. O histórico continua guardado.");
+        } catch (ArquivamentoNaoPermitido erro) {
+            mensagens.addFlashAttribute("erro", "Só um cenário aprovado ou suspenso pode ser arquivado.");
+        } catch (CenarioNaoEncontrado erro) {
+            mensagens.addFlashAttribute("erro", "Este cenário não existe.");
+        }
+        return "redirect:/curadoria";
     }
 
     private void abrir(Cenario cenario, Model modelo) {
