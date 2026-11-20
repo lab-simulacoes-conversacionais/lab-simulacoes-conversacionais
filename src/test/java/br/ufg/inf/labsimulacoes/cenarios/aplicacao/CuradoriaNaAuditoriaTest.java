@@ -22,7 +22,7 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
- * De ponta a ponta: a aprovação e a devolução feitas pelos casos de uso chegam ao log de auditoria
+ * De ponta a ponta: a aprovação, a devolução e o arquivamento feitos pelos casos de uso chegam ao log de auditoria
  * (RN-35). Sem {@code @Transactional}, porque o ouvinte só recebe o evento depois do commit, em outra
  * thread.
  *
@@ -46,6 +46,9 @@ class CuradoriaNaAuditoriaTest {
 
     @Autowired
     private DevolucaoDeCenario devolucao;
+
+    @Autowired
+    private ArquivamentoDeCenario arquivamento;
 
     @Autowired
     private Habilidades habilidades;
@@ -94,6 +97,20 @@ class CuradoriaNaAuditoriaTest {
         Map<String, Object> linha = aguardarLinha("DEVOLVER_CENARIO", id);
         assertThat(linha.get("usuario_id")).isEqualTo(curadoraId);
         assertThat(linha.get("detalhes").toString()).contains("\"comentario\": \"Falta a fonte do voo.\"");
+    }
+
+    /** RF-13, RN-35. */
+    @Test
+    void arquivamentoChegaAoLogComOCuradorEAVersao() throws InterruptedException {
+        long id = enviado();
+        logar(curadora, "ROLE_CURADOR");
+        Cenario aprovado = aprovacao.aprovar(id);
+
+        arquivamento.arquivar(id);
+
+        Map<String, Object> linha = aguardarLinha("ARQUIVAR_CENARIO", id);
+        assertThat(linha.get("usuario_id")).isEqualTo(curadoraId);
+        assertThat(linha.get("detalhes").toString()).isEqualTo("{\"versaoId\": " + aprovado.versao().id() + "}");
     }
 
     private long enviado() {
