@@ -169,10 +169,34 @@ tbody tr:hover { background: #f8f9ff; }
 .login-hero { --respiro: max(16px, .85vw); padding: var(--respiro) 0 var(--respiro) var(--respiro); }
 .login-moldura { position: sticky; top: var(--respiro); height: calc(100vh - 2 * var(--respiro)); min-height: 560px; border-radius: max(28px, 1.5vw); overflow: hidden; isolation: isolate; background: #3d8bf0; color: var(--white); box-shadow: 0 24px 60px -24px rgba(8, 40, 199, .55); }
 .login-moldura > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; object-position: 50% 78%; }
+/* As ilustrações se revezam (login.js): só a que tem .ativa aparece, com 1,6 s de transição entre elas. */
+.login-moldura > .login-ilustracao { opacity: 0; transition: opacity 1.6s ease-in-out; }
+.login-moldura > .login-ilustracao.ativa { opacity: 1; }
+/* As bolinhas pitiquinhas embaixo, numa pílula de vidro; a da imagem atual se alonga. */
+.login-bolinhas { position: absolute; left: 50%; bottom: max(16px, 1.4vw); z-index: 1; translate: -50% 0; display: flex; gap: 2px; padding: 4px 6px; border-radius: 999px; background: rgba(5, 22, 90, .28); backdrop-filter: blur(8px); }
+.login-bolinhas[hidden] { display: none; }
+.login-bolinhas button { width: 22px; height: 22px; padding: 0; border: 0; background: transparent; display: grid; place-items: center; cursor: pointer; border-radius: 999px; }
+.login-bolinhas button::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: rgba(255, 255, 255, .55); transition: width .35s var(--ease), background-color .35s var(--ease); }
+.login-bolinhas button:hover::before { background: rgba(255, 255, 255, .85); }
+.login-bolinhas button[aria-pressed="true"] { width: 30px; }
+.login-bolinhas button[aria-pressed="true"]::before { width: 18px; background: var(--white, #fff); }
+.login-bolinhas button:focus-visible { outline: 2px solid var(--white, #fff); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) { .login-moldura > .login-ilustracao, .login-bolinhas button::before { transition: none; } }
 /* Esfumado leve: as bordas da ilustração escurecem de leve em direção ao centro, para dar profundidade. */
 .login-moldura::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit; background: radial-gradient(ellipse 85% 80% at 50% 55%, transparent 55%, rgba(5, 22, 90, .28) 100%); box-shadow: inset 0 0 3vw rgba(5, 22, 90, .18); }
-/* A marca no canto da ilustração, numa pílula de vidro claro que se lê sobre qualquer parte do céu. */
-.login-hero-marca { position: absolute; top: max(16px, 1.4vw); left: max(16px, 1.4vw); z-index: 1; font-size: var(--escala); gap: .75em; padding: .5em 1.25em .5em .5em; border-radius: 999px; background: rgba(255, 255, 255, .88); border: 1px solid rgba(255, 255, 255, .8); box-shadow: 0 12px 30px -14px rgba(3, 12, 70, .55); backdrop-filter: blur(12px) saturate(1.4); animation: entrar .6s var(--ease) both; }
+/* A marca no canto da ilustração, numa pílula de vidro claro que se lê sobre qualquer parte do céu. Fechada,
+   mostra só a bolinha; com o mouse em cima (ou o foco do teclado), a pílula abre e o nome aparece. */
+.login-hero-marca { position: absolute; top: max(16px, 1.4vw); left: max(16px, 1.4vw); z-index: 1; font-size: var(--escala); gap: 0; padding: .5em; border-radius: 999px; background: rgba(255, 255, 255, .88); border: 1px solid rgba(255, 255, 255, .8); box-shadow: 0 12px 30px -14px rgba(3, 12, 70, .55); backdrop-filter: blur(12px) saturate(1.4); cursor: default; animation: entrar .6s var(--ease) both; }
+/* A abertura é como desenrolar: a bolinha gira uma volta inteira, como uma roda, enquanto o nome vai saindo de
+   trás dela; ao fechar, ela gira de volta e enrola o nome. */
+.login-hero-marca { transition: gap .55s var(--ease), padding .55s var(--ease); }
+.login-hero-marca .brand-mark { transition: rotate .55s var(--ease); }
+.login-hero-marca-texto { max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; translate: -1.5em 0; transition: max-width .55s var(--ease), opacity .25s var(--ease), translate .55s var(--ease); }
+.login-hero-marca:hover, .login-hero-marca:focus-visible { gap: .75em; padding-right: 1.25em; }
+.login-hero-marca:hover .brand-mark, .login-hero-marca:focus-visible .brand-mark { rotate: 360deg; }
+.login-hero-marca:hover .login-hero-marca-texto, .login-hero-marca:focus-visible .login-hero-marca-texto { max-width: 16em; opacity: 1; translate: 0 0; transition: max-width .55s var(--ease), opacity .4s .1s var(--ease), translate .55s var(--ease); }
+.login-hero-marca:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) { .login-hero-marca, .login-hero-marca .brand-mark, .login-hero-marca-texto { transition: none; } .login-hero-marca:hover .brand-mark, .login-hero-marca:focus-visible .brand-mark { rotate: none; } }
 .login-hero-marca strong { font-size: 1.125em; }
 .login-hero-marca small { font-size: .6875em; margin-top: .36em; }
 .login-hero-marca .brand-mark { width: 2.3em; height: 2.3em; }
@@ -203,8 +227,8 @@ tbody tr:hover { background: #f8f9ff; }
 .login-form-area { flex: 1; display: grid; place-items: center; padding: 2em 0; font-size: var(--escala); }
 .login-form { width: min(27em, 100%); font-size: var(--escala); animation: entrar .6s .08s var(--ease) both; }
 .login-cabecalho { margin-bottom: 2.5em; }
-.login-form h1 { font-size: 2.2em; line-height: 1.1; letter-spacing: -.02em; margin: 0 0 .4em; }
-.login-subtitulo { color: var(--muted); line-height: 1.55; margin: 0; }
+.login-form h1 { font-size: 2.2em; line-height: 1.1; letter-spacing: -.02em; text-transform: uppercase; text-align: center; margin: 0 0 .4em; }
+.login-subtitulo { color: var(--muted); line-height: 1.55; text-align: center; margin: 0; }
 .login-form form label { font-size: .8125em; font-weight: 700; color: #3a3f4d; margin: 1.35em 0 .55em; }
 .login-form form > label:first-child { margin-top: 0; }
 

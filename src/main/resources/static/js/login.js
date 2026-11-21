@@ -1,8 +1,9 @@
 // Tela de login. Tudo aqui é enfeite ou ajuda; sem este script, o formulário funciona igual.
 // - Formulário: ✓ no e-mail válido, mostrar/ocultar senha (o olho aparece pelo CSS quando
 //   há algo digitado), aviso de Caps Lock e o botão em "Entrando…" ao enviar.
-// - Ilustração: fica parada. As formas do fundo do formulário acompanham o mouse em profundidades diferentes.
-// Com o pedido de movimento reduzido do sistema, nada se mexe.
+// - Ilustração: as imagens se revezam a cada 8,5 s, e as bolinhas embaixo trocam na hora (o ciclo recomeça
+//   a contar a partir do clique). As formas do fundo do formulário acompanham o mouse em profundidades diferentes.
+// Com o pedido de movimento reduzido do sistema, nada se mexe sozinho; as bolinhas continuam funcionando.
 (() => {
   const pagina = document.querySelector(".login-page");
   if (!pagina) return;
@@ -56,6 +57,27 @@
     botao.removeAttribute("aria-busy");
     rotulo.textContent = "Entrar";
   });
+
+  /* ---------- Ilustrações: revezamento automático e pelas bolinhas ---------- */
+
+  const ilustracoes = [...document.querySelectorAll("[data-ilustracao]")];
+  const grupoBolinhas = document.querySelector("[data-bolinhas]");
+  if (ilustracoes.length > 1 && grupoBolinhas) {
+    const bolinhas = [...grupoBolinhas.querySelectorAll("button")];
+    let atual = 0, relogio = 0;
+    const mostrar = (indice) => {
+      atual = (indice + ilustracoes.length) % ilustracoes.length;
+      ilustracoes.forEach((img, i) => img.classList.toggle("ativa", i === atual));
+      bolinhas.forEach((b, i) => b.setAttribute("aria-pressed", String(i === atual)));
+    };
+    const programar = () => {
+      clearInterval(relogio);
+      if (comMovimento) relogio = setInterval(() => mostrar(atual + 1), 8500);
+    };
+    bolinhas.forEach((bolinha, i) => bolinha.addEventListener("click", () => { mostrar(i); programar(); }));
+    grupoBolinhas.hidden = false;
+    programar();
+  }
 
   /* ---------- Profundidade: as formas do fundo acompanham o mouse ---------- */
 

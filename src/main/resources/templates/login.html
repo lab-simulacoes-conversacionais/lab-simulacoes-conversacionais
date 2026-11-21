@@ -7,10 +7,16 @@
        canto e estrelinhas que seguem o cursor (login.js). -->
   <section class="login-hero">
     <div class="login-moldura" data-login-moldura>
-      <img th:src="@{/img/login/turma.jpg}" src="/img/login/turma.jpg" width="1182" height="1330" alt="">
-      <div class="login-brand login-hero-marca">
+      <!-- As ilustrações se revezam sozinhas e pelas bolinhas embaixo (login.js). Sem o script, fica só a primeira. -->
+      <img class="login-ilustracao ativa" th:src="@{/img/login/turma.jpg}" src="/img/login/turma.jpg" width="1182" height="1330" alt="" data-ilustracao>
+      <img class="login-ilustracao" th:src="@{/img/login/santos-dumont.jpg}" src="/img/login/santos-dumont.jpg" width="1182" height="1331" alt="" loading="lazy" data-ilustracao>
+      <div class="login-bolinhas" role="group" aria-label="Escolher ilustração" hidden data-bolinhas>
+        <button type="button" aria-label="Ilustração 1 de 2" aria-pressed="true"></button>
+        <button type="button" aria-label="Ilustração 2 de 2" aria-pressed="false"></button>
+      </div>
+      <div class="login-brand login-hero-marca" tabindex="0">
         <span class="brand-mark" aria-hidden="true"><span></span></span>
-        <span><strong>Laboratório</strong><small>Simulações Conversacionais</small></span>
+        <span class="login-hero-marca-texto"><strong>Laboratório</strong><small>Simulações Conversacionais</small></span>
       </div>
 
     <!--/* Robô: fora da tela de login por enquanto, guardado para outro uso. Este comentário do Thymeleaf não chega
