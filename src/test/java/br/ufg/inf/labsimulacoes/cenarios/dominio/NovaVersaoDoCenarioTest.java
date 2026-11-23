@@ -39,7 +39,8 @@ class NovaVersaoDoCenarioTest {
         Cenario corrigido = suspenso.novaVersao(AUTOR).enviarACuradoria(AUTOR);
 
         assertThat(corrigido.status()).isEqualTo(StatusDoCenario.SUSPENSO);
-        assertThat(corrigido.aprovar(CURADORA, AGORA).status()).isEqualTo(StatusDoCenario.APROVADO);
+        assertThat(corrigido.aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA).status())
+                .isEqualTo(StatusDoCenario.APROVADO);
     }
 
     /** RN-08: o cenário segue Aprovado enquanto a versão nova vai e volta da curadoria. */
@@ -50,7 +51,8 @@ class NovaVersaoDoCenarioTest {
 
         Cenario enviado = aprovado().novaVersao(AUTOR).alterarRascunho(outroConteudo).enviarACuradoria(AUTOR);
         Cenario devolvido = enviado.devolver(CURADORA, "Rever a duração", AGORA);
-        Cenario aprovadaANova = devolvido.enviarACuradoria(AUTOR).aprovar(CURADORA, AGORA);
+        Cenario aprovadaANova = devolvido.enviarACuradoria(AUTOR)
+                .aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA);
 
         assertThat(enviado.status()).isEqualTo(StatusDoCenario.APROVADO);
         assertThat(enviado.versao().status()).isEqualTo(StatusDaVersao.EM_CURADORIA);
@@ -112,7 +114,7 @@ class NovaVersaoDoCenarioTest {
         var conteudoNovo = new ConteudoDoCenario("Outro título", ConteudosDeTeste.ROTEIRO, ConteudosDeTeste.CURRICULO,
                 "13 a 14 anos", 20);
         Cenario naSegunda = aprovado().novaVersao(AUTOR).alterarRascunho(conteudoNovo).enviarACuradoria(AUTOR)
-                .aprovar(CURADORA, AGORA);
+                .aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA);
 
         Cenario restaurado = naSegunda.restaurar(AUTOR, primeira);
 
@@ -185,7 +187,8 @@ class NovaVersaoDoCenarioTest {
 
     private static Cenario aprovado() {
         var versao = new VersaoDoCenario(2L, 1, StatusDaVersao.RASCUNHO, ConteudosDeTeste.completo(), AUTOR);
-        return new Cenario(1L, AUTOR, StatusDoCenario.RASCUNHO, versao).enviarACuradoria(AUTOR).aprovar(CURADORA, AGORA);
+        return new Cenario(1L, AUTOR, StatusDoCenario.RASCUNHO, versao).enviarACuradoria(AUTOR)
+                .aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA);
     }
 
     private static Cenario comStatus(Cenario cenario, StatusDoCenario status) {

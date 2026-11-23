@@ -1,6 +1,7 @@
 package br.ufg.inf.labsimulacoes.cenarios.dominio;
 
 import java.util.List;
+import java.util.Set;
 
 /** Conteúdo que atende ao RN-02 e ao RN-03, para os testes tirarem só o campo que interessa. */
 public final class ConteudosDeTeste {
@@ -16,6 +17,10 @@ public final class ConteudosDeTeste {
 
     public static final VinculoCurricular CURRICULO =
             new VinculoCurricular("História", "EF", 8, List.of("EF08HI03"));
+
+    /** Checklist inteiro e o mínimo de perguntas de teste: o que a aprovação exige (RN-06). */
+    public static final ConferenciaDaCuradoria CONFERIDA = new ConferenciaDaCuradoria(
+            Set.of(ItemDoChecklist.values()), PerguntasDeTeste.MINIMO_PARA_APROVAR);
 
     private ConteudosDeTeste() {}
 

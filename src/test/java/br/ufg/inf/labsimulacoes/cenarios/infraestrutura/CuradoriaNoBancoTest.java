@@ -60,7 +60,7 @@ class CuradoriaNoBancoTest {
 
     @Test
     void aprovacaoGravaQuemEQuandoETornaAVersaoVigente() {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
 
         Cenario lido = cenarios.buscar(aprovado.id()).orElseThrow();
         assertThat(lido.status()).isEqualTo(StatusDoCenario.APROVADO);
@@ -77,7 +77,7 @@ class CuradoriaNoBancoTest {
      */
     @Test
     void salvarCenarioAprovadoNaoTocaAVersaoAprovada() {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
         var suspenso = new Cenario(aprovado.id(), autor, StatusDoCenario.SUSPENSO, aprovado.versao());
 
         cenarios.salvar(suspenso);
@@ -89,7 +89,7 @@ class CuradoriaNoBancoTest {
     /** RN-08: depois de aprovada, a versão não muda nem por SQL direto, e a trigger do banco diz por quê. */
     @Test
     void bancoRecusaAlterarAVersaoAprovada() {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
 
         assertThatThrownBy(() -> jdbc.update(
                 "UPDATE cenario_versao SET titulo = 'Outro título' WHERE id = ?", aprovado.versao().id()))
@@ -99,7 +99,7 @@ class CuradoriaNoBancoTest {
 
     @Test
     void bancoRecusaApagarAVersaoAprovada() {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
 
         assertThatThrownBy(() -> jdbc.update("DELETE FROM cenario_versao WHERE id = ?", aprovado.versao().id()))
                 .isInstanceOf(DataAccessException.class)
@@ -146,7 +146,7 @@ class CuradoriaNoBancoTest {
 
     @Test
     void versaoVigenteDeCenarioAprovado() {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
 
         VersaoDoCenario vigente = cenarios.versaoVigente(aprovado.id()).orElseThrow();
 
@@ -169,7 +169,7 @@ class CuradoriaNoBancoTest {
     @ParameterizedTest
     @ValueSource(strings = {"SUSPENSO", "ARQUIVADO"})
     void cenarioForaDeUsoNaoTemVersaoVigente(String status) {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
         jdbc.update("UPDATE cenario SET status = ? WHERE id = ?", status, aprovado.id());
 
         assertThat(cenarios.versaoVigente(aprovado.id())).isEmpty();
@@ -177,7 +177,7 @@ class CuradoriaNoBancoTest {
 
     @Test
     void versaoAprovadaPeloIdTrazOCenario() {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
 
         VersaoAprovadaDoCenario lida = cenarios.versaoAprovada(aprovado.versao().id()).orElseThrow();
 
@@ -188,7 +188,7 @@ class CuradoriaNoBancoTest {
     @ParameterizedTest
     @ValueSource(strings = {"SUSPENSO", "ARQUIVADO"})
     void versaoAprovadaPeloIdNaoDependeDoStatusDoCenario(String status) {
-        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, AGORA));
+        Cenario aprovado = cenarios.salvar(emCuradoria().aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
         jdbc.update("UPDATE cenario SET status = ? WHERE id = ?", status, aprovado.id());
 
         assertThat(cenarios.versaoAprovada(aprovado.versao().id())).isPresent();

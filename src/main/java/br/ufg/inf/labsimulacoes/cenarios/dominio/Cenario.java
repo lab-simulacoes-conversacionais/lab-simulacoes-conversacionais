@@ -9,8 +9,9 @@ import java.util.Objects;
  * que cada regra tenha um teste próprio, sem banco nem tela (Stack, seção 5).
  *
  * <p>Na E1 o ciclo é Rascunho, Em curadoria e Aprovado; a devolução volta a Rascunho (Figura 3 dos
- * requisitos). A aprovação é só registrada, sem checklist (RN-06). O curador arquiva o aprovado ou o
- * suspenso, que sai da biblioteca sem perder o histórico (RF-13, RN-09).
+ * requisitos). Na E2 a aprovação passa a exigir o checklist de curadoria e o teste do personagem
+ * (RF-10, RN-06). O curador arquiva o aprovado ou o suspenso, que sai da biblioteca sem perder o
+ * histórico (RF-13, RN-09).
  *
  * <p>Editar um cenário que já tem versão vigente gera uma versão nova em rascunho (RF-11, RN-08). Ela
  * passa pela mesma curadoria, mas o cenário continua Aprovado (ou Suspenso) enquanto isso, porque a
@@ -97,16 +98,24 @@ public record Cenario(
      * A versão em curadoria passa a ser a aprovada vigente (RN-08) e o cenário pode ir para a sala
      * (RN-01).
      *
+     * <p>A partir da E2, o curador só aprova depois de conferir o checklist inteiro e de testar o
+     * personagem com pelo menos 5 perguntas (RF-10, RN-06).
+     *
+     * @param conferencia o checklist marcado e as perguntas de teste que o próprio curador fez
      * @throws CenarioForaDeCuradoria se a versão não estiver em curadoria
      * @throws DecisaoDeCuradoriaNaoPermitida se quem aprova não for curador (RN-05) ou for o autor do
      *     cenário ou da versão, mesmo tendo também o perfil Curador (RN-36)
+     * @throws AprovacaoIncompleta com tudo o que falta do checklist e do teste (RN-06)
      */
-    public Cenario aprovar(Revisor curador, Instant momento) {
+    public Cenario aprovar(Revisor curador, ConferenciaDaCuradoria conferencia, Instant momento) {
         exigirCuradoria();
         exigirPerfilCurador(curador, "aprova");
         if (temAutor(curador.id()) || versao.criadaPorId() == curador.id()) {
             throw new DecisaoDeCuradoriaNaoPermitida(
                     "Ninguém aprova um cenário que criou, mesmo com o perfil Curador (RN-36)");
+        }
+        if (!conferencia.completa()) {
+            throw new AprovacaoIncompleta(conferencia);
         }
         var aprovacao = new Aprovacao(curador.id(), momento);
         return new Cenario(

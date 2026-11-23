@@ -1,9 +1,11 @@
 package br.ufg.inf.labsimulacoes.cenarios.aplicacao;
 
+import static br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito.CHECKLIST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
 import br.ufg.inf.labsimulacoes.cenarios.BibliotecaDeCenarios;
 import br.ufg.inf.labsimulacoes.cenarios.CenarioDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.FiltroDaBiblioteca;
@@ -258,7 +260,8 @@ class BibliotecaDeCenariosTest {
         long id = autoria.criar(ConteudosDeTeste.completo()).id();
         envio.enviar(id);
         logar(CURADORA, "ROLE_CURADOR");
-        return aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, id);
+        return aprovacao.aprovar(id, CHECKLIST);
     }
 
     private static void logar(String email, String... perfis) {

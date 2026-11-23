@@ -1,8 +1,10 @@
 package br.ufg.inf.labsimulacoes.cenarios.aplicacao;
 
+import static br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito.CHECKLIST;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
@@ -79,7 +81,9 @@ class CuradoriaNaAuditoriaTest {
         long id = enviado();
         logar(curadora, "ROLE_CURADOR");
 
-        Cenario aprovado = aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, curadora, id);
+
+        Cenario aprovado = aprovacao.aprovar(id, CHECKLIST);
 
         Map<String, Object> linha = aguardarLinha("APROVAR_CENARIO", id);
         assertThat(linha.get("usuario_id")).isEqualTo(curadoraId);
@@ -104,7 +108,8 @@ class CuradoriaNaAuditoriaTest {
     void arquivamentoChegaAoLogComOCuradorEAVersao() throws InterruptedException {
         long id = enviado();
         logar(curadora, "ROLE_CURADOR");
-        Cenario aprovado = aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, curadora, id);
+        Cenario aprovado = aprovacao.aprovar(id, CHECKLIST);
 
         arquivamento.arquivar(id);
 

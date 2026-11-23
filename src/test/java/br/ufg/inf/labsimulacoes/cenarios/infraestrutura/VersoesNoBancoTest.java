@@ -78,7 +78,7 @@ class VersoesNoBancoTest {
         Cenario alterado = cenarios.salvar(comNova.alterarRascunho(outroConteudo()));
         Cenario enviado = cenarios.salvar(alterado.enviarACuradoria(autora));
 
-        Cenario aprovadaANova = cenarios.salvar(enviado.aprovar(curadora, AGORA));
+        Cenario aprovadaANova = cenarios.salvar(enviado.aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
 
         var vigente = cenarios.versaoVigente(aprovado.id()).orElseThrow();
         assertThat(vigente.id()).isEqualTo(aprovadaANova.versao().id());
@@ -133,7 +133,7 @@ class VersoesNoBancoTest {
     private Cenario aprovado() {
         Cenario salvo = cenarios.salvar(Cenario.novo(autora, ConteudosDeTeste.completo()));
         Cenario enviado = cenarios.salvar(salvo.enviarACuradoria(autora));
-        return cenarios.salvar(enviado.aprovar(curadora, AGORA));
+        return cenarios.salvar(enviado.aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA));
     }
 
     private static ConteudoDoCenario outroConteudo() {
