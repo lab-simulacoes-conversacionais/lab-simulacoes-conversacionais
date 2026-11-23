@@ -88,6 +88,9 @@
   let base = 0;
   let desde = Date.now();
   let rodando = false;
+  let previsto = 0;
+  let limite = 0;
+  let limitePedido = false;
 
   const lerPainel = () => {
     const painel = document.getElementById("painel");
@@ -97,16 +100,29 @@
     const cronometro = painel.querySelector("[data-cronometro]");
     base = Number(cronometro.dataset.decorrido) || 0;
     rodando = cronometro.dataset.rodando === "true";
+    previsto = Number(cronometro.dataset.previsto) || 0;
+    limite = Number(cronometro.dataset.limite) || 0;
     desde = Date.now();
+    // Um painel novo que ainda está abaixo do limite volta a poder pedir a conferência.
+    if (base < limite) limitePedido = false;
   };
 
   const formatar = (segundos) =>
     `${String(Math.floor(segundos / 60)).padStart(2, "0")}:${String(segundos % 60).padStart(2, "0")}`;
 
+  // RF-19, RN-17: o cronômetro corre na tela. No tempo previsto, só mostra o aviso, sem interromper a
+  // conversa. Aos 50 minutos, pede o painel de novo, uma vez: o servidor confere o tempo e pausa a sessão.
   setInterval(() => {
     if (!rodando) return;
+    const decorrido = base + Math.floor((Date.now() - desde) / 1000);
     const tempo = document.querySelector("#painel [data-tempo]");
-    if (tempo) tempo.textContent = formatar(base + Math.floor((Date.now() - desde) / 1000));
+    if (tempo) tempo.textContent = formatar(decorrido);
+    const avisoDoPrevisto = document.querySelector("#painel [data-aviso-previsto]");
+    if (avisoDoPrevisto && previsto > 0 && decorrido >= previsto) avisoDoPrevisto.hidden = false;
+    if (limite > 0 && decorrido >= limite && !limitePedido) {
+      limitePedido = true;
+      avisarMudanca();
+    }
   }, 1000);
 
   // Com hx-swap="outerHTML", o evento nem sempre sai do painel novo; ler de novo é barato.
