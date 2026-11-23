@@ -24,7 +24,8 @@ public interface LogDeAuditoria {
 
     /**
      * Uma página das linhas que atendem ao filtro, da ação mais recente para a mais antiga, pela data
-     * em que a ação ocorreu. Linhas com a mesma data saem da gravada por último para a primeira.
+     * em que a ação ocorreu. Linhas com a mesma data saem da gravada por último para a primeira. A
+     * página diz se há outra depois dela.
      */
-    List<RegistroDeAuditoria> consultar(FiltroDoLog filtro);
+    PaginaDoLog consultar(FiltroDoLog filtro);
 }

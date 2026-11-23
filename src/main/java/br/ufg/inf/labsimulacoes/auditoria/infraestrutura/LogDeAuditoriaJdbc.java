@@ -4,6 +4,7 @@ import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -89,7 +90,8 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
      *
      * <p>A página continua depois do cursor, na mesma ordem do ORDER BY, em vez de pular linhas: uma
      * ação gravada entre uma página e outra não repete nem esconde linhas. Sem cursor, a comparação
-     * com infinito deixa passar todas as linhas.
+     * com infinito deixa passar todas as linhas. A consulta pede uma linha a mais que o tamanho da
+     * página só para saber se existe a próxima.
      */
     private static final String CONSULTA_SEM_USUARIO = """
             SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
@@ -100,7 +102,7 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
               AND (ocorrido_em, id) < (COALESCE(CAST(:cursorOcorridoEm AS TIMESTAMPTZ), 'infinity'),
                                        COALESCE(CAST(:cursorId AS BIGINT), 9223372036854775807))
             ORDER BY ocorrido_em DESC, id DESC
-            LIMIT :tamanho""";
+            LIMIT :limite""";
 
     private static final String CONSULTA_DO_USUARIO = """
             SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
@@ -112,10 +114,10 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
               AND (ocorrido_em, id) < (COALESCE(CAST(:cursorOcorridoEm AS TIMESTAMPTZ), 'infinity'),
                                        COALESCE(CAST(:cursorId AS BIGINT), 9223372036854775807))
             ORDER BY ocorrido_em DESC, id DESC
-            LIMIT :tamanho""";
+            LIMIT :limite""";
 
     @Override
-    public List<RegistroDeAuditoria> consultar(FiltroDoLog filtro) {
+    public PaginaDoLog consultar(FiltroDoLog filtro) {
         CursorDoLog cursor = filtro.cursor();
         Instant cursorOcorridoEm = cursor == null ? null : cursor.ocorridoEm();
         Long cursorId = cursor == null ? null : cursor.id();
@@ -126,9 +128,10 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
                 .addValue("acao", filtro.acao() == null ? null : filtro.acao().name(), Types.VARCHAR)
                 .addValue("cursorOcorridoEm", paraTimestamp(cursorOcorridoEm), Types.TIMESTAMP)
                 .addValue("cursorId", cursorId, Types.BIGINT)
-                .addValue("tamanho", filtro.tamanho());
+                .addValue("limite", filtro.tamanho() + 1);
         String consulta = filtro.usuarioId() == null ? CONSULTA_SEM_USUARIO : CONSULTA_DO_USUARIO;
-        return comNomes.query(consulta, parametros, this::paraRegistro);
+        return PaginaDoLog.lidaComUmaAMais(
+                comNomes.query(consulta, parametros, this::paraRegistro), filtro.tamanho());
     }
 
     private static Timestamp paraTimestamp(Instant instante) {

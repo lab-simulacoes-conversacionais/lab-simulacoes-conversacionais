@@ -48,7 +48,7 @@ class AutorizacaoDaConsultaDoLogTest {
         long usuario = acaoNoLog();
         comPerfis("ROLE_CURADOR");
 
-        assertThat(consulta.consultar(doUsuario(usuario)))
+        assertThat(consulta.consultar(doUsuario(usuario)).linhas())
                 .extracting(RegistroDeAuditoria::acao)
                 .containsExactly(AcaoCritica.ARQUIVAR_CENARIO);
     }
@@ -58,7 +58,7 @@ class AutorizacaoDaConsultaDoLogTest {
         long usuario = acaoNoLog();
         comPerfis("ROLE_ADMINISTRADOR");
 
-        assertThat(consulta.consultar(doUsuario(usuario))).hasSize(1);
+        assertThat(consulta.consultar(doUsuario(usuario)).linhas()).hasSize(1);
     }
 
     @Test
@@ -66,7 +66,7 @@ class AutorizacaoDaConsultaDoLogTest {
         long usuario = acaoNoLog();
         comPerfis("ROLE_PROFESSOR", "ROLE_CURADOR");
 
-        assertThat(consulta.consultar(doUsuario(usuario))).hasSize(1);
+        assertThat(consulta.consultar(doUsuario(usuario)).linhas()).hasSize(1);
     }
 
     @Test

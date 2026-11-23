@@ -7,6 +7,7 @@ import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -170,7 +171,7 @@ class LogDeAuditoriaJdbcTest {
         assertThat(ids(log.consultar(filtro))).containsExactly(terceira.id(), segunda.id());
         assertThat(ids(log.consultar(filtro.continuandoApos(CursorDoLog.apos(segunda)))))
                 .containsExactly(primeira.id());
-        assertThat(log.consultar(filtro.continuandoApos(CursorDoLog.apos(primeira)))).isEmpty();
+        assertThat(log.consultar(filtro.continuandoApos(CursorDoLog.apos(primeira))).linhas()).isEmpty();
     }
 
     @Test
@@ -179,13 +180,39 @@ class LogDeAuditoriaJdbcTest {
         RegistroDeAuditoria segunda = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(2));
         RegistroDeAuditoria terceira = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(1));
         var filtro = new FiltroDoLog(null, null, usuario, null, null, 2);
-        List<RegistroDeAuditoria> paginaUm = log.consultar(filtro);
+        PaginaDoLog paginaUm = log.consultar(filtro);
 
         gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA);
 
         assertThat(ids(paginaUm)).containsExactly(terceira.id(), segunda.id());
-        assertThat(ids(log.consultar(filtro.continuandoApos(CursorDoLog.apos(paginaUm.get(1))))))
+        assertThat(ids(log.consultar(filtro.continuandoApos(paginaUm.proxima()))))
                 .containsExactly(primeira.id());
+    }
+
+    @Test
+    void paginaDizSeHaOutraDepoisDela() {
+        gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(3));
+        RegistroDeAuditoria segunda = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(2));
+        gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(1));
+        var filtro = new FiltroDoLog(null, null, usuario, null, null, 2);
+
+        PaginaDoLog primeira = log.consultar(filtro);
+        PaginaDoLog ultima = log.consultar(filtro.continuandoApos(primeira.proxima()));
+
+        assertThat(primeira.cursorDaProxima()).contains(CursorDoLog.apos(segunda));
+        assertThat(ultima.linhas()).hasSize(1);
+        assertThat(ultima.temProxima()).isFalse();
+    }
+
+    @Test
+    void paginaCheiaSemMaisLinhasNaoTemProxima() {
+        gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(1));
+        gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA);
+
+        PaginaDoLog pagina = log.consultar(new FiltroDoLog(null, null, usuario, null, null, 2));
+
+        assertThat(pagina.linhas()).hasSize(2);
+        assertThat(pagina.temProxima()).isFalse();
     }
 
     @Test
@@ -214,7 +241,7 @@ class LogDeAuditoriaJdbcTest {
     void linhaConsultadaVemCompleta() {
         RegistroDeAuditoria gravado = gravarEncadeado(Map.of("versaoId", 3L, "comentario", "Rever a fonte"));
 
-        assertThat(log.consultar(filtro(null, null, usuario, null))).containsExactly(gravado);
+        assertThat(log.consultar(filtro(null, null, usuario, null)).linhas()).containsExactly(gravado);
     }
 
     @Test
@@ -239,8 +266,8 @@ class LogDeAuditoriaJdbcTest {
         return new FiltroDoLog(inicio, fim, usuarioId, acao, null, FiltroDoLog.TAMANHO_MAXIMO);
     }
 
-    private static List<Long> ids(List<RegistroDeAuditoria> linhas) {
-        return linhas.stream().map(RegistroDeAuditoria::id).toList();
+    private static List<Long> ids(PaginaDoLog pagina) {
+        return pagina.linhas().stream().map(RegistroDeAuditoria::id).toList();
     }
 
     private RegistroDeAuditoria gravarEncadeado(Map<String, ?> detalhes) {

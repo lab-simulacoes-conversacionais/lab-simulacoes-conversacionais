@@ -2,8 +2,7 @@ package br.ufg.inf.labsimulacoes.auditoria.aplicacao;
 
 import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
-import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
-import java.util.List;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDoLog;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,9 +22,12 @@ public class ConsultaDoLog {
         this.log = log;
     }
 
-    /** Sem filtro, traz a primeira página do log inteiro. */
+    /**
+     * Sem filtro, traz a primeira página do log inteiro. Para a página seguinte, repita o filtro com
+     * {@link FiltroDoLog#continuandoApos} e o cursor da página devolvida.
+     */
     @Transactional(readOnly = true)
-    public List<RegistroDeAuditoria> consultar(FiltroDoLog filtro) {
+    public PaginaDoLog consultar(FiltroDoLog filtro) {
         return log.consultar(filtro == null ? FiltroDoLog.tudo() : filtro);
     }
 }

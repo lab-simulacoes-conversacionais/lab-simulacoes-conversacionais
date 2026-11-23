@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -27,9 +28,10 @@ class ConsultaDoLogTest {
         var filtro = new FiltroDoLog(null, null, 7L, AcaoCritica.APROVAR_CENARIO, null, 20);
         var linha = RegistroDeAuditoria.novo(
                 AcaoCritica.APROVAR_CENARIO, 7, "1", Map.of(), Instant.parse("2026-11-08T13:45:10Z"));
-        when(log.consultar(filtro)).thenReturn(List.of(linha));
+        var pagina = new PaginaDoLog(List.of(linha), null);
+        when(log.consultar(filtro)).thenReturn(pagina);
 
-        assertThat(consulta.consultar(filtro)).containsExactly(linha);
+        assertThat(consulta.consultar(filtro)).isEqualTo(pagina);
     }
 
     @Test
