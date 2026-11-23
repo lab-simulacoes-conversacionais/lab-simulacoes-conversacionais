@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragmentos/base :: cabeca('Fila do Curador · Laboratório')}"></head>
-<body>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
 <div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
 
 <!--
   Fila do curador (RF-08), como no protótipo: a lista dos cenários em curadoria à esquerda e o aberto à
-  direita, com aprovar e devolver. A aba de sinalizações, o modo de teste, o checklist e o histórico de
-  versões chegam com as issues #33, #34 e #44.
+  direita, com o modo de teste (RF-09, curadoria/teste.html), aprovar e devolver. A aba de sinalizações,
+  o checklist e o histórico de versões chegam com as issues #34 e #44.
 -->
 <main class="page curator-page">
   <a class="back-link" th:href="@{/}">Voltar ao início</a>
@@ -49,7 +49,10 @@
     <div class="review-main" th:if="${conteudo}">
       <section class="card review-summary">
         <div>
-          <span class="subject-tag" th:text="${conteudo.componente} ?: 'Sem componente'">Ciências</span>
+          <div class="heading-badges">
+            <span class="subject-tag" th:text="${conteudo.componente} ?: 'Sem componente'">Ciências</span>
+            <th:block th:if="${sugeridoPorIa}"><span th:replace="~{cenarios/fragmentos :: seloDaIa}"></span></th:block>
+          </div>
           <h2 th:text="${conteudo.titulo}">Título</h2>
           <p th:text="${conteudo.resumoCurricular()}">6º ano · EF06CI05</p>
         </div>
@@ -62,6 +65,17 @@
           <p>Você criou este cenário. Outro curador deverá realizar a aprovação.</p>
         </div>
       </div>
+
+      <!-- RN-04: num cenário sugerido pela IA, o curador confere os fatos com as fontes. -->
+      <div class="ai-callout" th:if="${sugeridoPorIa}" role="note">
+        <span aria-hidden="true">✦</span>
+        <div>
+          <strong>Rascunho sugerido por IA</strong>
+          <p>Confira os fatos com as fontes do cenário antes de aprovar.</p>
+        </div>
+      </div>
+
+      <section th:replace="~{curadoria/teste :: teste}"></section>
 
       <div th:replace="~{cenarios/fragmentos :: conteudo(${conteudo})}"></div>
 
@@ -103,6 +117,7 @@
     </div>
   </div>
 </main>
+<script th:replace="~{fragmentos/base :: htmx}"></script>
 <script th:src="@{/js/curadoria.js}" defer></script>
 </body>
 </html>

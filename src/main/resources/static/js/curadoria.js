@@ -26,3 +26,14 @@ document.querySelectorAll("dialog[data-devolucao]").forEach((dialogo) => {
   // Volta aberto quando o servidor recusou a devolução sem comentário.
   if (dialogo.dataset.abrir === "true") abrir();
 });
+
+// Modo de teste (RF-09): a pergunta vai pelo HTMX, que troca a seção inteira com a resposta. A conversa
+// rola até a pergunta mais nova ao abrir e a cada troca.
+{
+  const rolarConversaDoTeste = () => {
+    const mensagens = document.querySelector("[data-mensagens-do-teste]");
+    if (mensagens) mensagens.scrollTop = mensagens.scrollHeight;
+  };
+  document.body.addEventListener("htmx:afterSwap", rolarConversaDoTeste);
+  rolarConversaDoTeste();
+}

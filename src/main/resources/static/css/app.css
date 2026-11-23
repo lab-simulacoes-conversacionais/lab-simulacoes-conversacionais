@@ -359,7 +359,7 @@ a.btn { text-decoration: none; }
 .bncc-results li { transition: background-color var(--rapido) var(--ease); display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; }
 .bncc-results li + li { border-top: 1px solid var(--line); }
 .bncc-results li:hover { background: #f8f9ff; }
-.htmx-request.bncc-results, #bncc-resultados.htmx-request { opacity: .6; transition: opacity var(--rapido) var(--ease); }
+.htmx-request.bncc-results, #bncc-resultados.htmx-request, #sugestao-bncc-resultados.htmx-request { opacity: .6; transition: opacity var(--rapido) var(--ease); }
 .bncc-results strong { color: var(--blue); font-size: 13px; margin-right: 6px; }
 .bncc-results span { font-size: 12px; line-height: 1.4; }
 .bncc-results small { display: block; color: var(--muted); font-size: 11px; margin-top: 3px; }
@@ -397,6 +397,41 @@ a.btn { text-decoration: none; }
 .review-summary { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
 .review-summary h2 { margin: 10px 0 5px; font-size: 22px; }
 .review-summary p { margin: 0; color: var(--muted); font-size: 12px; }
+.review-summary .heading-badges { margin-bottom: 0; }
+
+/* Aviso do RN-04 num cenário sugerido pela IA, no estilo das notas do protótipo. */
+.ai-callout { background: var(--surface); border-left: 5px solid var(--blue); border-radius: 0 12px 12px 0; padding: 13px 17px; display: flex; gap: 12px; margin: 16px 0 0; }
+.ai-callout > span { width: 23px; height: 23px; border-radius: 50%; background: var(--blue); color: white; display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; }
+.ai-callout p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+
+/* Modo de teste (RF-09), como a seção "Modo teste" do protótipo. A conversa rola sozinha até a pergunta
+   mais nova (curadoria.js); enquanto o personagem responde, o HTMX marca a seção com .htmx-request. */
+.test-section { margin-top: 28px; }
+.test-section .section-title { margin-top: 0; }
+.test-counter { background: white; color: var(--blue); border-radius: 999px; padding: 6px 10px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.test-chat { border-radius: 0 0 var(--radius) var(--radius); }
+.test-chat-intro, .test-chat-autor, .test-empty { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+.test-chat-autor { margin: 0; }
+.test-messages { max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.mini-message { margin-bottom: 12px; max-width: 80%; }
+.mini-message strong { font-size: 11px; color: var(--blue); }
+.mini-message p { background: var(--surface); border-radius: 10px; padding: 12px; font-size: 13px; margin: 5px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.mini-message.tester { margin-left: auto; }
+.mini-message.tester strong { display: block; text-align: right; }
+.mini-message.tester p { background: var(--blue); color: white; }
+.test-notice { max-width: 80%; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); color: var(--muted); font-size: 12px; }
+.test-error { margin: 12px 0 0; }
+.test-form { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 4px; }
+.test-form-row { display: flex; gap: 10px; }
+.test-form-row input { flex: 1; margin: 0; }
+.test-form-row .btn { flex: 0 0 auto; }
+.test-form small { display: block; color: var(--muted); font-size: 12px; margin-top: 8px; }
+.test-waiting { display: none; align-items: center; gap: 8px; color: var(--blue); font-size: 12px; font-weight: 700; margin: 10px 0 0; }
+.test-section.htmx-request .test-waiting { display: flex; }
+.test-waiting-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--blue); animation: piscar-ponto 1s ease-in-out infinite; }
+@keyframes piscar-ponto { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .test-waiting-dot { animation: none; } }
+@media (max-width: 620px) { .test-form-row { flex-direction: column; } .mini-message, .test-notice { max-width: 100%; } }
 .conflict-warning { margin-top: 16px; }
 .review-actions { position: sticky; bottom: 16px; z-index: 2; background: white; border: 1px solid var(--line); border-radius: 14px; padding: 13px; margin-top: 18px; display: flex; justify-content: flex-end; align-items: center; gap: 10px; box-shadow: 0 -8px 25px rgba(26,64,255,.08); }
 .review-actions > div { margin-right: auto; }
@@ -432,6 +467,18 @@ dialog.modal[open]::backdrop { animation: escurecer var(--medio) var(--ease); }
 .modal-body textarea { width: 100%; resize: vertical; }
 .modal-intro { color: var(--muted); font-size: 14px; }
 .modal-footer { padding: 16px 24px; background: #f7f8fc; border-radius: 0 0 18px 18px; display: flex; justify-content: flex-end; gap: 10px; }
+
+/* Pedido de sugestão pela IA (RF-07): mais largo que os outros modais, e só o corpo rola, para o botão de
+   gerar ficar sempre à vista. */
+dialog.modal-sugestao { width: min(680px, calc(100% - 32px)); max-height: calc(100dvh - 32px); }
+.modal-sugestao[open] > form { display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
+.modal-sugestao .modal-head h2 span { color: var(--blue); }
+.modal-sugestao .modal-body { overflow-y: auto; }
+.modal-sugestao .modal-body > .field-error { margin-top: 0; }
+.modal-sugestao .skill-list { display: grid; gap: 8px; margin-top: 12px; }
+.modal-sugestao .modal-footer { align-items: center; flex-wrap: wrap; }
+.sugestao-gerando { margin: 0 auto 0 0; color: var(--blue); font-size: 12px; font-weight: 700; }
+.card-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Sessão em sala (RF-14 a RF-17): preparação, modo projeção, painel do professor e resumo. */
 .card-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }

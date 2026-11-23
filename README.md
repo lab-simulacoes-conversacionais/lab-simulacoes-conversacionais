@@ -129,10 +129,15 @@ As habilidades da BNCC ficam na tabela `habilidade_bncc` e vêm dos arquivos em 
 - **Cache:** cada busca fica no Redis (cache `habilidades-bncc`), com a chave formada pelos filtros normalizados. A importação limpa o cache inteiro depois que a gravação é confirmada. A validade de 24 horas (`bncc.cache.validade`) é só uma garantia a mais.
 - **Outra etapa:** basta criar um novo leitor que implemente `FonteDeHabilidades` na infraestrutura de `cenarios`. A importação junta as habilidades de todos os leitores.
 
+### Sugestão de cenário pela IA
+
+No editor de cenário novo, "Sugerir com IA" abre o pedido de sugestão (RF-07): tema, componente, ano e habilidades BNCC, com a mesma busca do editor. `POST /cenarios/sugestao` chama a `SugestaoDeCenarios`, e o rascunho sugerido abre no editor com a marca "Sugerido por IA" (RN-04), que também aparece em "Meus cenários" e na fila do curador, com um lembrete para conferir os fatos com as fontes. Um pedido recusado (incompleto, fora do catálogo, acima do limite de pedidos ou com falha da IA) volta ao editor com o diálogo aberto e preenchido. Sem JavaScript, o link abre `/cenarios/novo?sugerir=true`, com o diálogo já aberto.
+
 ### Modo de teste do cenário
 
 Antes de aprovar, o curador conversa com o personagem da versão em curadoria (RF-09), pelo mesmo adaptador e pelo mesmo montador de prompt da sala.
 
+- **Tela:** a seção "Modo teste" da fila do curador (`/curadoria`) mostra a conversa da rodada e o contador "n/5 perguntas mínimas", que conta como o RN-06. A pergunta vai por `POST /curadoria/{id}/teste` (HTMX), e a seção volta inteira, com a resposta já moderada. Pergunta ou resposta bloqueada aparece só como aviso neutro. O autor vê a seção, mas não testa. `TesteDoCenario.rodada(cenarioId)` lê a rodada para a tela, sem travar nem gravar nada.
 - **Caso de uso:** `TesteDoCenario.perguntar(cenarioId, texto)`, só com o perfil Curador. Só se testa a versão Em curadoria, e o autor do cenário ou da versão nunca testa a própria, mesmo tendo o perfil Curador (RN-05, RN-36). Devolve a `PerguntaDeTeste` com o resultado e a resposta inteira. A pergunta tem no máximo 1000 caracteres, depois de tirar os espaços das pontas, o mesmo limite do campo da pergunta na sala.
 - **Reserva antes da IA:** cada pergunta passa por três passos, e nenhuma chamada à IA fica dentro de transação.
   1. Numa transação curta, com o cenário travado, o caso de uso confere a versão, o autor e o teto e grava a pergunta como `PENDENTE` na rodada em aberto.

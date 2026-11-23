@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Modo de teste do cenário (RF-09), como a seção "Modo teste" do protótipo: o curador conversa com o
+  personagem da versão em curadoria, e o contador mostra quantas perguntas valem para o mínimo do RN-06.
+  A pergunta vai pelo HTMX e a resposta volta inteira, já moderada, trocando a seção toda (curadoria.js).
+  Pergunta ou resposta bloqueada pelo filtro aparece só como aviso neutro, nunca com o texto bloqueado
+  (RN-20). O autor do cenário vê a seção, mas não testa (RN-05, RN-36).
+
+  Usa do modelo: aberto, souAutor, rodada (nula para o autor), avisoDoTeste, textoDoTeste e
+  depoisDePerguntar, que devolve o foco ao campo depois de uma pergunta.
+-->
+<section th:fragment="teste" id="modo-teste" class="test-section" aria-labelledby="modo-teste-titulo">
+  <div class="section-title">
+    <div class="section-title-main"><span>1</span><h2 id="modo-teste-titulo">Modo teste</h2></div>
+    <span class="test-counter" th:if="${rodada}" data-contador-do-teste
+          th:text="|${rodada.contam()}/${rodada.minimo()} perguntas mínimas|">3/5 perguntas mínimas</span>
+  </div>
+
+  <div class="card test-chat">
+    <p class="test-chat-autor" th:if="${souAutor}">
+      Você criou este cenário, então o teste fica com outro curador.
+    </p>
+
+    <th:block th:if="${rodada}">
+      <p class="test-chat-intro">
+        Converse com o personagem como a turma faria. Valem para o mínimo as perguntas que ele responde,
+        mesmo quando o filtro bloqueia a resposta.
+      </p>
+
+      <div class="test-messages" data-mensagens-do-teste>
+        <p class="test-empty" th:if="${rodada.perguntas().isEmpty()}">
+          Nenhuma pergunta ainda. Faça a primeira abaixo.
+        </p>
+        <th:block th:each="p : ${rodada.perguntas()}">
+          <!-- RN-20: a pergunta barrada pelo filtro não aparece, só o aviso neutro abaixo. -->
+          <div class="mini-message tester" th:unless="${p.situacao().name() == 'PERGUNTA_BLOQUEADA'}">
+            <strong>Curador</strong>
+            <p th:text="${p.pergunta()}">Qual é a função do núcleo?</p>
+          </div>
+          <div class="mini-message" th:if="${p.situacao().name() == 'CONCLUIDA'}">
+            <strong th:text="|${rodada.personagem()} (simulação)|">Célula (simulação)</strong>
+            <p th:text="${p.resposta()}">O núcleo guarda o material genético da célula.</p>
+          </div>
+          <p class="test-notice" th:if="${p.situacao().name() == 'PERGUNTA_BLOQUEADA'}">
+            O filtro bloqueou esta pergunta, e ela não chegou ao personagem. Não conta para o mínimo.
+          </p>
+          <p class="test-notice" th:if="${p.situacao().name() == 'RESPOSTA_BLOQUEADA'}">
+            O filtro bloqueou a resposta, que não foi exibida. A pergunta conta para o mínimo.
+          </p>
+          <p class="test-notice" th:if="${p.situacao().name() == 'FALHA'}">
+            O personagem não respondeu a esta pergunta. Ela não conta para o mínimo; pergunte de novo.
+          </p>
+          <p class="test-notice" th:if="${p.situacao().name() == 'PENDENTE'}">
+            A resposta ainda não chegou.
+          </p>
+        </th:block>
+      </div>
+    </th:block>
+
+    <p class="field-error test-error" role="alert" th:if="${avisoDoTeste}" th:text="${avisoDoTeste}">Aviso</p>
+
+    <form class="test-form" th:if="${rodada}" data-pergunta-de-teste
+          th:hx-post="@{/curadoria/{id}/teste(id=${aberto})}" hx-target="#modo-teste" hx-swap="outerHTML"
+          hx-disabled-elt="find input, find button" hx-indicator="#modo-teste">
+      <label for="pergunta-de-teste">Pergunta de teste</label>
+      <div class="test-form-row">
+        <input id="pergunta-de-teste" name="texto" autocomplete="off" required maxlength="1000"
+               placeholder="Ex.: Como era a sua vida naquela época?"
+               th:value="${textoDoTeste}" th:disabled="${rodada.noTeto()}"
+               th:autofocus="${depoisDePerguntar}">
+        <button class="btn btn-secondary" type="submit" th:disabled="${rodada.noTeto()}">
+          Enviar pergunta de teste
+        </button>
+      </div>
+      <p class="test-waiting" aria-live="polite">
+        <span class="test-waiting-dot" aria-hidden="true"></span>
+        <span th:text="|${rodada.personagem()} está respondendo…|">Célula está respondendo…</span>
+      </p>
+      <small th:text="${rodada.noTeto()}
+                ? |Esta rodada chegou ao limite de ${rodada.teto()} perguntas.|
+                : |${rodada.ocupadas()} de ${rodada.teto()} perguntas usadas nesta rodada.|">3 de 40 perguntas usadas nesta rodada.</small>
+    </form>
+  </div>
+</section>
+
+<!-- O teste foi recusado (cenário decidido por outro curador, ou pedido do autor): só o aviso, no lugar da seção. -->
+<section th:fragment="foraDoTeste" id="modo-teste" class="test-section" aria-labelledby="modo-teste-titulo">
+  <div class="section-title">
+    <div class="section-title-main"><span>1</span><h2 id="modo-teste-titulo">Modo teste</h2></div>
+  </div>
+  <div class="card test-chat">
+    <p class="field-error test-error" role="alert" th:text="${avisoDoTeste}">Aviso</p>
+  </div>
+</section>
+</body>
+</html>

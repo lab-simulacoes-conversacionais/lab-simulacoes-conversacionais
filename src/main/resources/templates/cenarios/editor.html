@@ -7,7 +7,8 @@
 <!--
   Editor de cenário (RF-06) em quatro etapas, como no protótipo. Sem JavaScript, as quatro etapas
   aparecem juntas e o formulário funciona igual; com ele, o cenario-editor.js mostra uma por vez.
-  A sugestão pela IA e o quiz do protótipo chegam com as issues #33 e #53.
+  No cenário novo, "Sugerir com IA" abre o pedido de sugestão (RF-07) num diálogo (sugestao.js); sem
+  JavaScript, o link abre a mesma página com o diálogo aberto. O quiz do protótipo chega com a #53.
 -->
 <main class="page editor-page">
   <a class="back-link" th:href="@{/cenarios}">Voltar aos meus cenários</a>
@@ -15,11 +16,17 @@
     <div>
       <div class="heading-badges">
         <span class="subject-tag" th:text="${id == null} ? 'Novo cenário' : 'Editando rascunho'">Novo cenário</span>
+        <th:block th:if="${sugeridoPorIa}"><span th:replace="~{cenarios/fragmentos :: seloDaIa}"></span></th:block>
       </div>
       <h1 data-titulo-do-cenario data-vazio="Cenário sem título"
           th:text="${#strings.isEmpty(formulario.titulo)} ? 'Cenário sem título' : ${formulario.titulo}">Cenário sem título</h1>
-      <p>Salve o rascunho quando quiser. O conteúdo mínimo só é exigido no envio à curadoria.</p>
+      <p th:unless="${sugeridoPorIa}">Salve o rascunho quando quiser. O conteúdo mínimo só é exigido no envio à curadoria.</p>
+      <p th:if="${sugeridoPorIa}">Rascunho sugerido pela IA. Revise cada campo e confira os fatos com as fontes antes de enviar.</p>
     </div>
+    <a class="btn btn-yellow" th:if="${id == null}" th:href="@{/cenarios/novo(sugerir=true)}"
+       data-abrir-sugestao aria-haspopup="dialog">
+      <span aria-hidden="true">✦</span> Sugerir com IA
+    </a>
   </div>
 
   <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
@@ -177,8 +184,92 @@
 
     <aside th:replace="~{cenarios/fragmentos :: requisitos}"></aside>
   </form>
+
+  <!--
+    Pedido de sugestão pela IA (RF-07): tema, componente, ano e habilidades BNCC. Fica fora do formulário
+    do editor, porque é outro envio. Volta aberto, com o pedido preenchido, quando o servidor o recusa.
+  -->
+  <dialog class="modal modal-sugestao" id="sugestao" aria-labelledby="sugestao-titulo" data-sugestao
+          th:if="${id == null}" th:attr="open=${abrirSugestao} ? 'open' : null">
+    <form method="post" th:action="@{/cenarios/sugestao}" data-form-sugestao>
+      <div class="modal-head">
+        <h2 id="sugestao-titulo"><span aria-hidden="true">✦</span> Sugerir cenário com IA</h2>
+        <a class="icon-button" th:href="@{/cenarios/novo}" data-fechar aria-label="Fechar">×</a>
+      </div>
+      <div class="modal-body">
+        <p class="modal-intro">
+          A IA monta um rascunho com personagem, contexto, objetivos, limites, fontes e perguntas
+          disparadoras. Ele abre no editor, marcado "Sugerido por IA", para você revisar antes de enviar.
+        </p>
+        <p class="field-error" role="alert" th:if="${erroDaSugestao}" th:text="${erroDaSugestao}">Erro</p>
+
+        <label for="sugestao-tema">Tema *</label>
+        <input id="sugestao-tema" name="tema" required maxlength="200" th:value="${sugestao.tema}"
+               placeholder="Ex.: o primeiro voo do 14-bis">
+        <div class="form-grid">
+          <div>
+            <label for="sugestao-componente">Componente curricular *</label>
+            <select id="sugestao-componente" name="componente" required>
+              <option value="" th:selected="${#strings.isEmpty(sugestao.componente)}">Selecione</option>
+              <option th:each="c : ${componentes}" th:value="${c}" th:text="${c}"
+                      th:selected="${sugestao.componente == c}">História</option>
+            </select>
+          </div>
+          <div>
+            <label for="sugestao-ano">Ano escolar *</label>
+            <select id="sugestao-ano" name="ano" required>
+              <option value="" th:selected="${sugestao.ano == null}">Selecione</option>
+              <option th:each="a : ${anos}" th:value="${a}" th:text="|${a}º ano|"
+                      th:selected="${sugestao.ano == a}">8º ano</option>
+            </select>
+          </div>
+        </div>
+
+        <label for="sugestao-bncc-busca">Habilidades BNCC *</label>
+        <input id="sugestao-bncc-busca" name="bncc-busca" type="search" autocomplete="off"
+               placeholder="Busque por código ou palavra, ex.: EF08HI03"
+               aria-describedby="sugestao-bncc-ajuda" aria-controls="sugestao-bncc-resultados"
+               th:hx-get="@{/cenarios/bncc}"
+               hx-trigger="input changed delay:350ms, search"
+               hx-include="#sugestao-componente, #sugestao-ano" hx-target="#sugestao-bncc-resultados"
+               hx-sync="this:replace">
+        <small id="sugestao-bncc-ajuda" class="field-description">O componente e o ano escolhidos acima restringem a busca.</small>
+        <div id="sugestao-bncc-resultados" class="sugestao-bncc-resultados" aria-live="polite"></div>
+
+        <ul class="skill-list" data-habilidades-da-sugestao>
+          <li class="skill-result" th:each="h : ${habilidadesDaSugestao}" th:attr="data-habilidade=${h.codigo}">
+            <input type="hidden" name="habilidades" th:value="${h.codigo}">
+            <strong th:text="${h.codigo}">EF08HI03</strong>
+            <span th:text="${h.descricao}">Descrição</span>
+            <button type="button" class="text-button" data-remover th:attr="aria-label=|Remover ${h.codigo}|">Remover</button>
+          </li>
+        </ul>
+        <p class="field-description" data-sem-habilidade th:hidden="${!habilidadesDaSugestao.isEmpty()}">
+          Vincule ao menos uma habilidade para a IA saber o que o cenário precisa trabalhar.
+        </p>
+        <template data-modelo-habilidade>
+          <li class="skill-result">
+            <input type="hidden" name="habilidades">
+            <strong></strong>
+            <span></span>
+            <button type="button" class="text-button" data-remover>Remover</button>
+          </li>
+        </template>
+      </div>
+      <div class="modal-footer">
+        <p class="sugestao-gerando" data-gerando aria-live="polite" hidden>
+          Gerando a sugestão. Leva alguns segundos; não feche a página.
+        </p>
+        <a class="btn btn-ghost" th:href="@{/cenarios/novo}" data-fechar>Cancelar</a>
+        <button class="btn btn-yellow" type="submit" data-gerar-sugestao>
+          <span aria-hidden="true">✦</span> Gerar sugestão
+        </button>
+      </div>
+    </form>
+  </dialog>
 </main>
 <script th:replace="~{fragmentos/base :: htmx}"></script>
 <script th:src="@{/js/cenario-editor.js}" defer></script>
+<script th:src="@{/js/sugestao.js}" defer></script>
 </body>
 </html>

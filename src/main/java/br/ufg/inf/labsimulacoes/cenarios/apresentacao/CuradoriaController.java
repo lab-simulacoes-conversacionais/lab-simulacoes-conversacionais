@@ -5,13 +5,17 @@ import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AcervoDaCuradoria;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AprovacaoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.ArquivamentoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.DevolucaoDeCenario;
+import br.ufg.inf.labsimulacoes.cenarios.aplicacao.TesteDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ArquivamentoNaoPermitido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioForaDeCuradoria;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaoEncontrado;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ComentarioObrigatorio;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.DecisaoDeCuradoriaNaoPermitida;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDoTesteAtingido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.TesteNaoPermitido;
+import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import java.util.List;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -28,8 +32,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  *
  * <p>As rotas /curadoria/** exigem o perfil Curador na configuração de segurança, e os casos de uso
  * conferem de novo. O botão de aprovar nem aparece para quem criou o cenário ou a versão, que também
- * não pode aprovar pelo domínio (RN-36). Na E1 a aprovação não tem checklist nem modo de teste (RN-06);
- * eles chegam com a #33 e a #34.
+ * não pode aprovar pelo domínio (RN-36).
+ *
+ * <p>O modo de teste (RF-09) fica no cenário aberto: o curador conversa com o personagem da versão em
+ * curadoria, e o contador mostra quantas perguntas valem para o mínimo do RN-06. A pergunta vai pelo HTMX
+ * e volta a seção inteira, com a resposta já moderada; uma recusa aparece dentro dela. O checklist que
+ * exige o mínimo para aprovar chega com a #34.
  */
 @Controller
 @RequestMapping("/curadoria")
@@ -38,10 +46,18 @@ class CuradoriaController {
     /** A fila da E1 é curta; com mais que isto, a tela avisa que há outros cenários esperando. */
     private static final int TAMANHO_DA_FILA = 50;
 
+    /**
+     * O teste foi recusado: outro curador decidiu o cenário enquanto a tela estava aberta, ou quem pede é o
+     * autor, que a tela nem deixa testar (RN-05, RN-36).
+     */
+    private static final String TESTE_INDISPONIVEL =
+            "Este cenário não pode ser testado agora: ele saiu da curadoria ou foi criado por você. Atualize a fila.";
+
     private final AcervoDaCuradoria acervo;
     private final AprovacaoDeCenario aprovacao;
     private final DevolucaoDeCenario devolucao;
     private final ArquivamentoDeCenario arquivamento;
+    private final TesteDoCenario teste;
     private final DescricoesDaBncc descricoes;
     private final UsuarioLogado usuarioLogado;
 
@@ -50,12 +66,14 @@ class CuradoriaController {
             AprovacaoDeCenario aprovacao,
             DevolucaoDeCenario devolucao,
             ArquivamentoDeCenario arquivamento,
+            TesteDoCenario teste,
             DescricoesDaBncc descricoes,
             UsuarioLogado usuarioLogado) {
         this.acervo = acervo;
         this.aprovacao = aprovacao;
         this.devolucao = devolucao;
         this.arquivamento = arquivamento;
+        this.teste = teste;
         this.descricoes = descricoes;
         this.usuarioLogado = usuarioLogado;
     }
@@ -128,13 +146,72 @@ class CuradoriaController {
         return "redirect:/curadoria";
     }
 
+    // --------------------------------------------------------------------------------------------
+    // Modo de teste (RF-09)
+    // --------------------------------------------------------------------------------------------
+
+    /**
+     * Uma pergunta do curador ao personagem. A resposta chega inteira, já moderada, e volta a seção do
+     * modo de teste com a conversa e o contador. Uma recusa volta na mesma seção, com o texto digitado
+     * de volta no campo, para o curador não perder o que escreveu.
+     */
+    @PostMapping("/{id}/teste")
+    String perguntarNoTeste(@PathVariable long id, @RequestParam(required = false) String texto, Model modelo) {
+        try {
+            teste.perguntar(id, texto);
+            return secaoDoTeste(id, modelo, null, null);
+        } catch (IllegalArgumentException | LimiteDoTesteAtingido erro) {
+            return secaoDoTeste(id, modelo, erro.getMessage(), texto);
+        } catch (FalhaNoProvedorDeIa erro) {
+            return secaoDoTeste(id, modelo,
+                    "O personagem não conseguiu responder agora. Tente de novo em instantes.", texto);
+        } catch (TesteNaoPermitido | CenarioNaoEncontrado erro) {
+            return foraDoTeste(modelo);
+        }
+    }
+
+    private String secaoDoTeste(long id, Model modelo, String aviso, String texto) {
+        try {
+            modelo.addAttribute("rodada", teste.rodada(id));
+        } catch (TesteNaoPermitido | CenarioNaoEncontrado erro) {
+            return foraDoTeste(modelo);
+        }
+        modelo.addAttribute("aberto", id);
+        modelo.addAttribute("avisoDoTeste", aviso);
+        modelo.addAttribute("textoDoTeste", texto);
+        modelo.addAttribute("depoisDePerguntar", true);
+        return "curadoria/teste :: teste";
+    }
+
+    private static String foraDoTeste(Model modelo) {
+        modelo.addAttribute("avisoDoTeste", TESTE_INDISPONIVEL);
+        return "curadoria/teste :: foraDoTeste";
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Apoio
+    // --------------------------------------------------------------------------------------------
+
     private void abrir(Cenario cenario, Model modelo) {
         long eu = usuarioLogado.id();
         modelo.addAttribute("aberto", cenario.id());
         modelo.addAttribute("conteudo",
                 ConteudoExibido.de(cenario.versao().conteudo(), cenario.versao().numero(), descricoes));
+        // RN-04: o curador confere os fatos de um cenário sugerido pela IA com as fontes.
+        modelo.addAttribute("sugeridoPorIa", cenario.sugeridoPorIa());
         // RN-36: nem o autor do cenário nem quem criou a versão aprova, mesmo com o perfil Curador.
-        modelo.addAttribute("souAutor", cenario.temAutor(eu) || cenario.versao().criadaPorId() == eu);
+        boolean souAutor = cenario.temAutor(eu) || cenario.versao().criadaPorId() == eu;
+        modelo.addAttribute("souAutor", souAutor);
+        // RN-05: o autor também não testa; a seção aparece, mas sem a conversa.
+        if (souAutor) {
+            return;
+        }
+        try {
+            modelo.addAttribute("rodada", teste.rodada(cenario.id()));
+        } catch (TesteNaoPermitido | CenarioNaoEncontrado erro) {
+            // Decidido por outro curador entre a leitura da fila e a da rodada: a seção avisa.
+            modelo.addAttribute("avisoDoTeste", TESTE_INDISPONIVEL);
+        }
     }
 
     private static String recusado(long id, RuntimeException erro, RedirectAttributes mensagens) {
