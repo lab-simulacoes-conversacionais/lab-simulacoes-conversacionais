@@ -6,16 +6,20 @@ import br.ufg.inf.labsimulacoes.cenarios.ConsultaAoCatalogo;
 import br.ufg.inf.labsimulacoes.cenarios.HabilidadeDoCatalogo;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AutoriaDeCenarios;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.EnvioACuradoria;
+import br.ufg.inf.labsimulacoes.cenarios.aplicacao.SugestaoDeCenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioForaDeRascunho;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioIncompleto;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaoEncontrado;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadesForaDoCatalogo;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDeSugestoesAtingido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PendenciaDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
+import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
+import br.ufg.inf.labsimulacoes.ia.SugestaoDesligada;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -43,6 +47,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * <p>Salvar grava o rascunho, que pode estar incompleto. Enviar grava e, em seguida, envia à curadoria:
  * se faltar algo, o rascunho fica salvo e a tela mostra o que falta. A lista "Pronto para curadoria?"
  * é atualizada pelo HTMX enquanto o autor digita, sem gravar nada.
+ *
+ * <p>No cenário novo, "Sugerir com IA" abre o pedido de sugestão (RF-07): tema, componente, ano e
+ * habilidades. A IA devolve um cenário novo em Rascunho, marcado "Sugerido por IA", que abre no editor para
+ * o autor revisar (RN-04). Uma recusa volta ao editor com o pedido aberto e preenchido.
  */
 @Controller
 @RequestMapping("/cenarios")
@@ -65,6 +73,7 @@ class CenariosController {
 
     private final AutoriaDeCenarios autoria;
     private final EnvioACuradoria envio;
+    private final SugestaoDeCenarios sugestao;
     private final CatalogoBncc catalogo;
     private final DescricoesDaBncc descricoes;
     private final UsuarioLogado usuarioLogado;
@@ -72,11 +81,13 @@ class CenariosController {
     CenariosController(
             AutoriaDeCenarios autoria,
             EnvioACuradoria envio,
+            SugestaoDeCenarios sugestao,
             CatalogoBncc catalogo,
             DescricoesDaBncc descricoes,
             UsuarioLogado usuarioLogado) {
         this.autoria = autoria;
         this.envio = envio;
+        this.sugestao = sugestao;
         this.catalogo = catalogo;
         this.descricoes = descricoes;
         this.usuarioLogado = usuarioLogado;
@@ -101,9 +112,11 @@ class CenariosController {
     // Editor (RF-06)
     // --------------------------------------------------------------------------------------------
 
+    /** @param sugerir abre o pedido de sugestão pela IA, que também funciona sem JavaScript */
     @GetMapping("/novo")
-    String novo(Model modelo) {
-        return editor(modelo, null, FormularioDoCenario.vazio(), null);
+    String novo(@RequestParam(defaultValue = "false") boolean sugerir, Model modelo) {
+        modelo.addAttribute("abrirSugestao", sugerir);
+        return editor(modelo, null, FormularioDoCenario.vazio(), null, false);
     }
 
     @PostMapping
@@ -116,7 +129,7 @@ class CenariosController {
         try {
             criado = autoria.criar(formulario.paraConteudo());
         } catch (IllegalArgumentException | HabilidadesForaDoCatalogo erro) {
-            return editor(modelo, null, formulario, erro.getMessage());
+            return editor(modelo, null, formulario, erro.getMessage(), false);
         }
         return depoisDeSalvar(criado, acao, mensagens);
     }
@@ -140,7 +153,7 @@ class CenariosController {
             return "redirect:/cenarios";
         }
         modelo.addAttribute("devolucao", cenario.ultimaDevolucao());
-        return editor(modelo, id, FormularioDoCenario.de(cenario.versao().conteudo()), null);
+        return editor(modelo, id, FormularioDoCenario.de(cenario.versao().conteudo()), null, cenario.sugeridoPorIa());
     }
 
     @PostMapping("/{id}")
@@ -154,7 +167,7 @@ class CenariosController {
         try {
             alterado = autoria.alterarRascunho(id, formulario.paraConteudo());
         } catch (IllegalArgumentException | HabilidadesForaDoCatalogo erro) {
-            return editor(modelo, id, formulario, erro.getMessage());
+            return editor(modelo, id, formulario, erro.getMessage(), autoria.buscar(id).sugeridoPorIa());
         } catch (CenarioForaDeRascunho erro) {
             mensagens.addFlashAttribute("erro", "Este cenário já saiu do rascunho e não pode mais ser editado.");
             return "redirect:/cenarios";
@@ -163,6 +176,34 @@ class CenariosController {
             return "redirect:/cenarios";
         }
         return depoisDeSalvar(alterado, acao, mensagens);
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Sugestão pela IA (RF-07)
+    // --------------------------------------------------------------------------------------------
+
+    /**
+     * Pede à IA um cenário novo. A geração leva alguns segundos; o rascunho sugerido abre no editor com
+     * a marca "Sugerido por IA" (RN-04), para o autor revisar antes de enviar à curadoria.
+     */
+    @PostMapping("/sugestao")
+    String sugerir(@ModelAttribute("sugestao") FormularioDaSugestao pedido, Model modelo, RedirectAttributes mensagens) {
+        String recusa;
+        try {
+            Cenario sugerido = sugestao.sugerir(pedido.paraPedido());
+            mensagens.addFlashAttribute("sucesso", "Rascunho sugerido pela IA. Revise tudo, principalmente os fatos,"
+                    + " antes de enviar à curadoria.");
+            return "redirect:/cenarios/" + sugerido.id() + "/editar";
+        } catch (IllegalArgumentException | HabilidadesForaDoCatalogo | LimiteDeSugestoesAtingido erro) {
+            recusa = erro.getMessage();
+        } catch (FalhaNoProvedorDeIa erro) {
+            recusa = "A IA não conseguiu montar a sugestão agora. Tente de novo em instantes.";
+        } catch (SugestaoDesligada erro) {
+            recusa = "A sugestão pela IA não está disponível neste ambiente. Crie o cenário pelo editor.";
+        }
+        modelo.addAttribute("abrirSugestao", true);
+        modelo.addAttribute("erroDaSugestao", recusa);
+        return editor(modelo, null, FormularioDoCenario.vazio(), null, false);
     }
 
     /** Só existe logo depois de um envio; aberta direto, volta à lista. */
@@ -235,8 +276,18 @@ class CenariosController {
         }
     }
 
-    private String editor(Model modelo, Long id, FormularioDoCenario formulario, String erro) {
+    /** @param sugeridoPorIa mostra a marca "Sugerido por IA" no título (RN-04) */
+    private String editor(Model modelo, Long id, FormularioDoCenario formulario, String erro, boolean sugeridoPorIa) {
         modelo.addAttribute("id", id);
+        modelo.addAttribute("sugeridoPorIa", sugeridoPorIa);
+        // O pedido de sugestão só existe no cenário novo; volta preenchido quando foi recusado.
+        if (id == null) {
+            if (!modelo.containsAttribute("sugestao")) {
+                modelo.addAttribute("sugestao", FormularioDaSugestao.vazio());
+            }
+            var pedido = (FormularioDaSugestao) modelo.getAttribute("sugestao");
+            modelo.addAttribute("habilidadesDaSugestao", descricoes.de(pedido.habilidades()));
+        }
         modelo.addAttribute("formulario", formulario);
         modelo.addAttribute("habilidadesEscolhidas", descricoes.de(formulario.habilidades()));
         modelo.addAttribute("pendencias", formulario.pendencias());
@@ -274,6 +325,7 @@ class CenariosController {
      *     versão nova de um cenário aprovado fica em rascunho com o cenário ainda Aprovado (RN-08)
      * @param aviso o que dizer sobre a outra versão, quando o cenário aprovado tem uma versão nova:
      *     nas listas, a versão nova; na fila do curador, a versão que continua em sala
+     * @param sugeridoPorIa a marca do cenário sugerido pela IA (RN-04), que continua nas versões novas
      */
     record ItemDaLista(
             long id,
@@ -285,7 +337,8 @@ class CenariosController {
             StatusDoCenario status,
             String devolucao,
             boolean editavel,
-            String aviso) {
+            String aviso,
+            boolean sugeridoPorIa) {
 
         /** A versão mais recente, como na confirmação do envio, que mostra o que acabou de ir à curadoria. */
         static ItemDaLista de(Cenario cenario) {
@@ -338,7 +391,8 @@ class CenariosController {
                     cenario.status(),
                     devolvido ? cenario.ultimaDevolucao().comentario() : null,
                     emRascunho,
-                    aviso);
+                    aviso,
+                    cenario.sugeridoPorIa());
         }
 
         /** O selo é o do cenário; a devolução de uma versão nova aparece no aviso, e não no selo. */

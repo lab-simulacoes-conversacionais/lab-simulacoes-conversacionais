@@ -27,9 +27,12 @@
     <section class="card" th:each="c : ${cenarios}">
       <div class="card-top">
         <span class="subject-tag" th:text="${c.componente} ?: 'Sem componente'">História</span>
-        <span class="badge" th:classappend="${c.classeDoStatus}">
-          <span aria-hidden="true" th:text="${c.iconeDoStatus}">•</span><th:block th:text="${c.rotuloDoStatus}">Rascunho</th:block>
-        </span>
+        <div class="card-badges">
+          <th:block th:if="${c.sugeridoPorIa}"><span th:replace="~{cenarios/fragmentos :: seloDaIa}"></span></th:block>
+          <span class="badge" th:classappend="${c.classeDoStatus}">
+            <span aria-hidden="true" th:text="${c.iconeDoStatus}">•</span><th:block th:text="${c.rotuloDoStatus}">Rascunho</th:block>
+          </span>
+        </div>
       </div>
       <h2 th:text="${c.titulo}">Título do cenário</h2>
       <p th:text="${c.personagem} ?: 'Personagem ainda não definido.'">Personagem</p>

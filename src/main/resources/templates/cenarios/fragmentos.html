@@ -95,6 +95,9 @@
   Resultado da busca na BNCC (RF-05). "Vincular" acrescenta a habilidade à lista do cenário pelo
   cenario-editor.js, que guarda o código num campo oculto do formulário.
 -->
+<!-- RN-04: a marca do cenário sugerido pela IA, do protótipo. É do cenário e continua nas versões novas. -->
+<span th:fragment="seloDaIa" class="badge badge-ai"><span aria-hidden="true">✦</span>Sugerido por IA</span>
+
 <div th:fragment="resultadosDaBncc" th:remove="tag">
   <th:block th:if="${buscou}">
     <p class="field-description" th:if="${encontradas.isEmpty()}">

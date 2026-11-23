@@ -8,6 +8,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDoTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntaDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntasDeTeste;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.RodadaDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.TesteNaoPermitido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
@@ -117,6 +118,21 @@ public class TesteDoCenario {
             throw TesteNaoPermitido.rodadaFechada(gravada.versaoId());
         }
         return gravada;
+    }
+
+    /**
+     * A rodada em aberto do curador logado na versão em curadoria do cenário, para a tela do modo de
+     * teste: a conversa e as contagens do RN-06 e do teto. Só lê; nada é travado nem gravado.
+     *
+     * @throws CenarioNaoEncontrado se o cenário não existir
+     * @throws TesteNaoPermitido se a versão não estiver em curadoria ou se o curador for o autor
+     */
+    public RodadaDeTeste rodada(long cenarioId) {
+        Cenario cenario = cenarios.buscar(cenarioId).orElseThrow(() -> new CenarioNaoEncontrado(cenarioId));
+        long curador = usuarioLogado.id();
+        long versaoId = PerguntaDeTeste.versaoTestavel(cenario, curador);
+        return new RodadaDeTeste(cenario.versao().conteudo().roteiro().personagem(),
+                perguntas.daRodada(versaoId, curador), limite.perguntasPorVersao());
     }
 
     /** Passo 1: com o cenário travado, os pedidos do mesmo cenário reservam um de cada vez. */
