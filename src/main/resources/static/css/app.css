@@ -518,6 +518,18 @@ dialog.modal[open]::backdrop { animation: escurecer var(--medio) var(--ease); }
 kbd { font-family: inherit; font-size: 10px; border-radius: 4px; padding: 2px 5px; background: rgba(255,255,255,.65); border: 1px solid currentColor; margin-left: auto; }
 .atalhos-nota { color: var(--muted); font-size: 11px; }
 
+/* Perguntas disparadoras (RF-18): sugestões que só o professor vê. O clique leva a pergunta ao campo
+   de envio; bloqueadas junto com ele, quando a sessão está pausada ou no limite. */
+.disparadoras { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+.disparadoras h3 { font-size: 15px; margin: 0 0 4px; }
+.disparadoras-nota { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+.disparadoras ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.disparadora { width: 100%; text-align: left; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.4; color: var(--ink); background: var(--surface); border: 1px solid transparent; border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; transition: border-color var(--rapido) var(--ease), background var(--rapido) var(--ease); }
+.disparadora:hover:not(:disabled) { border-color: var(--blue); background: white; }
+.disparadora:focus-visible { outline: none; border-color: var(--blue); box-shadow: var(--ring); }
+.disparadora:disabled { cursor: not-allowed; color: var(--muted); opacity: .7; }
+@media (prefers-reduced-motion: reduce) { .disparadora { transition: none; } }
+
 .summary-stats { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); border-radius: 12px; margin-top: 17px; }
 .summary-stats div { padding: 15px; text-align: center; border-right: 1px solid var(--line); }
 .summary-stats div:last-child { border: 0; }

@@ -3,10 +3,11 @@
 <body>
 <!--
   Painel do professor (RF-17). Volta a cada controle e depois de cada resposta, porque o bloqueio pausa
-  a sessão e a pergunta conta no limite (RN-18).
+  a sessão e a pergunta conta no limite (RN-18). As perguntas disparadoras do cenário (RF-18) ficam só
+  aqui, fora da área projetada; o clique leva a pergunta ao campo de envio (projecao.js), sem enviar.
 -->
 <aside th:fragment="painel" id="painel" class="teacher-panel"
-       th:attr="data-status=${tela.status},data-pode-perguntar=${!tela.pausada() and !tela.noLimite()}"
+       th:attr="data-status=${tela.status},data-pode-perguntar=${tela.podePerguntar()}"
        th:hx-get="@{/sessoes/{id}/painel(id=${tela.id})}" hx-trigger="sessao-mudou from:body" hx-swap="outerHTML">
   <div class="panel-title">
     <div>
@@ -58,6 +59,20 @@
     </button>
   </div>
   <p class="atalhos-nota">Atalhos funcionam fora do campo da pergunta.</p>
+
+  <section class="disparadoras" aria-labelledby="disparadoras-titulo">
+    <h3 id="disparadoras-titulo">Perguntas disparadoras</h3>
+    <p class="disparadoras-nota" th:if="${tela.perguntasDisparadoras.isEmpty()}">Este cenário não tem perguntas sugeridas.</p>
+    <th:block th:unless="${tela.perguntasDisparadoras.isEmpty()}">
+      <p class="disparadoras-nota" id="disparadoras-nota">Só você vê estas sugestões. Clique para levar ao campo da pergunta.</p>
+      <ul>
+        <li th:each="pergunta : ${tela.perguntasDisparadoras}">
+          <button type="button" class="disparadora" data-disparadora aria-describedby="disparadoras-nota"
+                  th:text="${pergunta}" th:disabled="${!tela.podePerguntar()}">Por que o 14-bis era mais pesado que o ar?</button>
+        </li>
+      </ul>
+    </th:block>
+  </section>
 </aside>
 
 <!-- Resposta ao reiniciar: o painel atualizado e a conversa limpa na tela (RN-19). -->
