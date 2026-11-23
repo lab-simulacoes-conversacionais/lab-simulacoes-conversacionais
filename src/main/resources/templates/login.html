@@ -9,14 +9,14 @@
     <div class="login-moldura" data-login-moldura>
       <!-- As ilustrações se revezam sozinhas e pelas bolinhas embaixo (login.js). Sem o script, fica só a primeira. -->
       <img class="login-ilustracao ativa" th:src="@{/img/login/turma.jpg}" src="/img/login/turma.jpg" width="1182" height="1330" alt="" data-ilustracao>
-      <img class="login-ilustracao" th:src="@{/img/login/santos-dumont.jpg}" src="/img/login/santos-dumont.jpg" width="1182" height="1331" alt="" loading="lazy" data-ilustracao>
+      <img class="login-ilustracao login-ilustracao-alto" th:src="@{/img/login/santos-dumont.jpg}" src="/img/login/santos-dumont.jpg" width="1182" height="1331" alt="" loading="lazy" data-ilustracao>
       <div class="login-bolinhas" role="group" aria-label="Escolher ilustração" hidden data-bolinhas>
         <button type="button" aria-label="Ilustração 1 de 2" aria-pressed="true"></button>
         <button type="button" aria-label="Ilustração 2 de 2" aria-pressed="false"></button>
       </div>
       <div class="login-brand login-hero-marca" tabindex="0">
         <span class="brand-mark" aria-hidden="true"><span></span></span>
-        <span class="login-hero-marca-texto"><strong><span class="sr-only">Laboratório</span><span aria-hidden="true">Laborat<svg class="marca-ia" viewBox="0 0 16 18" aria-hidden="true" focusable="false"><g class="marca-ia-antena-grupo"><path class="marca-ia-antena" d="M8.75 7.4 L11.4 2.4"/><circle class="marca-ia-ponta" cx="11.7" cy="1.9" r="1.55"/></g><rect class="marca-ia-orelha" x=".8" y="9.5" width="2.8" height="4.6" rx="1.4"/><rect class="marca-ia-orelha" x="12.4" y="9.5" width="2.8" height="4.6" rx="1.4"/><rect class="marca-ia-aro" x="2.7" y="6.6" width="10.6" height="10.4" rx="3.6"/><rect class="marca-ia-cabeca" x="3.6" y="8.95" width="8.8" height="5.7" rx="2.5"/><g class="marca-ia-olhar"><g class="marca-ia-olhos"><circle cx="6.55" cy="11.35" r=".85"/><circle cx="9.45" cy="11.35" r=".85"/></g><path class="marca-ia-sorriso" d="M7.05 12.85 Q8 13.65 8.95 12.85"/></g></svg>rio</span></strong><small>Simulações Conversacionais</small></span>
+        <span class="login-hero-marca-texto"><strong><span class="sr-only">Laboratório</span><span aria-hidden="true">LABORAT<svg class="marca-ia" viewBox="0 0 16 18" aria-hidden="true" focusable="false"><g class="marca-ia-antena-grupo"><path class="marca-ia-antena" d="M8.75 7.4 L11.4 2.4"/><circle class="marca-ia-ponta" cx="11.7" cy="1.9" r="1.55"/></g><rect class="marca-ia-orelha" x=".8" y="9.5" width="2.8" height="4.6" rx="1.4"/><rect class="marca-ia-orelha" x="12.4" y="9.5" width="2.8" height="4.6" rx="1.4"/><rect class="marca-ia-aro" x="2.7" y="6.6" width="10.6" height="10.4" rx="3.6"/><rect class="marca-ia-cabeca" x="3.6" y="8.95" width="8.8" height="5.7" rx="2.5"/><g class="marca-ia-olhar"><g class="marca-ia-olhos"><circle cx="6.55" cy="11.35" r=".85"/><circle cx="9.45" cy="11.35" r=".85"/></g><path class="marca-ia-sorriso" d="M7.05 12.85 Q8 13.65 8.95 12.85"/></g></svg>RIO</span></strong><small>Simulações Conversacionais</small></span>
       </div>
 
     <!--/* Robô: fora da tela de login por enquanto, guardado para outro uso. Este comentário do Thymeleaf não chega
@@ -118,5 +118,6 @@
   </section>
 </main>
 <script th:src="@{/js/login.js}" defer></script>
+<script th:src="@{/js/marca.js}" defer></script>
 </body>
 </html>

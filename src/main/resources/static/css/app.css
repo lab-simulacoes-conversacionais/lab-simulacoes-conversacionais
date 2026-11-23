@@ -68,10 +68,10 @@ header:has(> .header) { position: sticky; top: 0; z-index: 20; background: rgba(
 .brand, .login-brand { border: 0; background: transparent; display: flex; align-items: center; gap: 12px; color: var(--ink); text-align: left; padding: 0; text-decoration: none; }
 /* Logotipo: nome em cima, descritor embaixo. O "ó" de Laboratório é um robozinho: cabeça branca de cantos arredondados com contorno fino, orelhinhas
    dos lados e um visor azul arredondado com olhinhos e sorriso, e o acento agudo virou a antena, com a ponta amarela. Ela pisca de
-   vez em quando; com o mouse na marca, a antena balança e os olhos olham para o lado. */
+   vez em quando; os olhos acompanham o mouse (marca.js) e, com o mouse na marca, a antena balança. */
 .brand strong, .login-brand strong { display: block; font-size: 20px; font-weight: 800; letter-spacing: -.025em; line-height: 1; color: var(--ink); }
 .brand small, .login-brand small { display: block; font-size: 11px; font-weight: 600; margin-top: .42em; letter-spacing: .005em; line-height: 1; color: var(--muted); white-space: nowrap; }
-.marca-ia { display: inline-block; width: .8em; height: .9em; margin: 0 -.03em 0 -.02em; vertical-align: -.04em; overflow: visible; }
+.marca-ia { display: inline-block; width: 1.1em; height: 1.24em; margin: 0 -.02em 0 .01em; vertical-align: -.07em; overflow: visible; }
 .marca-ia-aro { fill: #fff; stroke: var(--ink); stroke-width: .38; }
 .marca-ia-orelha { fill: #8fa2ff; stroke: var(--ink); stroke-width: .38; }
 .marca-ia-cabeca { fill: var(--blue); }
@@ -81,8 +81,7 @@ header:has(> .header) { position: sticky; top: 0; z-index: 20; background: rgba(
 .marca-ia-olhos { fill: #fff; transform-box: fill-box; transform-origin: center; animation: marca-ia-piscar 4.5s infinite; }
 .marca-ia-antena-grupo { transform-box: fill-box; transform-origin: 0% 100%; }
 .brand:hover .marca-ia-antena-grupo, .login-hero-marca:hover .marca-ia-antena-grupo, .login-hero-marca:focus-visible .marca-ia-antena-grupo { animation: marca-ia-antena .7s var(--ease); }
-.brand:hover .marca-ia-olhar, .login-hero-marca:hover .marca-ia-olhar, .login-hero-marca:focus-visible .marca-ia-olhar { translate: 1.1px -.4px; }
-.marca-ia-olhar { transition: translate .3s var(--ease); }
+.marca-ia-olhar { transition: translate .15s linear; }
 @keyframes marca-ia-piscar { 0%, 94%, 100% { scale: 1 1; } 97% { scale: 1 .12; } }
 @keyframes marca-ia-antena { 0%, 100% { rotate: 0deg; } 30% { rotate: 14deg; } 60% { rotate: -9deg; } 80% { rotate: 4deg; } }
 @media (prefers-reduced-motion: reduce) { .marca-ia-olhos, .marca-ia-antena-grupo { animation: none !important; } .marca-ia-olhar { transition: none; } }
@@ -190,6 +189,8 @@ tbody tr:hover { background: #f8f9ff; }
 /* As ilustrações se revezam (login.js): só a que tem .ativa aparece, com 1,6 s de transição entre elas. */
 .login-moldura > .login-ilustracao { opacity: 0; transition: opacity 1.6s ease-in-out; }
 .login-moldura > .login-ilustracao.ativa { opacity: 1; }
+/* Na cena do Santos Dumont o que importa está no alto (a tela com a simulação e o professor), então o corte puxa para cima. */
+.login-moldura > .login-ilustracao-alto { object-position: 50% 32%; }
 /* As bolinhas pitiquinhas embaixo, numa pílula de vidro; a da imagem atual se alonga. */
 .login-bolinhas { position: absolute; left: 50%; bottom: max(16px, 1.4vw); z-index: 1; translate: -50% 0; display: flex; gap: 2px; padding: 4px 6px; border-radius: 999px; background: rgba(5, 22, 90, .28); backdrop-filter: blur(8px); }
 .login-bolinhas[hidden] { display: none; }
@@ -215,7 +216,7 @@ tbody tr:hover { background: #f8f9ff; }
 .login-hero-marca:hover .login-hero-marca-texto, .login-hero-marca:focus-visible .login-hero-marca-texto { max-width: 18em; opacity: 1; translate: 0 0; transition: max-width .55s var(--ease), opacity .4s .1s var(--ease), translate .55s var(--ease); }
 .login-hero-marca:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .login-hero-marca, .login-hero-marca .brand-mark, .login-hero-marca-texto { transition: none; } .login-hero-marca:hover .brand-mark, .login-hero-marca:focus-visible .brand-mark { rotate: none; } }
-.login-hero-marca strong { font-size: 1.25em; }
+.login-hero-marca strong { font-size: 1.1em; }
 .login-hero-marca small { font-size: .6875em; }
 .login-hero-marca .brand-mark { width: 2.3em; height: 2.3em; }
 .login-hero-marca .brand-mark::before { width: 1.06em; height: 1.06em; top: .25em; right: .19em; }
@@ -316,6 +317,7 @@ tbody tr:hover { background: #f8f9ff; }
   .login-hero { padding: 12px 12px 0; }
   .login-moldura { position: relative; top: 0; height: clamp(240px, 50vw, 400px); min-height: 0; border-radius: 22px; }
   .login-moldura > img { object-position: 50% 62%; }
+  .login-moldura > .login-ilustracao-alto { object-position: 50% 38%; }
   .login-lado { padding: 36px 20px 40px; }
   .login-form-area { padding: 0; place-items: start center; }
   .login-hero-marca { top: 10px; left: 10px; font-size: 13px; }
