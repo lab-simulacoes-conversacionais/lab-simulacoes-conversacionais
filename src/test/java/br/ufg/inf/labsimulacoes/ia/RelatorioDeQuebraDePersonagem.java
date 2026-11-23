@@ -74,8 +74,8 @@ final class RelatorioDeQuebraDePersonagem {
             }
             md.append("**Pergunta:**\n\n").append(citacao(linha.caso().pergunta()))
                     .append("**Resposta:**\n\n").append(citacao(linha.resposta()))
-                    .append("**Critério:** ").append(linha.caso().criterio()).append("\n\n")
-                    .append("**Motivo:** ").append(linha.motivo()).append("\n\n");
+                    .append("**Critério:** ").append(escapar(linha.caso().criterio())).append("\n\n")
+                    .append("**Motivo:** ").append(escapar(linha.motivo())).append("\n\n");
         }
         return md.append("</details>\n").toString();
     }
@@ -86,13 +86,22 @@ final class RelatorioDeQuebraDePersonagem {
     }
 
     private static String celula(String texto) {
-        return texto.replace("|", "\\|").replaceAll("\\s*\\R\\s*", " ");
+        return escapar(texto).replace("|", "\\|").replaceAll("\\s*\\R\\s*", " ");
     }
 
     private static String citacao(String texto) {
         if (texto == null || texto.isBlank()) {
             return "> (sem resposta)\n\n";
         }
-        return texto.strip().lines().map(l -> "> " + l).reduce((a, b) -> a + "\n" + b).orElseThrow() + "\n\n";
+        return escapar(texto.strip()).lines().map(l -> "> " + l).reduce((a, b) -> a + "\n" + b).orElseThrow()
+                + "\n\n";
+    }
+
+    /**
+     * O texto do modelo e do juiz vai para um resumo em Markdown com HTML; sem escape, um {@code </details>}
+     * ou uma cerca de código na resposta fecharia o bloco antes da hora e desmontaria o resto do relatório.
+     */
+    static String escapar(String texto) {
+        return texto.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("`", "\\`");
     }
 }
