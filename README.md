@@ -164,7 +164,14 @@ A partir da E2, o curador só aprova depois de conferir o checklist e de testar 
 - **Teste:** pelo menos 5 perguntas na rodada em aberto do próprio curador, pela contagem do modo de teste (`PerguntasDeTeste.contar`). Perguntas de outro curador ou de antes de uma devolução não contam.
 - **Regra no domínio:** `Cenario.aprovar(curador, conferencia, momento)` recusa com `AprovacaoIncompleta`, que diz tudo o que falta de uma vez. As regras de quem aprova (RN-05, RN-36) são conferidas antes.
 - **Registro:** a aprovação grava em `checklist_curadoria` os itens e quantas perguntas o curador tinha feito, uma linha por versão aprovada. Como a versão aprovada (RN-08), a linha não muda nem é apagada (trigger), e o banco também recusa checklist incompleto.
-- **Tela:** a fila do curador mostra o checklist e quantas perguntas de teste ele já fez. O acabamento do protótipo fica com a #34, e a tela do modo de teste com a #33.
+- **Tela:** a seção "Checklist de revisão" da fila do curador (`/curadoria`), como no protótipo. O aviso ao lado de "Aprovar" diz o que falta ("Faltam 3 perguntas de teste.", "Conclua todo o checklist.", "Revisão completa."), e o botão só fica ativo com tudo feito (`curadoria.js`). É só um adiantamento: o servidor confere de novo e, se faltar algo, volta à fila com o checklist marcado como estava.
+
+### Versões, biblioteca e arquivamento na tela
+
+- **Histórico e comparação (RF-11):** `GET /cenarios/{id}/versoes` lista as versões da mais nova para a mais antiga, com a vigente marcada, e mostra duas lado a lado, campo a campo: o que saiu aparece riscado em vermelho e o que entrou, sublinhado em verde. Sem escolha, compara a mais nova com a última aprovada antes dela; `?de=1&para=3` escolhe outras. O professor vê o histórico dos próprios cenários (pelo botão "Versões" de Meus cenários) e o curador vê o de todos (RN-37). A fila do curador mostra o mesmo histórico, com a versão em curadoria ao lado da que está em sala.
+- **Versão nova e restauração (RN-08):** só o autor, nessa mesma página. `POST /cenarios/{id}/versoes/nova` abre a versão seguinte de um cenário aprovado ou suspenso, e `POST /cenarios/{id}/versoes/{numero}/restaurar` traz de volta uma versão aprovada anterior. As duas abrem em rascunho no editor e passam pela curadoria; a vigente continua em sala até a nova ser aprovada.
+- **Filtros da biblioteca (RF-12):** `/biblioteca` aceita `busca`, `componente`, `ano` e `habilidade` na URL, combináveis, e a paginação os mantém. As opções de componente, ano e habilidade vêm de `BibliotecaDeCenarios.filtrosDisponiveis()`, então só aparece o que traz algum cenário.
+- **Arquivamento (RF-13):** o curador arquiva pelo detalhe do cenário na biblioteca, depois de confirmar num diálogo. `POST /curadoria/{id}/arquivar` volta à biblioteca com o aviso; o histórico continua guardado (RN-09).
 
 ### Sessão em sala
 

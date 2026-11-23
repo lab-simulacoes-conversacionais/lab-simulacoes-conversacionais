@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Histórico de versões · ' + ${cenario.titulo})}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Histórico de versões de um cenário (RF-11, RN-08), como a seção "Histórico de versões" do protótipo:
+  a lista das versões à esquerda e duas delas lado a lado à direita, com as diferenças destacadas. Sem
+  escolha, a comparação mostra a versão mais nova e a última aprovada antes dela. O autor também cria a
+  versão nova de um cenário aprovado e restaura uma versão aprovada anterior; as duas abrem em rascunho
+  no editor e passam pela curadoria, enquanto a vigente continua em sala.
+-->
+<main class="page versions-page">
+  <a class="back-link" th:href="@{${voltar.endereco}}" th:text="${voltar.texto}">Voltar aos meus cenários</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">HISTÓRICO DE VERSÕES</p>
+      <div class="heading-badges">
+        <span class="subject-tag" th:text="${cenario.componente} ?: 'Sem componente'">História</span>
+        <span class="badge" th:classappend="${cenario.classeDoStatus}">
+          <span aria-hidden="true" th:text="${cenario.iconeDoStatus}">✓</span><th:block th:text="${cenario.rotuloDoStatus}">Aprovado</th:block>
+        </span>
+      </div>
+      <h1 th:text="${cenario.titulo}">Título do cenário</h1>
+      <p>Compare duas versões lado a lado. Versões aprovadas nunca saem do histórico.</p>
+    </div>
+    <form th:if="${historico.podeCriarVersao}" method="post" th:action="@{/cenarios/{id}/versoes/nova(id=${cenario.id})}">
+      <button class="btn btn-primary" type="submit"><svg th:replace="~{fragmentos/base :: iconeMais}"></svg> Criar versão nova</button>
+    </form>
+  </div>
+
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <div class="section-title"><div class="section-title-main"><span>1</span><h2>Histórico de versões</h2></div></div>
+  <section class="card versions">
+    <div>
+      <ol th:replace="~{cenarios/fragmentos :: listaDeVersoes(${historico}, ${cenario.id}, ${souAutor})}"></ol>
+      <p class="versions-note" th:if="${historico.podeCriarVersao}">
+        Para mudar o cenário, crie uma versão nova ou restaure uma anterior. A que está em sala continua
+        valendo até a nova ser aprovada.
+      </p>
+    </div>
+
+    <div class="versions-compare">
+      <p class="comparison-empty" th:unless="${historico.temComparacao()}">
+        Este cenário tem uma versão só. Quando houver outra, as duas aparecem aqui lado a lado.
+      </p>
+
+      <th:block th:if="${comparacao}">
+        <!-- Sem JavaScript: o botão manda a escolha pela URL, e a página volta com as duas versões. -->
+        <form class="compare-form" method="get" th:action="@{/cenarios/{id}/versoes(id=${cenario.id})}">
+          <div>
+            <label for="comparar-de">Antes</label>
+            <select id="comparar-de" name="de">
+              <option th:each="v : ${historico.versoes}" th:value="${v.numero}" th:text="|v${v.numero} · ${v.rotulo}|"
+                      th:selected="${v.numero == comparacao.antiga}">v1</option>
+            </select>
+          </div>
+          <div>
+            <label for="comparar-para">Depois</label>
+            <select id="comparar-para" name="para">
+              <option th:each="v : ${historico.versoes}" th:value="${v.numero}" th:text="|v${v.numero} · ${v.rotulo}|"
+                      th:selected="${v.numero == comparacao.nova}">v2</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" type="submit">Comparar</button>
+        </form>
+        <p class="field-error" role="alert" th:if="${avisoDaComparacao}" th:text="${avisoDaComparacao}">aviso</p>
+        <div th:replace="~{cenarios/fragmentos :: comparacao(${comparacao})}"></div>
+      </th:block>
+    </div>
+  </section>
+</main>
+</body>
+</html>

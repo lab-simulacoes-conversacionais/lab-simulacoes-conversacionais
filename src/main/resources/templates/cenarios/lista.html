@@ -6,8 +6,8 @@
 
 <!--
   Cenários de quem está logado, em qualquer status (RN-37), os mais novos primeiro. É por aqui que o
-  autor volta ao rascunho e lê o comentário da devolução (RN-07). Os cartões seguem a biblioteca do
-  protótipo.
+  autor volta ao rascunho e lê o comentário da devolução (RN-07), e abre o histórico de versões (RF-11).
+  Os cartões seguem a biblioteca do protótipo.
 -->
 <main class="page">
   <a class="back-link" th:href="@{/}">Voltar ao início</a>
@@ -48,9 +48,14 @@
       </div>
       <div class="library-card-footer">
         <small th:text="${c.editavel} ? 'Rascunho editável' : 'Bloqueado para edição'">Rascunho editável</small>
-        <a class="btn btn-secondary" th:if="${c.editavel}" th:href="@{/cenarios/{id}/editar(id=${c.id})}">
-          Continuar edição
-        </a>
+        <span class="card-actions">
+          <!-- RF-11: o histórico, a comparação e, num cenário aprovado, a versão nova ou a restauração. -->
+          <a class="btn btn-ghost" th:href="@{/cenarios/{id}/versoes(id=${c.id})}"
+             th:attr="aria-label=|Versões de ${c.titulo}|">Versões</a>
+          <a class="btn btn-secondary" th:if="${c.editavel}" th:href="@{/cenarios/{id}/editar(id=${c.id})}">
+            Continuar edição
+          </a>
+        </span>
       </div>
     </section>
   </div>

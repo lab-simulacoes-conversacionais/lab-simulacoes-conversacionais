@@ -6,8 +6,9 @@
 
 <!--
   Fila do curador (RF-08), como no protótipo: a lista dos cenários em curadoria à esquerda e o aberto à
-  direita, com o modo de teste (RF-09, teste.html), checklist (RF-10), aprovar e devolver. A aba de
-  sinalizações e o histórico de versões chegam com as issues #34 e #44.
+  direita, com o modo de teste (RF-09, teste.html), o conteúdo da versão, o checklist de revisão (RF-10),
+  o histórico de versões com a comparação (RF-11), aprovar e devolver. A aba de sinalizações chega com a
+  issue #44.
 -->
 <main class="page curator-page">
   <a class="back-link" th:href="@{/}">Voltar ao início</a>
@@ -77,36 +78,61 @@
 
       <section th:replace="~{curadoria/teste :: teste}"></section>
 
-      <div th:replace="~{cenarios/fragmentos :: conteudo(${conteudo})}"></div>
+      <div th:replace="~{cenarios/fragmentos :: conteudo(${conteudo}, 2)}"></div>
 
-      <!-- Checklist de curadoria (RF-10, RN-06): sem ele completo e sem 5 perguntas de teste, não se aprova. -->
-      <form th:unless="${souAutor}" id="aprovacao" class="card checklist-curadoria" method="post"
+      <!--
+        Checklist de revisão (RF-10, RN-06), como no protótipo: sem ele completo e sem 5 perguntas de teste,
+        não se aprova. O servidor confere de novo; curadoria.js só adianta o aviso e o botão de aprovar.
+      -->
+      <form th:unless="${souAutor}" id="aprovacao" class="checklist-section" method="post"
             th:action="@{/curadoria/{id}/aprovar(id=${aberto})}">
-        <fieldset>
-          <legend>Checklist de curadoria</legend>
+        <div class="section-title">
+          <div class="section-title-main"><span>4</span><h2 id="checklist-titulo">Checklist de revisão</h2></div>
+        </div>
+        <div class="card review-checklist" role="group" aria-labelledby="checklist-titulo">
           <label th:each="item : ${itensDoChecklist}">
-            <input type="checkbox" name="itens" th:value="${item}"
+            <input type="checkbox" name="itens" th:value="${item}" data-item-do-checklist
                    th:checked="${marcados != null and marcados.contains(item.name())}">
-            <span th:text="${#strings.capitalize(item.descricao())}">Fatos conferidos com as fontes</span>
+            <span aria-hidden="true">✓</span>
+            <th:block th:text="${#strings.capitalize(item.descricao())}">Fatos conferidos com as fontes</th:block>
           </label>
-        </fieldset>
-        <p class="checklist-teste" data-contador-checklist
-           th:classappend="${perguntasDeTeste >= minimoDeTeste} ? 'completo'"
-           th:text="${perguntasDeTeste > minimoDeTeste}
-             ? |Perguntas de teste feitas por você nesta versão: ${perguntasDeTeste} (mínimo ${minimoDeTeste})|
-             : |Perguntas de teste feitas por você nesta versão: ${perguntasDeTeste} de ${minimoDeTeste}|">
-          Perguntas de teste feitas por você nesta versão: 0 de 5
-        </p>
+        </div>
       </form>
 
-      <div class="review-actions">
+      <section class="versions-section" aria-labelledby="historico-titulo">
+        <div class="section-title">
+          <div class="section-title-main"><span th:text="${souAutor} ? 4 : 5">5</span><h2 id="historico-titulo">Histórico de versões</h2></div>
+          <a class="text-link" th:if="${comparacao}" th:href="@{/cenarios/{id}/versoes(id=${aberto})}">Comparar outras versões</a>
+        </div>
+        <div class="card versions">
+          <ol th:replace="~{cenarios/fragmentos :: listaDeVersoes(${historico}, ${aberto}, false)}"></ol>
+          <div class="versions-compare">
+            <p class="comparison-empty" th:unless="${comparacao}">
+              Primeira versão deste cenário: não há outra para comparar.
+            </p>
+            <th:block th:if="${comparacao}"><div th:replace="~{cenarios/fragmentos :: comparacao(${comparacao})}"></div></th:block>
+          </div>
+        </div>
+      </section>
+
+      <!--
+        O aviso segue o protótipo: o que falta para aprovar, na ordem em que o curador faz (teste, depois
+        checklist). O mesmo cálculo é refeito em curadoria.js a cada pergunta e a cada item marcado.
+      -->
+      <div class="review-actions"
+           th:with="faltam=${minimoDeTeste - perguntasDeTeste},
+                    checklistCompleto=${marcados != null and marcados.size() == itensDoChecklist.length}">
         <div>
-          <strong th:text="${souAutor} ? 'Aprovação bloqueada por conflito de autoria.' : 'Revise o conteúdo antes de decidir.'">Revise o conteúdo antes de decidir.</strong>
+          <strong data-situacao-da-revisao
+                  th:text="${souAutor} ? 'Aprovação bloqueada por conflito de autoria.'
+                    : (${faltam > 1} ? |Faltam ${faltam} perguntas de teste.|
+                    : (${faltam == 1} ? 'Falta 1 pergunta de teste.'
+                    : (${checklistCompleto} ? 'Revisão completa.' : 'Conclua todo o checklist.')))">Conclua todo o checklist.</strong>
           <span>A decisão fica registrada no log de auditoria.</span>
         </div>
         <button class="btn btn-ghost" type="button" data-abrir-devolucao>Devolver</button>
         <!-- Critério de aceite da #23: o botão de aprovar não aparece para o autor (RN-36). -->
-        <button th:unless="${souAutor}" class="btn btn-primary" type="submit" form="aprovacao">
+        <button th:unless="${souAutor}" class="btn btn-primary" type="submit" form="aprovacao" data-aprovar>
           <svg th:replace="~{fragmentos/base :: iconeCheck}"></svg> Aprovar
         </button>
       </div>
