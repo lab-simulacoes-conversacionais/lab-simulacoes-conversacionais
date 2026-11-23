@@ -228,6 +228,22 @@ class SugestaoETesteDoCenarioPelaTelaTest {
                 .contains("1/5 perguntas mínimas");
     }
 
+    /** RN-20: a pergunta bloqueada não aparece na conversa, nem no campo, só o aviso neutro; ela não conta. */
+    @Test
+    void perguntaBloqueadaMostraSoOAvisoENaoConta() throws Exception {
+        long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Pergunta bloqueada"));
+        var curadora = logado(novoUsuario(Perfil.CURADOR));
+
+        var corpo = curadora.postForm("/curadoria/" + id + "/teste", "texto=" + cod("Pergunta com " + IMPROPRIO)).body();
+
+        assertThat(corpo)
+                .contains("O filtro bloqueou esta pergunta, e ela não chegou ao personagem.")
+                .doesNotContain(IMPROPRIO)
+                .contains("0/5 perguntas mínimas");
+        assertThat(curadora.get("/curadoria?cenario=" + id).body()).doesNotContain(IMPROPRIO);
+        verify(adaptador, never()).responder(any(), any());
+    }
+
     @Test
     void perguntaVaziaVoltaComAvisoSemChamarAIa() throws Exception {
         long id = enviado(logado(novoUsuario(Perfil.PROFESSOR)), titulo("Pergunta vazia"));

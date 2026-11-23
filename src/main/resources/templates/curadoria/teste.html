@@ -34,7 +34,8 @@
           Nenhuma pergunta ainda. Faça a primeira abaixo.
         </p>
         <th:block th:each="p : ${rodada.perguntas()}">
-          <div class="mini-message tester">
+          <!-- RN-20: a pergunta barrada pelo filtro não aparece, só o aviso neutro abaixo. -->
+          <div class="mini-message tester" th:unless="${p.situacao().name() == 'PERGUNTA_BLOQUEADA'}">
             <strong>Curador</strong>
             <p th:text="${p.pergunta()}">Qual é a função do núcleo?</p>
           </div>
