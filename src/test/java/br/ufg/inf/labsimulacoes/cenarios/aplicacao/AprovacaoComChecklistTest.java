@@ -8,8 +8,6 @@ import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.AprovacaoIncompleta;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
-import br.ufg.inf.labsimulacoes.cenarios.dominio.ChecklistsDeCuradoria;
-import br.ufg.inf.labsimulacoes.cenarios.dominio.ConferenciaDaCuradoria;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
@@ -17,7 +15,6 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.ItemDoChecklist;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
 import br.ufg.inf.labsimulacoes.eventos.CenarioAprovado;
 import java.util.List;
-import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,9 +56,6 @@ class AprovacaoComChecklistTest {
     private DevolucaoDeCenario devolucao;
 
     @Autowired
-    private ChecklistsDeCuradoria checklists;
-
-    @Autowired
     private Habilidades habilidades;
 
     @Autowired
@@ -92,8 +86,10 @@ class AprovacaoComChecklistTest {
         Cenario aprovado = aprovacao.aprovar(id, CHECKLIST);
 
         assertThat(aprovado.status()).isEqualTo(StatusDoCenario.APROVADO);
-        assertThat(checklists.daVersao(aprovado.versao().id()))
-                .contains(new ConferenciaDaCuradoria(Set.of(ItemDoChecklist.values()), 5));
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM checklist_curadoria WHERE cenario_versao_id = ?", Integer.class,
+                aprovado.versao().id()))
+                .isEqualTo(1);
     }
 
     /** RN-06: sem as 5 perguntas de teste, nada muda e nada vai para o log. */

@@ -1,7 +1,5 @@
 package br.ufg.inf.labsimulacoes.cenarios.dominio;
 
-import java.util.Optional;
-
 /**
  * Porta de persistência do checklist de curadoria (RF-10). A implementação fica na infraestrutura.
  *
@@ -19,6 +17,4 @@ public interface ChecklistsDeCuradoria {
      */
     void registrar(long versaoId, long curadorId, ConferenciaDaCuradoria conferencia);
 
-    /** A conferência gravada na aprovação da versão. Vazio se a versão não foi aprovada com checklist. */
-    Optional<ConferenciaDaCuradoria> daVersao(long versaoId);
 }

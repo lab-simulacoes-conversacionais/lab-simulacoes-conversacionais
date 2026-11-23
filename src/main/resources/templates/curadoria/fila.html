@@ -92,7 +92,9 @@
         </fieldset>
         <p class="checklist-teste" data-contador-checklist
            th:classappend="${perguntasDeTeste >= minimoDeTeste} ? 'completo'"
-           th:text="|Perguntas de teste feitas por você nesta versão: ${perguntasDeTeste} de ${minimoDeTeste}|">
+           th:text="${perguntasDeTeste > minimoDeTeste}
+             ? |Perguntas de teste feitas por você nesta versão: ${perguntasDeTeste} (mínimo ${minimoDeTeste})|
+             : |Perguntas de teste feitas por você nesta versão: ${perguntasDeTeste} de ${minimoDeTeste}|">
           Perguntas de teste feitas por você nesta versão: 0 de 5
         </p>
       </form>

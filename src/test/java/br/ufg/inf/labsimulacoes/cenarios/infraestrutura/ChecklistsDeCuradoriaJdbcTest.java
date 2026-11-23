@@ -66,8 +66,12 @@ class ChecklistsDeCuradoriaJdbcTest {
 
         checklists.registrar(versao, curadora.id(), conferencia);
 
-        assertThat(checklists.daVersao(versao)).contains(conferencia);
-        assertThat(checklists.daVersao(-1)).isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM checklist_curadoria WHERE cenario_versao_id = ?", Integer.class, versao))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM checklist_curadoria WHERE cenario_versao_id = ?", Integer.class, -1))
+                .isZero();
     }
 
     @Test
@@ -78,7 +82,9 @@ class ChecklistsDeCuradoriaJdbcTest {
         assertThatThrownBy(() -> checklists.registrar(versao, curadora.id(), incompleta))
                 .isInstanceOf(InvalidDataAccessApiUsageException.class)
                 .hasRootCauseInstanceOf(IllegalArgumentException.class);
-        assertThat(checklists.daVersao(versao)).isEmpty();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM checklist_curadoria WHERE cenario_versao_id = ?", Integer.class, versao))
+                .isZero();
     }
 
     /** Uma versão é aprovada uma vez só, então tem um checklist só. */

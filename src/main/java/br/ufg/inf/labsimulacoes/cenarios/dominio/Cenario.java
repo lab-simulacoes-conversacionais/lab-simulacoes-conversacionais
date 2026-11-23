@@ -98,11 +98,11 @@ public record Cenario(
      * A versão em curadoria passa a ser a aprovada vigente (RN-08) e o cenário pode ir para a sala
      * (RN-01).
      *
-     * @throws CenarioForaDeCuradoria se a versão não estiver em curadoria
      * <p>A partir da E2, o curador só aprova depois de conferir o checklist inteiro e de testar o
      * personagem com pelo menos 5 perguntas (RF-10, RN-06).
      *
      * @param conferencia o checklist marcado e as perguntas de teste que o próprio curador fez
+     * @throws CenarioForaDeCuradoria se a versão não estiver em curadoria
      * @throws DecisaoDeCuradoriaNaoPermitida se quem aprova não for curador (RN-05) ou for o autor do
      *     cenário ou da versão, mesmo tendo também o perfil Curador (RN-36)
      * @throws AprovacaoIncompleta com tudo o que falta do checklist e do teste (RN-06)
