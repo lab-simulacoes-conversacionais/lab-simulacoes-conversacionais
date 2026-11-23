@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
@@ -160,16 +161,53 @@ class LogDeAuditoriaJdbcTest {
     }
 
     @Test
-    void consultaDevolveAPaginaPedida() {
+    void paginaSeguinteContinuaDepoisDoCursor() {
         RegistroDeAuditoria primeira = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(3));
         RegistroDeAuditoria segunda = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(2));
         RegistroDeAuditoria terceira = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(1));
+        var filtro = new FiltroDoLog(null, null, usuario, null, null, 2);
 
-        assertThat(ids(log.consultar(new FiltroDoLog(null, null, usuario, null, 0, 2))))
-                .containsExactly(terceira.id(), segunda.id());
-        assertThat(ids(log.consultar(new FiltroDoLog(null, null, usuario, null, 1, 2))))
+        assertThat(ids(log.consultar(filtro))).containsExactly(terceira.id(), segunda.id());
+        assertThat(ids(log.consultar(filtro.continuandoApos(CursorDoLog.apos(segunda)))))
                 .containsExactly(primeira.id());
-        assertThat(log.consultar(new FiltroDoLog(null, null, usuario, null, 2, 2))).isEmpty();
+        assertThat(log.consultar(filtro.continuandoApos(CursorDoLog.apos(primeira)))).isEmpty();
+    }
+
+    @Test
+    void acaoGravadaEntreAsPaginasNaoRepeteLinha() {
+        RegistroDeAuditoria primeira = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(3));
+        RegistroDeAuditoria segunda = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(2));
+        RegistroDeAuditoria terceira = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(1));
+        var filtro = new FiltroDoLog(null, null, usuario, null, null, 2);
+        List<RegistroDeAuditoria> paginaUm = log.consultar(filtro);
+
+        gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA);
+
+        assertThat(ids(paginaUm)).containsExactly(terceira.id(), segunda.id());
+        assertThat(ids(log.consultar(filtro.continuandoApos(CursorDoLog.apos(paginaUm.get(1))))))
+                .containsExactly(primeira.id());
+    }
+
+    @Test
+    void cursorDesempataAcoesComAMesmaData() {
+        RegistroDeAuditoria primeira = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA);
+        RegistroDeAuditoria segunda = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA);
+        var filtro = new FiltroDoLog(null, null, usuario, null, null, 1);
+
+        assertThat(ids(log.consultar(filtro))).containsExactly(segunda.id());
+        assertThat(ids(log.consultar(filtro.continuandoApos(CursorDoLog.apos(segunda)))))
+                .containsExactly(primeira.id());
+    }
+
+    @Test
+    void cursorTambemValeSemFiltroDeUsuario() {
+        RegistroDeAuditoria antiga = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA.minusSeconds(1));
+        RegistroDeAuditoria recente = gravar(usuario, AcaoCritica.APROVAR_CENARIO, AGORA);
+        var filtro = new FiltroDoLog(AGORA.minusSeconds(1), AGORA.plusSeconds(1), null, null, null, 1);
+
+        assertThat(ids(log.consultar(filtro.continuandoApos(CursorDoLog.apos(recente)))))
+                .contains(antiga.id())
+                .doesNotContain(recente.id());
     }
 
     @Test
@@ -198,7 +236,7 @@ class LogDeAuditoriaJdbcTest {
     }
 
     private static FiltroDoLog filtro(Instant inicio, Instant fim, Long usuarioId, AcaoCritica acao) {
-        return new FiltroDoLog(inicio, fim, usuarioId, acao, 0, FiltroDoLog.TAMANHO_MAXIMO);
+        return new FiltroDoLog(inicio, fim, usuarioId, acao, null, FiltroDoLog.TAMANHO_MAXIMO);
     }
 
     private static List<Long> ids(List<RegistroDeAuditoria> linhas) {

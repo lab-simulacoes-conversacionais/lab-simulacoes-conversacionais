@@ -24,7 +24,7 @@ class ConsultaDoLogTest {
 
     @Test
     void repassaOFiltroAoLog() {
-        var filtro = new FiltroDoLog(null, null, 7L, AcaoCritica.APROVAR_CENARIO, 0, 20);
+        var filtro = new FiltroDoLog(null, null, 7L, AcaoCritica.APROVAR_CENARIO, null, 20);
         var linha = RegistroDeAuditoria.novo(
                 AcaoCritica.APROVAR_CENARIO, 7, "1", Map.of(), Instant.parse("2026-11-08T13:45:10Z"));
         when(log.consultar(filtro)).thenReturn(List.of(linha));

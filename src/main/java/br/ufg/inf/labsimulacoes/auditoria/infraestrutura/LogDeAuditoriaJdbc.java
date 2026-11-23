@@ -1,6 +1,7 @@
 package br.ufg.inf.labsimulacoes.auditoria.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.LogDeAuditoria;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
@@ -85,6 +86,10 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
      * driver passa a usar depois de algumas execuções não sabe se o filtro veio e deixa de usar o
      * índice de usuario_id. Por isso há um texto com o usuário e outro sem. A ação tem poucos valores
      * e dispensa índice.
+     *
+     * <p>A página continua depois do cursor, na mesma ordem do ORDER BY, em vez de pular linhas: uma
+     * ação gravada entre uma página e outra não repete nem esconde linhas. Sem cursor, a comparação
+     * com infinito deixa passar todas as linhas.
      */
     private static final String CONSULTA_SEM_USUARIO = """
             SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
@@ -92,8 +97,10 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
             WHERE ocorrido_em >= COALESCE(CAST(:inicio AS TIMESTAMPTZ), '-infinity')
               AND ocorrido_em < COALESCE(CAST(:fim AS TIMESTAMPTZ), 'infinity')
               AND (CAST(:acao AS TEXT) IS NULL OR acao = :acao)
+              AND (ocorrido_em, id) < (COALESCE(CAST(:cursorOcorridoEm AS TIMESTAMPTZ), 'infinity'),
+                                       COALESCE(CAST(:cursorId AS BIGINT), 9223372036854775807))
             ORDER BY ocorrido_em DESC, id DESC
-            LIMIT :tamanho OFFSET :deslocamento""";
+            LIMIT :tamanho""";
 
     private static final String CONSULTA_DO_USUARIO = """
             SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
@@ -102,18 +109,24 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
               AND ocorrido_em >= COALESCE(CAST(:inicio AS TIMESTAMPTZ), '-infinity')
               AND ocorrido_em < COALESCE(CAST(:fim AS TIMESTAMPTZ), 'infinity')
               AND (CAST(:acao AS TEXT) IS NULL OR acao = :acao)
+              AND (ocorrido_em, id) < (COALESCE(CAST(:cursorOcorridoEm AS TIMESTAMPTZ), 'infinity'),
+                                       COALESCE(CAST(:cursorId AS BIGINT), 9223372036854775807))
             ORDER BY ocorrido_em DESC, id DESC
-            LIMIT :tamanho OFFSET :deslocamento""";
+            LIMIT :tamanho""";
 
     @Override
     public List<RegistroDeAuditoria> consultar(FiltroDoLog filtro) {
+        CursorDoLog cursor = filtro.cursor();
+        Instant cursorOcorridoEm = cursor == null ? null : cursor.ocorridoEm();
+        Long cursorId = cursor == null ? null : cursor.id();
         var parametros = new MapSqlParameterSource()
                 .addValue("inicio", paraTimestamp(filtro.inicio()), Types.TIMESTAMP)
                 .addValue("fim", paraTimestamp(filtro.fim()), Types.TIMESTAMP)
                 .addValue("usuarioId", filtro.usuarioId(), Types.BIGINT)
                 .addValue("acao", filtro.acao() == null ? null : filtro.acao().name(), Types.VARCHAR)
-                .addValue("tamanho", filtro.tamanho())
-                .addValue("deslocamento", filtro.deslocamento());
+                .addValue("cursorOcorridoEm", paraTimestamp(cursorOcorridoEm), Types.TIMESTAMP)
+                .addValue("cursorId", cursorId, Types.BIGINT)
+                .addValue("tamanho", filtro.tamanho());
         String consulta = filtro.usuarioId() == null ? CONSULTA_SEM_USUARIO : CONSULTA_DO_USUARIO;
         return comNomes.query(consulta, parametros, this::paraRegistro);
     }

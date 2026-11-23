@@ -11,10 +11,11 @@ import java.time.Instant;
  *     seguidos não repetem a ação que caiu bem na divisa
  * @param usuarioId ações feitas por este usuário
  * @param acao ações deste tipo
- * @param pagina número da página, a partir de zero
+ * @param cursor última linha da página anterior; nulo na primeira página
  * @param tamanho número máximo de linhas na página
  */
-public record FiltroDoLog(Instant inicio, Instant fim, Long usuarioId, AcaoCritica acao, int pagina, int tamanho) {
+public record FiltroDoLog(
+        Instant inicio, Instant fim, Long usuarioId, AcaoCritica acao, CursorDoLog cursor, int tamanho) {
 
     /** Uma página não traz mais que isto, mesmo se pedir. */
     public static final int TAMANHO_MAXIMO = 100;
@@ -26,9 +27,6 @@ public record FiltroDoLog(Instant inicio, Instant fim, Long usuarioId, AcaoCriti
         if (usuarioId != null && usuarioId <= 0) {
             throw new IllegalArgumentException("O usuário do filtro precisa ser um identificador válido");
         }
-        if (pagina < 0) {
-            throw new IllegalArgumentException("A página começa em zero");
-        }
         if (tamanho < 1 || tamanho > TAMANHO_MAXIMO) {
             throw new IllegalArgumentException("O tamanho da página precisa estar entre 1 e " + TAMANHO_MAXIMO);
         }
@@ -36,11 +34,11 @@ public record FiltroDoLog(Instant inicio, Instant fim, Long usuarioId, AcaoCriti
 
     /** Primeira página do log inteiro, sem filtro. */
     public static FiltroDoLog tudo() {
-        return new FiltroDoLog(null, null, null, null, 0, TAMANHO_MAXIMO);
+        return new FiltroDoLog(null, null, null, null, null, TAMANHO_MAXIMO);
     }
 
-    /** Quantas linhas pular antes da página. */
-    public long deslocamento() {
-        return (long) pagina * tamanho;
+    /** Os mesmos filtros, para a página que vem depois do cursor. */
+    public FiltroDoLog continuandoApos(CursorDoLog depoisDe) {
+        return new FiltroDoLog(inicio, fim, usuarioId, acao, depoisDe, tamanho);
     }
 }

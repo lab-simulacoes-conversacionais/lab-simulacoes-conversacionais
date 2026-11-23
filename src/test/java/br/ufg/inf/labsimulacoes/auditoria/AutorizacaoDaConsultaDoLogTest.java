@@ -94,7 +94,7 @@ class AutorizacaoDaConsultaDoLogTest {
     }
 
     private static FiltroDoLog doUsuario(long usuario) {
-        return new FiltroDoLog(null, null, usuario, null, 0, FiltroDoLog.TAMANHO_MAXIMO);
+        return new FiltroDoLog(null, null, usuario, null, null, FiltroDoLog.TAMANHO_MAXIMO);
     }
 
     private static void comPerfis(String... papeis) {
