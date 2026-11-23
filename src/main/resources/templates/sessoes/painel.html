@@ -64,7 +64,7 @@
     <h3 id="disparadoras-titulo">Perguntas disparadoras</h3>
     <p class="disparadoras-nota" th:if="${tela.perguntasDisparadoras.isEmpty()}">Este cenário não tem perguntas sugeridas.</p>
     <th:block th:unless="${tela.perguntasDisparadoras.isEmpty()}">
-      <p class="disparadoras-nota" id="disparadoras-nota">Só você vê estas sugestões. Clique para levar ao campo da pergunta.</p>
+      <p class="disparadoras-nota" id="disparadoras-nota">Clique para levar ao campo da pergunta. Oculte o painel ao projetar se a turma vê esta tela.</p>
       <ul>
         <li th:each="pergunta : ${tela.perguntasDisparadoras}">
           <button type="button" class="disparadora" data-disparadora aria-describedby="disparadoras-nota"
