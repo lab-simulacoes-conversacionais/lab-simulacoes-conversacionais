@@ -22,6 +22,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoNaoEncontrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessoes;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -54,6 +55,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class ConversaDaSessao {
 
     private static final Logger LOG = LoggerFactory.getLogger(ConversaDaSessao.class);
+
+    /**
+     * Quanto o canal novo espera a resposta do canal anterior terminar. Cabe nos 60 segundos do canal
+     * SSE e passa bastante dos 10 segundos da resposta completa (RNF-03).
+     */
+    static final Duration ESPERA_PELA_OUTRA_RESPOSTA = Duration.ofSeconds(45);
+
+    private static final Duration INTERVALO_DA_ESPERA = Duration.ofMillis(200);
 
     private final Sessoes sessoes;
     private final EstadosDasSessoes estados;
@@ -191,6 +200,69 @@ public class ConversaDaSessao {
             throw e;
         } finally {
             preparo.parar();
+        }
+    }
+
+    /**
+     * RF-20, RNF-04: o que a tela recebe ao abrir o canal da resposta, também depois de a página ser
+     * recarregada ou de a conexão cair no meio da resposta.
+     *
+     * <ul>
+     *   <li>Se outra resposta desta sessão ainda está sendo gerada, porque o canal anterior não terminou,
+     *       espera ela acabar, até {@link #ESPERA_PELA_OUTRA_RESPOSTA}.
+     *   <li>Se a pergunta continua pendente, responde como {@link #responderPendente}. É o caso da
+     *       resposta que não chegou ao fim porque a tela fechou ou o provedor falhou.
+     *   <li>Se a pergunta foi respondida enquanto a tela estava fora, entrega a resposta gravada inteira,
+     *       sem chamar o modelo de novo.
+     *   <li>Se a resposta foi bloqueada nesse meio-tempo, só avisa o bloqueio (RN-20).
+     * </ul>
+     *
+     * @throws RespostaEmAndamento se a outra resposta não terminar a tempo
+     * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa como em {@link #responderPendente}
+     */
+    public void entregarResposta(long sessaoId, TelaDaResposta tela) {
+        leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId);
+        Instant prazo = Instant.now().plus(ESPERA_PELA_OUTRA_RESPOSTA);
+        while (true) {
+            try {
+                if (!respondendo.containsKey(sessaoId)) {
+                    EstadoDaSessao estado = leitura.doBanco(sessaoId);
+                    if (estado.perguntaPendente().isEmpty()) {
+                        entregarDesfecho(estado, tela);
+                        return;
+                    }
+                    responderPendente(sessaoId, tela);
+                    return;
+                }
+            } catch (RespostaEmAndamento e) {
+                // Outro canal começou a responder entre a conferência e o pedido: espera como antes.
+            }
+            if (Instant.now().isAfter(prazo)) {
+                throw new RespostaEmAndamento(sessaoId);
+            }
+            esperar();
+        }
+    }
+
+    /** A pergunta da tela já teve o seu desfecho: a resposta gravada ou o bloqueio dela. */
+    private static void entregarDesfecho(EstadoDaSessao estado, TelaDaResposta tela) {
+        if (estado.ultimasMensagens().isEmpty()) {
+            return;
+        }
+        MensagemExibida ultima = estado.ultimasMensagens().getLast();
+        if (ultima.autoria() == MensagemExibida.Autoria.IA) {
+            tela.exibir(ultima.texto());
+        } else if (ultima.respostaBloqueada()) {
+            tela.bloquear();
+        }
+    }
+
+    private static void esperar() {
+        try {
+            Thread.sleep(INTERVALO_DA_ESPERA);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("A espera pela outra resposta foi interrompida", e);
         }
     }
 
