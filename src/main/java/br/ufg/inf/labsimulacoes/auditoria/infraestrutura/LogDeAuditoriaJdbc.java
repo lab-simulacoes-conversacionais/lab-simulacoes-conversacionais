@@ -79,16 +79,28 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
     }
 
     /**
-     * O texto da consulta é fixo: um filtro ausente vai como parâmetro nulo e deixa de restringir.
+     * Os textos da consulta são fixos: um filtro ausente vai como parâmetro nulo e deixa de restringir.
      * Nas pontas do período, o nulo vira infinito dentro do próprio SQL, o que mantém o uso do índice
-     * de ocorrido_em.
+     * de ocorrido_em. O usuário é a exceção: com um "IS NULL OR" no lugar dele, o plano genérico que o
+     * driver passa a usar depois de algumas execuções não sabe se o filtro veio e deixa de usar o
+     * índice de usuario_id. Por isso há um texto com o usuário e outro sem. A ação tem poucos valores
+     * e dispensa índice.
      */
-    private static final String CONSULTA = """
+    private static final String CONSULTA_SEM_USUARIO = """
             SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
             FROM log_auditoria
             WHERE ocorrido_em >= COALESCE(CAST(:inicio AS TIMESTAMPTZ), '-infinity')
               AND ocorrido_em < COALESCE(CAST(:fim AS TIMESTAMPTZ), 'infinity')
-              AND (CAST(:usuarioId AS BIGINT) IS NULL OR usuario_id = :usuarioId)
+              AND (CAST(:acao AS TEXT) IS NULL OR acao = :acao)
+            ORDER BY ocorrido_em DESC, id DESC
+            LIMIT :tamanho OFFSET :deslocamento""";
+
+    private static final String CONSULTA_DO_USUARIO = """
+            SELECT id, usuario_id, acao, entidade_id, detalhes::text AS detalhes, hash, ocorrido_em
+            FROM log_auditoria
+            WHERE usuario_id = :usuarioId
+              AND ocorrido_em >= COALESCE(CAST(:inicio AS TIMESTAMPTZ), '-infinity')
+              AND ocorrido_em < COALESCE(CAST(:fim AS TIMESTAMPTZ), 'infinity')
               AND (CAST(:acao AS TEXT) IS NULL OR acao = :acao)
             ORDER BY ocorrido_em DESC, id DESC
             LIMIT :tamanho OFFSET :deslocamento""";
@@ -102,7 +114,8 @@ class LogDeAuditoriaJdbc implements LogDeAuditoria {
                 .addValue("acao", filtro.acao() == null ? null : filtro.acao().name(), Types.VARCHAR)
                 .addValue("tamanho", filtro.tamanho())
                 .addValue("deslocamento", filtro.deslocamento());
-        return comNomes.query(CONSULTA, parametros, this::paraRegistro);
+        String consulta = filtro.usuarioId() == null ? CONSULTA_SEM_USUARIO : CONSULTA_DO_USUARIO;
+        return comNomes.query(consulta, parametros, this::paraRegistro);
     }
 
     private static Timestamp paraTimestamp(Instant instante) {
