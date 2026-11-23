@@ -1,4 +1,4 @@
-// Modo projeção (RF-15, RF-17). A pergunta, a resposta e os controles vão pelo HTMX; aqui ficam os
+// Modo projeção (RF-15, RF-17, RF-20). A pergunta, a resposta e os controles vão pelo HTMX; aqui ficam os
 // atalhos de teclado (RNF-05), o cronômetro, o descarte da resposta parcial no bloqueio ou na falha
 // (contrato do ConversaController), a atualização do painel depois de cada resposta e as perguntas
 // disparadoras que o professor leva ao campo da pergunta (RF-18).
@@ -75,12 +75,30 @@
       tentar.className = "btn btn-secondary";
       tentar.dataset.tentar = "";
       tentar.textContent = "Tentar de novo";
-      // A pergunta continua pendente; a tela recarregada abre o canal outra vez (RNF-04).
-      tentar.addEventListener("click", () => window.location.reload());
+      // RF-20, RNF-04: a pergunta continua pendente. Troca só esta resposta por uma nova, que abre o
+      // canal outra vez, sem recarregar a página. Se a troca falhar, recarregar faz o mesmo.
+      tentar.addEventListener("click", () => {
+        tentar.disabled = true;
+        htmx.ajax("GET", resposta.dataset.reabrir, { target: resposta, swap: "outerHTML" })
+          .catch(() => window.location.reload());
+      });
       resposta.append(tentar);
     }
   });
   document.body.addEventListener("htmx:sseClose", avisarMudanca);
+
+  // ---------------------------------------------------------------------------------------------
+  // Queda de conexão (RF-20): o pedido não chegou ao servidor. Nada foi gravado, a pergunta digitada
+  // continua no campo e o professor pode enviar de novo quando a conexão voltar.
+  // ---------------------------------------------------------------------------------------------
+  document.body.addEventListener("htmx:sendError", () => {
+    const aviso = document.createElement("p");
+    aviso.className = "aviso";
+    aviso.setAttribute("role", "alert");
+    aviso.textContent = "Sem conexão com o servidor. Confira a internet e tente de novo: "
+      + "a pergunta digitada continua no campo, e a sessão não foi alterada.";
+    avisos.replaceChildren(aviso);
+  });
 
   // ---------------------------------------------------------------------------------------------
   // Painel: o campo da pergunta acompanha o estado (pausada ou no limite) e o cronômetro corre.

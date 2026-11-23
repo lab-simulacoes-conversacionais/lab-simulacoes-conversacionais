@@ -183,6 +183,12 @@ A sessão fica ligada ao professor, à turma e à versão aprovada vigente no in
 - **Uma sessão por turma:** só a sessão Em andamento bloqueia a turma, pelo índice único `uq_sessao_em_andamento_por_turma` (RN-10). A sessão pausada não impede outra, mas também não volta enquanto a outra estiver em andamento.
 - **Estado no Redis:** cada sessão tem a chave `sessao:<id>:estado`, com status, motivo da pausa, tempo em pausa, ponto de reinício, contador de perguntas e as 20 últimas mensagens da tela. A chave é gravada só depois que a transação é confirmada, e a validade recomeça a cada gravação (`sessoes.estado.validade`, 6 horas por padrão).
 - **Reconstrução:** o PostgreSQL é a fonte da verdade. Os controles (pausar, retomar, reiniciar e encerrar) sempre partem do estado refeito a partir de `sessao`, `evento_sessao` e `mensagem`, com a sessão travada, e nunca da chave do Redis, que pode ainda não ter recebido a gravação do controle anterior. A chave serve à leitura da tela: se ela sumir ou discordar do banco, o estado é refeito e gravado de novo (RNF-04). Falha do Redis não derruba a aula.
+- **Retomada após falha:** recarregar a página refaz a tela a partir do Redis, ou do banco se a chave tiver sumido, com a conversa, o estado e o tempo (RF-20, RNF-04). O canal da resposta (`ConversaDaSessao.entregarResposta`) cobre os casos de volta:
+  - se a página foi recarregada ou a conexão caiu no meio da resposta, o canal novo espera a resposta do anterior terminar, até 45 segundos, e recebe ela inteira, sem outra chamada ao modelo;
+  - se a pergunta foi respondida enquanto a tela estava fora, recebe a resposta gravada;
+  - se a resposta não chegou ao fim, a pergunta continua pendente e é respondida de novo.
+
+  Na falha do provedor, o "Tentar de novo" troca só a resposta (`GET /sessoes/{id}/resposta-pendente`), sem recarregar a página. Se a conexão cair no envio de uma pergunta ou de um controle, a tela avisa, e a pergunta digitada continua no campo.
 - **Mensagens:** quem gravar mensagens (RF-16) precisa usar o horário da aplicação em `mensagem.criado_em`, porque o ponto de reinício também usa esse relógio.
 
 ### Observabilidade e custo da IA
