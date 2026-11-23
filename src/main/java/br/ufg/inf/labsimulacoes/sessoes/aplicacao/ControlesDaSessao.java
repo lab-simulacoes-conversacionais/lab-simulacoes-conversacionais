@@ -5,6 +5,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadosDasSessoes;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MudancaNaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoNaoEncontrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessoes;
 
 import br.ufg.inf.labsimulacoes.sessoes.dominio.TurmaComSessaoEmAndamento;
@@ -28,19 +29,33 @@ public class ControlesDaSessao {
     private final Sessoes sessoes;
     private final EstadosDasSessoes estados;
     private final LeituraDaSessao leitura;
+    private final LimiteDeTempo limiteDeTempo;
     private final Relogio relogio;
 
-    ControlesDaSessao(Sessoes sessoes, EstadosDasSessoes estados, LeituraDaSessao leitura, Relogio relogio) {
+    ControlesDaSessao(
+            Sessoes sessoes,
+            EstadosDasSessoes estados,
+            LeituraDaSessao leitura,
+            LimiteDeTempo limiteDeTempo,
+            Relogio relogio) {
         this.sessoes = sessoes;
         this.estados = estados;
         this.leitura = leitura;
+        this.limiteDeTempo = limiteDeTempo;
         this.relogio = relogio;
     }
 
-    /** O que a tela de projeção mostra; vem do Redis e, se a chave tiver sumido, do banco (RNF-04). */
+    /**
+     * O que a tela de projeção mostra; vem do Redis e, se a chave tiver sumido, do banco (RNF-04). Antes,
+     * confere o limite de 50 minutos e pausa a sessão se ela chegou lá (RN-17).
+     */
     @Transactional(readOnly = true)
     public EstadoDaSessao estado(long id) {
-        return estadoAtual(leitura.doProfessorLogado(sessoes.buscar(id), id));
+        Sessao sessao = leitura.doProfessorLogado(sessoes.buscar(id), id);
+        if (limiteDeTempo.conferir(id)) {
+            sessao = sessoes.buscar(id).orElseThrow(() -> new SessaoNaoEncontrada(id));
+        }
+        return estadoAtual(sessao);
     }
 
     /**

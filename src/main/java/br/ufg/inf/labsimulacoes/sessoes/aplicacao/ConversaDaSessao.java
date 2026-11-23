@@ -64,6 +64,7 @@ public class ConversaDaSessao {
     private final Relogio relogio;
     private final ApplicationEventPublisher eventos;
     private final EtapasDaConversa etapas;
+    private final LimiteDeTempo limiteDeTempo;
 
     /**
      * Sessões em que o personagem está respondendo agora, com a marca de quem responde, para uma
@@ -81,7 +82,8 @@ public class ConversaDaSessao {
             TransactionTemplate transacao,
             Relogio relogio,
             ApplicationEventPublisher eventos,
-            EtapasDaConversa etapas) {
+            EtapasDaConversa etapas,
+            LimiteDeTempo limiteDeTempo) {
         this.sessoes = sessoes;
         this.estados = estados;
         this.leitura = leitura;
@@ -91,6 +93,7 @@ public class ConversaDaSessao {
         this.relogio = relogio;
         this.eventos = eventos;
         this.etapas = etapas;
+        this.limiteDeTempo = limiteDeTempo;
     }
 
     /**
@@ -122,8 +125,7 @@ public class ConversaDaSessao {
             throw new IllegalArgumentException("Digite a pergunta da turma");
         }
         String pergunta = texto.strip();
-        etapas.medir(Etapa.CONFERENCIA_DA_SESSAO, () -> leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId)
-                .aceitarPergunta(leitura.doBanco(sessaoId)));
+        etapas.medir(Etapa.CONFERENCIA_DA_SESSAO, () -> conferirAntesDaModeracao(sessaoId));
         ResultadoDaModeracao moderacao = adaptador.moderar(pergunta);
         Optional<PerguntaRecebida> recebida = etapas.medir(Etapa.GRAVACAO_DA_PERGUNTA,
                 () -> transacao.execute(status -> gravarPergunta(sessaoId, pergunta, moderacao)));
@@ -131,6 +133,18 @@ public class ConversaDaSessao {
             throw new PerguntaBloqueada(sessaoId);
         }
         return recebida.get();
+    }
+
+    /**
+     * O professor, o limite de 50 minutos e a própria sessão. A sessão que acabou de chegar aos 50
+     * minutos pausa aqui (RN-17), e a pergunta é recusada como em qualquer pausa.
+     */
+    private void conferirAntesDaModeracao(long sessaoId) {
+        Sessao sessao = leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId);
+        if (limiteDeTempo.conferir(sessaoId)) {
+            sessao = sessoes.buscar(sessaoId).orElseThrow(() -> new SessaoNaoEncontrada(sessaoId));
+        }
+        sessao.aceitarPergunta(leitura.doBanco(sessaoId));
     }
 
     /** @return vazio se a pergunta foi bloqueada */
