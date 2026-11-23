@@ -8,6 +8,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CenarioNaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudoDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadeBncc;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Habilidades;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.OpcoesDaBiblioteca;
@@ -210,7 +211,7 @@ class FiltrosDaBibliotecaNoBancoTest {
     private long aprovado(ConteudoDoCenario conteudo) {
         Cenario salvo = cenarios.salvar(Cenario.novo(autora, conteudo));
         Cenario enviado = cenarios.salvar(salvo.enviarACuradoria(autora));
-        return cenarios.salvar(enviado.aprovar(curadora, AGORA)).id();
+        return cenarios.salvar(enviado.aprovar(curadora, ConteudosDeTeste.CONFERIDA, AGORA)).id();
     }
 
     private static ConteudoDoCenario conteudo(

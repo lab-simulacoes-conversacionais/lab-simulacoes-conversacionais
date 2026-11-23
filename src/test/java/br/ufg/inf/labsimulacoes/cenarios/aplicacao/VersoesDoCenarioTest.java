@@ -1,11 +1,13 @@
 package br.ufg.inf.labsimulacoes.cenarios.aplicacao;
 
+import static br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito.CHECKLIST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.BibliotecaDeCenarios;
 import br.ufg.inf.labsimulacoes.cenarios.CenariosAprovados;
+import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
 import br.ufg.inf.labsimulacoes.cenarios.VersaoAprovada;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.CampoDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
@@ -126,7 +128,8 @@ class VersoesDoCenarioTest {
         logar(CURADORA, "ROLE_CURADOR");
         assertThat(acervo.listar(StatusDoCenario.EM_CURADORIA, 0, 20).itens()).extracting(Cenario::id)
                 .containsExactly(aprovado.id());
-        Cenario aprovadaANova = aprovacao.aprovar(aprovado.id());
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, aprovado.id());
+        Cenario aprovadaANova = aprovacao.aprovar(aprovado.id(), CHECKLIST);
 
         assertThat(aprovadaANova.status()).isEqualTo(StatusDoCenario.APROVADO);
         assertThat(aprovados.versaoVigente(aprovado.id()).orElseThrow().titulo()).isEqualTo(TITULO_NOVO);
@@ -222,7 +225,8 @@ class VersoesDoCenarioTest {
         autoria.alterarRascunho(aprovado.id(), comTitulo(TITULO_NOVO));
         envio.enviar(aprovado.id());
         logar(CURADORA, "ROLE_CURADOR");
-        aprovacao.aprovar(aprovado.id());
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, aprovado.id());
+        aprovacao.aprovar(aprovado.id(), CHECKLIST);
         logar(PROFESSORA, "ROLE_PROFESSOR");
 
         Cenario restaurado = versoes.restaurar(aprovado.id(), 1);
@@ -333,7 +337,8 @@ class VersoesDoCenarioTest {
         long id = autoria.criar(ConteudosDeTeste.completo()).id();
         envio.enviar(id);
         logar(CURADORA, "ROLE_CURADOR");
-        return aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, id);
+        return aprovacao.aprovar(id, CHECKLIST);
     }
 
     private static ConteudoDoCenario comTitulo(String titulo) {

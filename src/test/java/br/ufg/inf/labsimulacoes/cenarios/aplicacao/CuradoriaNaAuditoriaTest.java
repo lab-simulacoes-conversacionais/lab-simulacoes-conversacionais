@@ -108,7 +108,8 @@ class CuradoriaNaAuditoriaTest {
     void arquivamentoChegaAoLogComOCuradorEAVersao() throws InterruptedException {
         long id = enviado();
         logar(curadora, "ROLE_CURADOR");
-        Cenario aprovado = aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, curadora, id);
+        Cenario aprovado = aprovacao.aprovar(id, CHECKLIST);
 
         arquivamento.arquivar(id);
 

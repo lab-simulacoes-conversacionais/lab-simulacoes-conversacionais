@@ -70,7 +70,7 @@ class ItemDaListaTest {
     private static Cenario aprovado() {
         var versao = new VersaoDoCenario(2L, 1, StatusDaVersao.RASCUNHO, ConteudosDeTeste.completo(), AUTOR);
         Cenario aprovado = new Cenario(1L, AUTOR, StatusDoCenario.RASCUNHO, versao).enviarACuradoria(AUTOR)
-                .aprovar(CURADORA, AGORA);
+                .aprovar(CURADORA, ConteudosDeTeste.CONFERIDA, AGORA);
         assertThat(aprovado.status()).isEqualTo(StatusDoCenario.APROVADO);
         return aprovado;
     }

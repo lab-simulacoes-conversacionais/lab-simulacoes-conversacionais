@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
 import br.ufg.inf.labsimulacoes.cenarios.BibliotecaDeCenarios;
 import br.ufg.inf.labsimulacoes.cenarios.CenarioDaBiblioteca;
 import br.ufg.inf.labsimulacoes.cenarios.CenariosAprovados;
@@ -192,7 +193,8 @@ class ArquivamentoDeCenarioTest {
         long id = autoria.criar(ConteudosDeTeste.completo()).id();
         envio.enviar(id);
         logar(CURADORA, "ROLE_CURADOR");
-        return aprovacao.aprovar(id);
+        TesteDoPersonagemFeito.pelo(jdbc, CURADORA, id);
+        return aprovacao.aprovar(id, TesteDoPersonagemFeito.CHECKLIST);
     }
 
     private long inserirUsuario(String email) {
