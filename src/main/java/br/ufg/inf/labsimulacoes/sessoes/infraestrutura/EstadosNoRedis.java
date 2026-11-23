@@ -113,6 +113,7 @@ class EstadosNoRedis implements EstadosDasSessoes {
      * Formato gravado no Redis, separado do domínio para que renomear um campo do domínio não deixe
      * ilegíveis as chaves já gravadas: no pior caso, a leitura falha e o estado é refeito do banco.
      */
+    /** @param limiteDeTempoAtingido nulo nas chaves gravadas antes de o campo existir */
     record EstadoJson(
             long sessaoId,
             String status,
@@ -122,7 +123,8 @@ class EstadosNoRedis implements EstadosDasSessoes {
             Instant pausadaDesde,
             Instant reiniciadaEm,
             int perguntasDaTurma,
-            List<MensagemJson> ultimasMensagens) {
+            List<MensagemJson> ultimasMensagens,
+            Boolean limiteDeTempoAtingido) {
 
         static EstadoJson de(EstadoDaSessao estado) {
             return new EstadoJson(
@@ -134,7 +136,8 @@ class EstadosNoRedis implements EstadosDasSessoes {
                     estado.pausadaDesde(),
                     estado.reiniciadaEm(),
                     estado.perguntasDaTurma(),
-                    estado.ultimasMensagens().stream().map(MensagemJson::de).toList());
+                    estado.ultimasMensagens().stream().map(MensagemJson::de).toList(),
+                    estado.limiteDeTempoAtingido());
         }
 
         EstadoDaSessao paraDominio() {
@@ -147,7 +150,8 @@ class EstadosNoRedis implements EstadosDasSessoes {
                     pausadaDesde,
                     reiniciadaEm,
                     perguntasDaTurma,
-                    ultimasMensagens == null ? List.of() : ultimasMensagens.stream().map(MensagemJson::paraDominio).toList());
+                    ultimasMensagens == null ? List.of() : ultimasMensagens.stream().map(MensagemJson::paraDominio).toList(),
+                    Boolean.TRUE.equals(limiteDeTempoAtingido));
         }
     }
 
