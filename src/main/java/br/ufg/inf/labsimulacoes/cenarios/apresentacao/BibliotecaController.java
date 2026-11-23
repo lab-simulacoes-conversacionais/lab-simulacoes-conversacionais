@@ -8,7 +8,9 @@ import br.ufg.inf.labsimulacoes.cenarios.PaginaDaBiblioteca;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -100,16 +102,29 @@ class BibliotecaController {
                 });
     }
 
-    /** A mesma busca em outra página; os filtros vazios ficam fora da URL. */
+    /**
+     * A mesma busca em outra página; os filtros vazios ficam fora da URL. Os textos entram como variáveis
+     * do template, que o Spring codifica de forma estrita: assim o "+" de "C++" vira %2B, e não um espaço
+     * do outro lado.
+     */
     private static String endereco(FiltroDaBiblioteca filtro, int pagina) {
-        return UriComponentsBuilder.fromPath("/biblioteca")
-                .queryParam("pagina", Math.max(pagina, 0))
-                .queryParamIfPresent("busca", preenchido(filtro.texto()))
-                .queryParamIfPresent("componente", preenchido(filtro.componente()))
-                .queryParamIfPresent("ano", Optional.ofNullable(filtro.ano()))
-                .queryParamIfPresent("habilidade", preenchido(filtro.habilidade()))
-                .encode()
-                .toUriString();
+        var url = UriComponentsBuilder.fromPath("/biblioteca").queryParam("pagina", Math.max(pagina, 0));
+        var valores = new HashMap<String, String>();
+        comVariavel(url, valores, "busca", preenchido(filtro.texto()));
+        comVariavel(url, valores, "componente", preenchido(filtro.componente()));
+        if (filtro.ano() != null) {
+            url.queryParam("ano", filtro.ano());
+        }
+        comVariavel(url, valores, "habilidade", preenchido(filtro.habilidade()));
+        return url.encode().buildAndExpand(valores).toUriString();
+    }
+
+    private static void comVariavel(
+            UriComponentsBuilder url, Map<String, String> valores, String nome, Optional<String> valor) {
+        valor.ifPresent(texto -> {
+            url.queryParam(nome, "{" + nome + "}");
+            valores.put(nome, texto);
+        });
     }
 
     private static Integer numero(String texto) {

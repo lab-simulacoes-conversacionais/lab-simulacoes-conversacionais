@@ -208,6 +208,17 @@ class ChecklistVersoesEFiltrosPelaTelaTest {
         assertThat(professor.get("/biblioteca").body()).doesNotContain("Limpar filtros");
     }
 
+    /** A paginação leva a busca como foi digitada: o "+" não pode virar espaço na página seguinte. */
+    @Test
+    void paginacaoMantemABuscaComCaracteresEspeciais() throws Exception {
+        var professor = logado(novoUsuario(Perfil.PROFESSOR));
+
+        var pagina = professor.get("/biblioteca?pagina=1&busca=" + cod("C++ a&b") + "&ano=7").body();
+
+        assertThat(pagina).contains("href=\"/biblioteca?pagina=0&amp;busca=C%2B%2B%20a%26b&amp;ano=7\"");
+        assertThat(pagina).contains("value=\"C++ a&amp;b\"");
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Arquivamento pelo detalhe (RF-13, RN-09)
     // ---------------------------------------------------------------------------------------------
