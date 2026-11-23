@@ -69,9 +69,20 @@ jobs:
         id: mudancas
         env:
           EVENTO: ${{ github.event_name }}
+          REPO_DO_PR: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+          ATOR: ${{ github.actor }}
         run: |
           if [[ "$EVENTO" != pull_request ]]; then
             echo "rodar=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # PRs de fork e do Dependabot não recebem o OPENAI_API_KEY; sem pular, o check obrigatório
+          # falharia sempre e travaria o merge.
+          if [[ "$REPO_DO_PR" != "$REPO" || "$ATOR" == 'dependabot[bot]' ]]; then
+            echo "rodar=false" >> "$GITHUB_OUTPUT"
+            echo "PR de fork ou do Dependabot: sem acesso ao OPENAI_API_KEY, os testes de quebra de personagem" \
+              "não rodaram. Se o PR mexe na IA, rode o workflow pela aba Actions antes do merge." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           # Além do módulo ia, tudo de que o teste depende para subir: a infraestrutura de teste, as
