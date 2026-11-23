@@ -117,9 +117,10 @@ jobs:
             echo "::error::Falta o segredo OPENAI_API_KEY no repositório (Settings > Secrets and variables > Actions)."
             exit 1
           fi
-          ./mvnw -B test -Dtest=QuebraDePersonagemTest -Dsurefire.failIfNoSpecifiedTests=false \
-            -Dia.teste-quebra=true -Djacoco.skip=true
+          ./mvnw -B test -Dtest=QuebraDePersonagemTest -Dia.teste-quebra=true -Djacoco.skip=true
 
+      # O relatório só é gravado no @AfterAll da classe. Sem ele, a classe não rodou (foi renomeada ou
+      # pulada pelas condições) e o check não pode passar como se tivesse testado o personagem.
       - name: Publish report
         if: always() && steps.mudancas.outputs.rodar == 'true'
         run: |
@@ -127,7 +128,9 @@ jobs:
           if [[ -f "$relatorio" ]]; then
             cat "$relatorio" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "O relatório não foi gerado: veja o log do passo anterior." >> "$GITHUB_STEP_SUMMARY"
+            echo "O relatório não foi gerado: nenhum caso rodou. Veja o log do passo anterior." >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::O relatório de quebra de personagem não foi gerado; nenhum caso rodou."
+            exit 1
           fi
 
       - name: Upload report
