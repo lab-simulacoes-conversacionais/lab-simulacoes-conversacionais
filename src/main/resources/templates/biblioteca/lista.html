@@ -5,8 +5,9 @@
 <div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
 
 <!--
-  Biblioteca de cenários aprovados (RF-12), lista simples da E1: busca e filtros do protótipo chegam
-  com a #34. Só cenários Aprovados, na versão vigente (RN-01), de todos os autores.
+  Biblioteca de cenários aprovados (RF-12), com a busca e os filtros do protótipo. Só cenários Aprovados,
+  na versão vigente (RN-01), de todos os autores. Os filtros vão pela URL (GET) e só oferecem componentes,
+  anos e habilidades que trazem algum cenário; a paginação mantém o que foi filtrado.
 -->
 <main class="page">
   <a class="back-link" th:href="@{/}">Voltar ao início</a>
@@ -19,10 +20,48 @@
     <a class="btn btn-primary" th:href="@{/cenarios/novo}"><svg th:replace="~{fragmentos/base :: iconeMais}"></svg> Criar cenário</a>
   </div>
 
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
   <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
 
+  <form class="card filter-card" method="get" th:action="@{/biblioteca}" role="search" aria-label="Filtrar cenários">
+    <div class="search-field">
+      <label for="busca">Buscar cenário</label>
+      <input id="busca" name="busca" type="search" maxlength="100" th:value="${filtro.texto}"
+             placeholder="Título, tema ou palavra-chave">
+    </div>
+    <div>
+      <label for="componente">Componente</label>
+      <select id="componente" name="componente">
+        <option value="">Todos</option>
+        <option th:each="c : ${opcoes.componentes}" th:value="${c}" th:text="${c}"
+                th:selected="${filtro.componente != null and #strings.equalsIgnoreCase(c, filtro.componente)}">História</option>
+      </select>
+    </div>
+    <div>
+      <label for="ano">Ano</label>
+      <select id="ano" name="ano">
+        <option value="">Todos</option>
+        <option th:each="a : ${opcoes.anos}" th:value="${a}" th:text="|${a}º ano|" th:selected="${a == filtro.ano}">8º ano</option>
+      </select>
+    </div>
+    <div>
+      <label for="habilidade">Habilidade BNCC</label>
+      <input id="habilidade" name="habilidade" list="habilidades-da-biblioteca" maxlength="20"
+             th:value="${filtro.habilidade}" placeholder="Ex.: EF08HI03" autocomplete="off">
+      <datalist id="habilidades-da-biblioteca">
+        <option th:each="h : ${opcoes.habilidades}" th:value="${h}">EF08HI03</option>
+      </datalist>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Buscar</button>
+    </div>
+  </form>
+
   <div class="results-bar" th:unless="${cenarios.isEmpty()}">
-    <strong th:text="${cenarios.size() == 1} ? '1 cenário nesta página' : |${cenarios.size()} cenários nesta página|">3 cenários</strong>
+    <strong th:with="total=${cenarios.size()}, unica=${pagina == 0 and !temProxima}"
+            th:text="${unica} ? (${total == 1} ? '1 cenário encontrado' : |${total} cenários encontrados|)
+                             : (${total == 1} ? '1 cenário nesta página' : |${total} cenários nesta página|)">3 cenários encontrados</strong>
+    <a class="text-button" th:if="${filtrando}" th:href="@{/biblioteca}">Limpar filtros</a>
   </div>
 
   <div class="library-grid" th:unless="${cenarios.isEmpty()}">
@@ -49,17 +88,25 @@
     </section>
   </div>
 
-  <div class="empty-state" th:if="${cenarios.isEmpty()}">
+  <div class="empty-state" th:if="${cenarios.isEmpty() and filtrando}">
+    <div class="empty-shapes" aria-hidden="true"><span></span><span></span></div>
+    <h2>Nenhum cenário encontrado</h2>
+    <p>Tente remover filtros ou buscar outro termo.</p>
+    <a class="btn btn-secondary" th:href="@{/biblioteca}">Limpar filtros</a>
+  </div>
+
+  <div class="empty-state" th:if="${cenarios.isEmpty() and !filtrando}">
     <div class="empty-shapes" aria-hidden="true"><span></span><span></span></div>
     <h2 th:text="${pagina == 0} ? 'Nenhum cenário aprovado ainda' : 'Não há mais cenários'">Nenhum cenário aprovado ainda</h2>
     <p>Os cenários aparecem aqui depois de aprovados pela curadoria.</p>
     <a class="btn btn-secondary" th:href="@{/cenarios/novo}">Criar cenário</a>
   </div>
 
+  <!-- A paginação leva junto os filtros (BibliotecaController monta os endereços). -->
   <nav class="results-bar" aria-label="Páginas" th:if="${pagina > 0 or temProxima}">
-    <a class="btn btn-ghost btn-sm pagina-anterior" th:if="${pagina > 0}" th:href="@{/biblioteca(pagina=${pagina - 1})}">Anteriores</a>
+    <a class="btn btn-ghost btn-sm pagina-anterior" th:if="${pagina > 0}" th:href="@{${paginaAnterior}}">Anteriores</a>
     <span th:unless="${pagina > 0}"></span>
-    <a class="btn btn-ghost btn-sm pagina-proxima" th:if="${temProxima}" th:href="@{/biblioteca(pagina=${pagina + 1})}">Próximos</a>
+    <a class="btn btn-ghost btn-sm pagina-proxima" th:if="${temProxima}" th:href="@{${paginaProxima}}">Próximos</a>
   </nav>
 </main>
 </body>
