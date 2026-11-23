@@ -2,44 +2,122 @@
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragmentos/base :: cabeca('Entrar · Laboratório de Simulações')}"></head>
 <body>
-<main class="login-page">
-  <div class="login-shapes" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span></div>
-  <section class="card login-card">
-    <div class="login-brand">
-      <span class="brand-mark"><span></span></span>
-      <span><strong>Laboratório</strong><small>Simulações Conversacionais</small></span>
+<main class="login-page" th:classappend="${param.error} ? 'com-erro'">
+  <!-- À esquerda, a turma: a ilustração numa moldura arredondada que acompanha o mouse de leve, com a marca no
+       canto e estrelinhas que seguem o cursor (login.js). -->
+  <section class="login-hero">
+    <div class="login-moldura" data-login-moldura>
+      <!-- As ilustrações se revezam sozinhas e pelas bolinhas embaixo (login.js). Sem o script, fica só a primeira. -->
+      <img class="login-ilustracao ativa" th:src="@{/img/login/turma.jpg}" src="/img/login/turma.jpg" width="1182" height="1330" alt="" data-ilustracao>
+      <img class="login-ilustracao login-ilustracao-alto" th:src="@{/img/login/santos-dumont.jpg}" src="/img/login/santos-dumont.jpg" width="1182" height="1331" alt="" loading="lazy" data-ilustracao>
+      <div class="login-bolinhas" role="group" aria-label="Escolher ilustração" hidden data-bolinhas>
+        <button type="button" aria-label="Ilustração 1 de 2" aria-pressed="true"></button>
+        <button type="button" aria-label="Ilustração 2 de 2" aria-pressed="false"></button>
+      </div>
+      <div class="login-brand login-hero-marca" tabindex="0">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span class="login-hero-marca-texto"><strong><span class="sr-only">Laboratório</span><span aria-hidden="true">LABORAT<svg class="marca-ia" viewBox="0 0 16 18" aria-hidden="true" focusable="false"><g class="marca-ia-antena-grupo"><path class="marca-ia-antena" d="M8.75 7.4 L11.4 2.4"/><circle class="marca-ia-ponta" cx="11.7" cy="1.9" r="1.55"/></g><rect class="marca-ia-orelha" x=".8" y="9.5" width="2.8" height="4.6" rx="1.4"/><rect class="marca-ia-orelha" x="12.4" y="9.5" width="2.8" height="4.6" rx="1.4"/><rect class="marca-ia-aro" x="2.7" y="6.6" width="10.6" height="10.4" rx="3.6"/><rect class="marca-ia-cabeca" x="3.6" y="8.95" width="8.8" height="5.7" rx="2.5"/><g class="marca-ia-olhar"><g class="marca-ia-olhos"><circle cx="6.55" cy="11.35" r=".85"/><circle cx="9.45" cy="11.35" r=".85"/></g><path class="marca-ia-sorriso" d="M7.05 12.85 Q8 13.65 8.95 12.85"/></g></svg>RIO</span></strong><small>Simulações Conversacionais</small></span>
+      </div>
+
+    <!--/* Robô: fora da tela de login por enquanto, guardado para outro uso. Este comentário do Thymeleaf não chega
+         ao navegador. Para voltar, tire o comentário e inclua o robo.js no fim da página.
+         O robô fica parado no céu; só os olhos dele olham para o cursor (login.js).
+         O rosto é desenhado aqui, por cima do visor da imagem; o viewBox usa as coordenadas da imagem original.
+    <div class="robo" aria-hidden="true" data-robo>
+      <div class="robo-corpo">
+        <img th:src="@{/img/login/robo.png}" src="/img/login/robo.png" width="460" height="666" alt="">
+        <svg class="robo-rosto" viewBox="133 13 853 1235">
+          <defs>
+            <filter id="robo-brilho" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="7" result="desfoque"/>
+              <feMerge><feMergeNode in="desfoque"/><feMergeNode in="desfoque"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <g transform="translate(661 351) rotate(10.7)">
+            <g class="robo-bochechas">
+              <path d="M-182 58 -166 42 M-166 72 -150 56"/>
+              <path d="M150 58 166 42 M166 72 182 56"/>
+            </g>
+            <g filter="url(#robo-brilho)">
+              <g data-robo-olhar>
+                <g class="robo-olhos-abertos">
+                  <rect x="-145" y="-44" width="64" height="88" rx="32"/>
+                  <rect x="81" y="-44" width="64" height="88" rx="32"/>
+                  <circle class="robo-reflexo" cx="-101" cy="-22" r="10"/>
+                  <circle class="robo-reflexo" cx="125" cy="-22" r="10"/>
+                </g>
+              </g>
+              <g class="robo-olhos-felizes">
+                <path d="M-163 14 Q-113 -52 -63 14"/>
+                <path d="M63 14 Q113 -52 163 14"/>
+              </g>
+              <path class="robo-boca" d="M-40 56 Q0 96 40 56"/>
+            </g>
+          </g>
+        </svg>
+      </div>
     </div>
-    <div class="login-copy">
-      <p class="eyebrow">AMBIENTE EDUCACIONAL</p>
-      <h1>Boas-vindas</h1>
-      <p>Entre para preparar uma conversa que aproxima a turma de grandes ideias.</p>
+    */-->
     </div>
+  </section>
 
-    <p th:if="${param.error}" class="field-error" role="alert">
-      E-mail ou senha incorretos, ou acesso não autorizado.
-    </p>
-    <p th:if="${param.expirada}" class="login-aviso" role="status">
-      <span aria-hidden="true">i</span> Sua sessão expirou por inatividade. Entre novamente.
-    </p>
-    <p th:if="${param.logout}" class="success-notice" role="status">
-      <span aria-hidden="true">✓</span> Sessão encerrada com segurança.
-    </p>
+  <section class="login-lado" data-login-lado>
+    <div class="login-formas" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
 
-    <form th:action="@{/login}" method="post">
-      <label for="email">E-mail institucional</label>
-      <input id="email" name="email" type="email" autocomplete="username" required autofocus>
-      <label for="senha">Senha</label>
-      <input id="senha" name="senha" type="password" autocomplete="current-password" required>
-      <button type="submit" class="btn btn-primary full">Entrar</button>
-    </form>
+    <div class="login-form-area">
+      <div class="login-form">
+        <div class="login-cabecalho">
+          <h1>Boas-vindas</h1>
+          <p class="login-subtitulo">Entre para preparar uma conversa que aproxima a turma de grandes ideias.</p>
+        </div>
 
-    <p class="access-note">
-      <span aria-hidden="true">i</span> Acesso apenas para profissionais da escola
-    </p>
+        <p th:if="${param.error}" class="login-erro" role="alert">
+          <span aria-hidden="true">!</span> E-mail ou senha incorretos, ou acesso não autorizado.
+        </p>
+        <p th:if="${param.expirada}" class="login-aviso" role="status">
+          <span aria-hidden="true">i</span> Sua sessão expirou por inatividade. Entre novamente.
+        </p>
+        <p th:if="${param.logout}" class="success-notice" role="status">
+          <span aria-hidden="true">✓</span> Sessão encerrada com segurança.
+        </p>
+
+        <form th:action="@{/login}" method="post" data-login-form>
+          <label for="email">E-mail institucional</label>
+          <div class="campo" data-campo-email>
+            <svg class="campo-icone" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>
+            <input id="email" name="email" type="email" autocomplete="username" placeholder="voce@escola.edu.br" required autofocus>
+            <svg class="campo-ok" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.6 2.5L16 9.5"/></svg>
+          </div>
+
+          <label for="senha">Senha</label>
+          <div class="campo">
+            <svg class="campo-icone" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+            <input id="senha" name="senha" type="password" autocomplete="current-password" placeholder="••••••••" required>
+            <button type="button" class="campo-olho" aria-label="Mostrar senha" aria-pressed="false" aria-controls="senha" data-mostrar-senha>
+              <svg class="olho-aberto" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="olho-fechado" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5c1.6 0 3 .4 4.2 1M21.5 12s-1.2 2.3-3.5 4.1M9.9 18.2c.7.2 1.4.3 2.1.3 6 0 9.5-6.5 9.5-6.5"/><path d="m4 20 16-16"/></svg>
+            </button>
+          </div>
+          <p class="campo-dica" role="status" hidden data-caps>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 4 12h4.5v4h7v-4H20Z"/><path d="M8.5 20h7"/></svg>
+            O Caps Lock está ligado
+          </p>
+
+          <button type="submit" class="btn btn-primary login-entrar">
+            <span data-rotulo>Entrar</span>
+            <svg class="entrar-seta" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            <span class="entrar-girando" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <p class="access-note">
+          <span aria-hidden="true">i</span> Acesso apenas para profissionais da escola
+        </p>
+      </div>
+    </div>
   </section>
 </main>
 <script th:src="@{/js/login.js}" defer></script>
+<script th:src="@{/js/marca.js}" defer></script>
 </body>
 </html>
-
-
