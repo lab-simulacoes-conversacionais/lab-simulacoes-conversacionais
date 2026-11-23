@@ -3,7 +3,9 @@ package br.ufg.inf.labsimulacoes.sessoes;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -14,12 +16,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 public final class DadosDeSessao {
 
-    /** No formato do JSONB de cenario_versao.conteudo. */
+    /** No formato do JSONB de cenario_versao.conteudo; as perguntas disparadoras entram no {@code %s}. */
     private static final String ROTEIRO_COMPLETO = """
             {"personagem": "Santos Dumont", "papelDaIa": "Contar a história do voo do 14-bis",
              "contexto": "Paris, 1906", "objetivos": ["Compreender a invenção do avião"],
              "limitesDeAssunto": ["Política atual"], "fontes": ["Museu Aeroespacial"],
-             "perguntasDisparadoras": []}""";
+             "perguntasDisparadoras": [%s]}""";
 
     private final JdbcTemplate jdbc;
 
@@ -54,6 +56,11 @@ public final class DadosDeSessao {
      * o envio à curadoria exige (RN-02, RN-03), que o prompt do personagem usa.
      */
     public VersaoNoBanco cenarioAprovado(long autorId, long curadorId) {
+        return cenarioAprovado(autorId, curadorId, List.of());
+    }
+
+    /** Como o {@link #cenarioAprovado(long, long)}, com as perguntas disparadoras dadas (RF-18). */
+    public VersaoNoBanco cenarioAprovado(long autorId, long curadorId, List<String> perguntasDisparadoras) {
         long cenarioId = cenario(autorId, "APROVADO");
         long versaoId = jdbc.queryForObject(
                 """
@@ -64,7 +71,7 @@ public final class DadosDeSessao {
                         ?, ?, now()) RETURNING id""",
                 Long.class,
                 cenarioId,
-                ROTEIRO_COMPLETO,
+                ROTEIRO_COMPLETO.formatted(jsonDe(perguntasDisparadoras)),
                 autorId,
                 curadorId);
         jdbc.update("""
@@ -103,6 +110,13 @@ public final class DadosDeSessao {
                 autoria,
                 texto,
                 em.atOffset(ZoneOffset.UTC));
+    }
+
+    /** Os textos como itens de um array JSON, com aspas e barras escapadas. */
+    private static String jsonDe(List<String> textos) {
+        return textos.stream()
+                .map(texto -> '"' + texto.replace("\\", "\\\\").replace("\"", "\\\"") + '"')
+                .collect(Collectors.joining(", "));
     }
 
     private long cenario(long autorId, String status) {

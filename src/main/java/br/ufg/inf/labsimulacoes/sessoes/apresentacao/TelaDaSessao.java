@@ -13,13 +13,15 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * O que a tela de projeção e o painel do professor mostram (RF-15, RF-17): o cenário, a conversa desde
- * o último reinício, o estado da sessão, o tempo e as perguntas da turma.
+ * O que a tela de projeção e o painel do professor mostram (RF-15, RF-17, RF-18): o cenário, a conversa
+ * desde o último reinício, o estado da sessão, o tempo, as perguntas da turma e as perguntas disparadoras.
  *
  * @param mensagens o que a tela mostra, da mais antiga para a mais recente
  * @param pendente a tela abre o canal da resposta ao carregar, porque a última pergunta ainda espera a
  *     resposta do personagem (RNF-04)
  * @param decorridoSegundos tempo de conversa, sem as pausas, no momento da leitura
+ * @param perguntasDisparadoras sugestões do cenário para o professor puxar a conversa (RF-18); só o painel
+ *     as mostra, nunca a área projetada. Podem faltar, porque o RN-03 não as exige
  */
 record TelaDaSessao(
         long id,
@@ -34,7 +36,8 @@ record TelaDaSessao(
         long decorridoSegundos,
         Integer previstoMinutos,
         List<MensagemExibida> mensagens,
-        boolean pendente) {
+        boolean pendente,
+        List<String> perguntasDisparadoras) {
 
     static TelaDaSessao de(Sessao sessao, EstadoDaSessao estado, VersaoAprovada versao, String turma, Instant agora) {
         return new TelaDaSessao(
@@ -50,7 +53,8 @@ record TelaDaSessao(
                 decorrido(estado, agora).toSeconds(),
                 versao.duracaoPrevistaMin(),
                 estado.ultimasMensagens(),
-                estado.status() != StatusDaSessao.ENCERRADA && estado.perguntaPendente().isPresent());
+                estado.status() != StatusDaSessao.ENCERRADA && estado.perguntaPendente().isPresent(),
+                versao.perguntasDisparadoras());
     }
 
     public boolean pausada() {
@@ -59,6 +63,11 @@ record TelaDaSessao(
 
     public boolean noLimite() {
         return perguntas >= limiteDePerguntas;
+    }
+
+    /** O campo da pergunta fica bloqueado, e com ele as perguntas disparadoras que o preencheriam. */
+    public boolean podePerguntar() {
+        return !pausada() && !noLimite();
     }
 
     /** A pausa automática tem o seu aviso; a manual não precisa explicar nada. */

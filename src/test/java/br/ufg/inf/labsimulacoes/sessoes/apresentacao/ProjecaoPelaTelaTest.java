@@ -13,6 +13,7 @@ import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -27,9 +28,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 /**
- * Critérios de aceite da issue 24 pela tela, com requisições HTTP reais: preparação da sessão (RF-14),
- * modo projeção com o aviso de IA sempre visível (RF-15, RN-14) e os controles do painel com atalho
- * (RF-17, RNF-05). O adaptador de IA é simulado. Mesmo contexto do {@link ConversaPelaTelaTest}.
+ * Critérios de aceite das issues 24 e 32 pela tela, com requisições HTTP reais: preparação da sessão
+ * (RF-14), modo projeção com o aviso de IA sempre visível (RF-15, RN-14), os controles do painel com
+ * atalho (RF-17, RNF-05) e as perguntas disparadoras só no painel (RF-18). O adaptador de IA é simulado.
+ * Mesmo contexto do {@link ConversaPelaTelaTest}.
  */
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
@@ -40,6 +42,9 @@ class ProjecaoPelaTelaTest {
     private static final String SENHA = "uma senha de teste";
     private static final String AVISO_DE_IA = "Personagem simulado por Inteligência Artificial · pode conter erros";
     private static final Pattern SESSAO = Pattern.compile("/sessoes/(\\d+)$");
+    private static final List<String> DISPARADORAS = List.of(
+            "Por que o 14-bis era \"mais pesado que o ar\"?",
+            "Como você se sentiu no primeiro voo?");
 
     @LocalServerPort
     private int porta;
@@ -233,14 +238,94 @@ class ProjecaoPelaTelaTest {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Perguntas disparadoras (RF-18)
+    // ---------------------------------------------------------------------------------------------
+
+    /** Critério de aceite da issue 32: as sugestões ficam no painel e nunca na área projetada. */
+    @Test
+    void perguntasDisparadorasFicamSoNoPainel() throws Exception {
+        long sessao = iniciar(cenarioComDisparadoras());
+
+        var corpo = professora.get("/sessoes/" + sessao).body();
+
+        assertThat(painelDe(corpo))
+                .contains("Perguntas disparadoras")
+                .contains("Por que o 14-bis era &quot;mais pesado que o ar&quot;?")
+                .containsPattern("<button type=\"button\" class=\"disparadora\" data-disparadora[^>]*>Como você se sentiu");
+        assertThat(areaProjetadaDe(corpo))
+                .doesNotContain("Perguntas disparadoras")
+                .doesNotContain("mais pesado que o ar")
+                .doesNotContain("Como você se sentiu no primeiro voo?");
+    }
+
+    /** O painel volta a cada controle e depois de cada resposta, sempre com as sugestões. */
+    @Test
+    void painelAtualizadoMantemAsPerguntasDisparadoras() throws Exception {
+        long sessao = iniciar(cenarioComDisparadoras());
+
+        assertThat(professora.get("/sessoes/" + sessao + "/painel").body())
+                .contains("Como você se sentiu no primeiro voo?");
+    }
+
+    /** Com o campo da pergunta bloqueado, as sugestões que o preencheriam também ficam. */
+    @Test
+    void sessaoPausadaBloqueiaAsPerguntasDisparadoras() throws Exception {
+        long sessao = iniciar(cenarioComDisparadoras());
+
+        var pausada = professora.postHtmx("/sessoes/" + sessao + "/pausar", "").body();
+        var retomada = professora.postHtmx("/sessoes/" + sessao + "/retomar", "").body();
+
+        assertThat(pausada).containsPattern("data-disparadora[^>]*disabled");
+        assertThat(retomada).contains("data-disparadora").doesNotContainPattern("data-disparadora[^>]*disabled");
+    }
+
+    /** O RN-03 não exige perguntas disparadoras; sem elas, o painel diz isso em vez de ficar vazio. */
+    @Test
+    void cenarioSemPerguntasDisparadorasAvisaNoPainel() throws Exception {
+        long sessao = iniciar();
+
+        var corpo = professora.get("/sessoes/" + sessao).body();
+
+        assertThat(painelDe(corpo)).contains("Este cenário não tem perguntas sugeridas.");
+        assertThat(corpo).doesNotContain("data-disparadora");
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Apoio
     // ---------------------------------------------------------------------------------------------
 
     private long iniciar() throws Exception {
-        var resposta = professora.postHtmx("/sessoes", "turma=" + turma + "&cenario=" + cenario);
+        return iniciar(cenario);
+    }
+
+    private long iniciar(long cenarioId) throws Exception {
+        var resposta = professora.postHtmx("/sessoes", "turma=" + turma + "&cenario=" + cenarioId);
         var id = SESSAO.matcher(local(resposta));
         assertThat(id.find()).as("redireciona para a projeção: " + local(resposta)).isTrue();
         return Long.parseLong(id.group(1));
+    }
+
+    private long cenarioComDisparadoras() {
+        return dados.cenarioAprovado(
+                        dados.idDe(dados.usuario("PROFESSOR")), dados.idDe(dados.usuario("CURADOR")), DISPARADORAS)
+                .cenarioId();
+    }
+
+    /** A área projetada para a turma: da abertura da seção até onde começa o painel do professor. */
+    private static String areaProjetadaDe(String corpo) {
+        return trecho(corpo, "<section class=\"projected-area\">", "<aside id=\"painel\"");
+    }
+
+    private static String painelDe(String corpo) {
+        return trecho(corpo, "<aside id=\"painel\"", "</aside>");
+    }
+
+    private static String trecho(String corpo, String inicio, String fim) {
+        int de = corpo.indexOf(inicio);
+        assertThat(de).as("a página tem " + inicio).isNotNegative();
+        int ate = corpo.indexOf(fim, de + inicio.length());
+        assertThat(ate).as("a página tem " + fim + " depois de " + inicio).isNotNegative();
+        return corpo.substring(de, ate);
     }
 
     private void respondeCom(String texto) {

@@ -42,8 +42,8 @@
       <label for="texto">Pergunta da turma</label>
       <div class="composer-row">
         <input id="texto" name="texto" autocomplete="off" required maxlength="1000"
-               placeholder="Digite a pergunta da turma…" th:disabled="${tela.pausada() or tela.noLimite()}">
-        <button class="btn btn-primary" type="submit" th:disabled="${tela.pausada() or tela.noLimite()}">
+               placeholder="Digite a pergunta da turma…" th:disabled="${!tela.podePerguntar()}">
+        <button class="btn btn-primary" type="submit" th:disabled="${!tela.podePerguntar()}">
           Enviar
         </button>
       </div>

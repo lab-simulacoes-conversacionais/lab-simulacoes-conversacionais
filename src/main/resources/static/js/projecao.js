@@ -1,6 +1,7 @@
 // Modo projeção (RF-15, RF-17). A pergunta, a resposta e os controles vão pelo HTMX; aqui ficam os
 // atalhos de teclado (RNF-05), o cronômetro, o descarte da resposta parcial no bloqueio ou na falha
-// (contrato do ConversaController) e a atualização do painel depois de cada resposta.
+// (contrato do ConversaController), a atualização do painel depois de cada resposta e as perguntas
+// disparadoras que o professor leva ao campo da pergunta (RF-18).
 (() => {
   const tela = document.querySelector("[data-projecao]");
   if (!tela) return;
@@ -36,6 +37,13 @@
       const oculto = tela.classList.toggle("panel-hidden");
       alternar.textContent = oculto ? "Mostrar painel" : "Ocultar painel";
       alternar.setAttribute("aria-expanded", String(!oculto));
+    }
+    // Perguntas disparadoras (RF-18): o clique só preenche o campo, para o professor ajustar e enviar.
+    const disparadora = evento.target.closest("[data-disparadora]");
+    if (disparadora && !campo.disabled) {
+      campo.value = disparadora.textContent.trim();
+      campo.focus();
+      campo.setSelectionRange(campo.value.length, campo.value.length);
     }
   });
   encerramento.addEventListener("click", (evento) => { if (evento.target === encerramento) encerramento.close(); });
