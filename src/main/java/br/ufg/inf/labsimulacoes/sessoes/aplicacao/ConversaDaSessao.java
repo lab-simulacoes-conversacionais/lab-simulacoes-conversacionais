@@ -57,10 +57,11 @@ public class ConversaDaSessao {
     private static final Logger LOG = LoggerFactory.getLogger(ConversaDaSessao.class);
 
     /**
-     * Quanto o canal novo espera a resposta do canal anterior terminar. Cabe nos 60 segundos do canal
-     * SSE e passa bastante dos 10 segundos da resposta completa (RNF-03).
+     * Quanto o canal novo espera a resposta do canal anterior terminar: o mesmo tempo que o canal
+     * anterior tinha para ela. O canal novo soma esta espera ao seu próprio prazo, para que uma resposta
+     * gerada depois da espera ainda tenha o prazo inteiro (ConversaController).
      */
-    static final Duration ESPERA_PELA_OUTRA_RESPOSTA = Duration.ofSeconds(45);
+    public static final Duration ESPERA_PELA_OUTRA_RESPOSTA = Duration.ofSeconds(60);
 
     private static final Duration INTERVALO_DA_ESPERA = Duration.ofMillis(200);
 

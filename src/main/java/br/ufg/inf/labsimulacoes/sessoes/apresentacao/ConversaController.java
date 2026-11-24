@@ -139,7 +139,9 @@ class ConversaController {
     @ResponseBody
     SseEmitter resposta(@PathVariable long id) {
         controles.estado(id);
-        var canal = new SseEmitter(TEMPO_MAXIMO_DA_RESPOSTA.toMillis());
+        // RF-20: o canal pode esperar a resposta de um canal anterior; o prazo da resposta conta depois dela.
+        var canal = new SseEmitter(
+                ConversaDaSessao.ESPERA_PELA_OUTRA_RESPOSTA.plus(TEMPO_MAXIMO_DA_RESPOSTA).toMillis());
         EtapaEmAndamento espera = etapas.iniciar(Etapa.ESPERA_DA_THREAD);
         try {
             respostas.execute(() -> {
