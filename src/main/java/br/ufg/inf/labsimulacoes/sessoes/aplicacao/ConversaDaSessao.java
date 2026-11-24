@@ -4,6 +4,7 @@ import br.ufg.inf.labsimulacoes.cenarios.CenariosAprovados;
 import br.ufg.inf.labsimulacoes.cenarios.VersaoAprovada;
 import br.ufg.inf.labsimulacoes.eventos.ConteudoBloqueado;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
+import br.ufg.inf.labsimulacoes.ia.BloqueioDeDadosPessoais;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
 import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
@@ -18,6 +19,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MudancaNaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaLongaDemais;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoNaoEncontrada;
@@ -64,6 +66,7 @@ public class ConversaDaSessao {
     private final Relogio relogio;
     private final ApplicationEventPublisher eventos;
     private final EtapasDaConversa etapas;
+    private final BloqueioDeDadosPessoais dadosPessoais;
 
     /**
      * Sessões em que o personagem está respondendo agora, com a marca de quem responde, para uma
@@ -81,7 +84,8 @@ public class ConversaDaSessao {
             TransactionTemplate transacao,
             Relogio relogio,
             ApplicationEventPublisher eventos,
-            EtapasDaConversa etapas) {
+            EtapasDaConversa etapas,
+            BloqueioDeDadosPessoais dadosPessoais) {
         this.sessoes = sessoes;
         this.estados = estados;
         this.leitura = leitura;
@@ -91,6 +95,7 @@ public class ConversaDaSessao {
         this.relogio = relogio;
         this.eventos = eventos;
         this.etapas = etapas;
+        this.dadosPessoais = dadosPessoais;
     }
 
     /**
@@ -106,7 +111,15 @@ public class ConversaDaSessao {
      * ao curador mesmo que a sessão tenha sido pausada ou chegado ao limite durante a moderação: o
      * conteúdo sinalizado nunca é descartado como uma recusa comum (RN-20).
      *
+     * <p>Antes da moderação, que já envia o texto ao provedor, a pergunta passa pelo bloqueio de dados
+     * pessoais (RN-13). Uma pergunta bloqueada por isso não é gravada, não conta no limite, não pausa a
+     * sessão e não abre caso: o professor reescreve.
+     *
      * @throws IllegalArgumentException se a pergunta estiver vazia
+     * @throws PerguntaLongaDemais se a pergunta passar de {@value PedidoDeFala#TAMANHO_MAXIMO_DA_PERGUNTA}
+     *     caracteres
+     * @throws br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal se a pergunta tiver e-mail, telefone, CPF ou
+     *     endereço; nada foi enviado ao provedor
      * @throws PerguntaBloqueada se o filtro bloqueou a pergunta; a sessão já foi pausada, se ainda estava
      *     em andamento
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se a moderação falhar; nada é gravado
@@ -122,8 +135,12 @@ public class ConversaDaSessao {
             throw new IllegalArgumentException("Digite a pergunta da turma");
         }
         String pergunta = texto.strip();
+        if (pergunta.length() > PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA) {
+            throw new PerguntaLongaDemais(PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA);
+        }
         etapas.medir(Etapa.CONFERENCIA_DA_SESSAO, () -> leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId)
                 .aceitarPergunta(leitura.doBanco(sessaoId)));
+        dadosPessoais.exigirSemDadoPessoal(pergunta);
         ResultadoDaModeracao moderacao = adaptador.moderar(pergunta);
         Optional<PerguntaRecebida> recebida = etapas.medir(Etapa.GRAVACAO_DA_PERGUNTA,
                 () -> transacao.execute(status -> gravarPergunta(sessaoId, pergunta, moderacao)));

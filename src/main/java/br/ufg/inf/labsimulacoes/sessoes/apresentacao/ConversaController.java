@@ -1,6 +1,8 @@
 package br.ufg.inf.labsimulacoes.sessoes.apresentacao;
 
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
+import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
+import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ConversaDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa;
@@ -10,6 +12,7 @@ import br.ufg.inf.labsimulacoes.sessoes.aplicacao.PerguntaRecebida;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.TelaDaResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaLongaDemais;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaSemResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada;
@@ -242,6 +245,21 @@ class ConversaController {
     @ExceptionHandler(PerguntaBloqueada.class)
     ModelAndView perguntaBloqueada(HttpServletResponse resposta) {
         return aviso(resposta, HttpStatus.CONFLICT, AVISO_DE_PERGUNTA_BLOQUEADA);
+    }
+
+    /**
+     * RN-13: nada foi enviado nem gravado e a sessão continua em andamento. O aviso nomeia o tipo sem
+     * repetir o dado, e o texto fica no campo para o professor reescrever.
+     */
+    @ExceptionHandler(TextoComDadoPessoal.class)
+    ModelAndView dadoPessoal(TextoComDadoPessoal erro, HttpServletResponse resposta) {
+        return aviso(resposta, HttpStatus.UNPROCESSABLE_ENTITY, erro.aviso("A pergunta"));
+    }
+
+    @ExceptionHandler(PerguntaLongaDemais.class)
+    ModelAndView perguntaLongaDemais(HttpServletResponse resposta) {
+        return aviso(resposta, HttpStatus.BAD_REQUEST, "A pergunta tem no máximo "
+                + PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA + " caracteres. Resuma e envie de novo.");
     }
 
     /** Só a moderação da pergunta chega aqui; a falha na resposta vai pelo canal SSE. */

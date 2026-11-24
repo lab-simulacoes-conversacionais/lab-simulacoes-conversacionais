@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.cenarios.dominio;
 
+import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import java.util.Objects;
 
 /**
@@ -27,8 +28,8 @@ public record PerguntaDeTeste(
         Long id, long versaoId, long curadorId, String pergunta, Situacao situacao, String resposta,
         Long respostaIaMetaId, boolean rodadaFechada) {
 
-    /** O mesmo limite do campo da pergunta na tela da sala (sessoes/projecao.html). */
-    public static final int TAMANHO_MAXIMO_DA_PERGUNTA = 1000;
+    /** O mesmo limite da pergunta da sala, definido na porta do adaptador de IA. */
+    public static final int TAMANHO_MAXIMO_DA_PERGUNTA = PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA;
 
     /** Em que pé está a pergunta. */
     public enum Situacao {
