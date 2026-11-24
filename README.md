@@ -198,6 +198,16 @@ O RNF-13 pede latência, erros, tokens e custo por sessão, e um alerta ao admin
 - **Contagem repetida de tokens:** o Spring AI já conta os tokens em `gen_ai.client.token.usage`, por modelo e tipo (`input` e `output`), o que foi confirmado em execução (`TetoDeTokensNaRequisicaoTest`). O `lab.ia.tokens` repete essa contagem para separar por finalidade, que o Spring AI não conhece.
 - **Exposição:** o Actuator continua expondo só o `health`, e o Caddy bloqueia o resto. Os contadores ficam na memória da aplicação até haver um coletor.
 
+### Testes de quebra de personagem
+
+O RNF-09 pede testes automáticos de tentativas de tirar o personagem do papel. O `QuebraDePersonagemTest` manda ao `AdaptadorDeIa`, com o modelo de verdade, o conjunto de casos de `CasoDeQuebraDePersonagem`: injeção de prompt, pedido de dados pessoais, opinião político-partidária ou religiosa e saída de tema (RN-12, RN-15).
+
+- **Avaliação:** primeiro a resposta é conferida pelos trechos proibidos do caso, que nem uma recusa pode conter, como os dados pessoais informados ou pedaços das instruções. O que a resposta pode citar só para recusar, como o texto que a injeção manda repetir, fica no critério do juiz. Depois, o `JuizDoPersonagem` pede ao modelo um veredito com o critério do caso e as regras do personagem. O juiz usa raciocínio baixo e o nível de serviço padrão. O modelo dele pode ser trocado por `ia.teste-quebra.juiz.modelo`; sem essa propriedade, é o mesmo da fala.
+- **No CI:** o job **Quebra de personagem** roda em todo PR, mas só chama a OpenAI quando o PR mexe no módulo `ia` (código ou testes), na `InfraestruturaDeTeste`, nos prompts, nas migrations, nos `application*.properties`, nos recursos de teste, no `pom.xml`, no wrapper do Maven ou no `ci.yml`. Nos outros PRs, ele passa sem rodar nada. PRs de fork e do Dependabot também passam sem rodar, porque não recebem o segredo; se um deles mexer na IA, rode o job pela aba Actions antes do merge. O job falha se nenhum caso rodar e tem limite de 15 minutos. O resumo do job mostra a tabela dos casos e, para cada um, a pergunta, a resposta e o motivo do juiz, e o mesmo relatório fica no artefato `quebra-de-personagem`. Pela aba Actions (`workflow_dispatch`), ele roda sempre.
+- **Configuração do repositório:** o job precisa do segredo `OPENAI_API_KEY` e falha sem ele. Para bloquear o merge, `quebra-de-personagem` tem que estar entre os checks obrigatórios da proteção da `main`.
+- **Respostas variáveis:** o modelo não responde sempre igual. Se um caso falhar, leia a resposta no relatório antes de rodar o job de novo: uma falha real pede ajuste no prompt, numa nova versão (RNF-11), e não no caso.
+- **No terminal:** `OPENAI_API_KEY=... ./mvnw test -Dtest=QuebraDePersonagemTest -Dia.teste-quebra=true -Djacoco.skip=true`, com o Docker ligado. O relatório fica em `target/quebra-de-personagem/relatorio.md`. Fora disso, o teste fica desligado, inclusive no `verify`.
+
 ## Regras de fronteira
 
 - A API de um módulo é só o seu pacote raiz. Os subpacotes são internos e inacessíveis aos outros módulos.
