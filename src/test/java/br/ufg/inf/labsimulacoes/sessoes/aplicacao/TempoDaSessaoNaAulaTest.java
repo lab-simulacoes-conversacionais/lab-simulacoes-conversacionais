@@ -138,6 +138,61 @@ class TempoDaSessaoNaAulaTest {
         assertThat(controles.estado(id).status()).isEqualTo(StatusDaSessao.EM_ANDAMENTO);
     }
 
+    /**
+     * O professor pausa depois dos 50 minutos, sem ninguém ter conferido: a pausa do limite entra
+     * primeiro e já cumpre o pedido, sem erro e sem uma segunda pausa.
+     */
+    @Test
+    void pausarDepoisDosCinquentaMinutosRegistraOLimite() {
+        long id = sessaoIniciadaHa(Duration.ofMinutes(52));
+
+        EstadoDaSessao pausada = controles.pausar(id);
+
+        assertThat(pausada.motivoDaPausa()).isEqualTo(MotivoDaPausa.LIMITE_50_MINUTOS);
+        assertThat(jdbc.queryForList("SELECT motivo FROM evento_sessao WHERE sessao_id = ?", String.class, id))
+                .containsExactly("LIMITE_50_MINUTOS");
+    }
+
+    /** Encerrar depois dos 50 minutos sem conferência registra a pausa antes, e o tempo de conversa para nos 50. */
+    @Test
+    void encerrarDepoisDosCinquentaMinutosParaOTempoNosCinquenta() {
+        long id = sessaoIniciadaHa(Duration.ofMinutes(55));
+
+        EstadoDaSessao encerrada = controles.encerrar(id);
+
+        assertThat(encerrada.status()).isEqualTo(StatusDaSessao.ENCERRADA);
+        Instant encerradaEm = jdbc.queryForObject("SELECT encerrada_em FROM sessao WHERE id = ?", Timestamp.class, id)
+                .toInstant();
+        assertThat(encerrada.tempoDeConversaAte(encerradaEm)).isEqualTo(Duration.ofMinutes(50));
+        assertThat(jdbc.queryForList("SELECT motivo FROM evento_sessao WHERE sessao_id = ?", String.class, id))
+                .containsExactly("LIMITE_50_MINUTOS");
+    }
+
+    /**
+     * Item 1 da revisão: pausa e retomada do professor depois dos 50 minutos, sem conferência. A pausa
+     * do limite fica depois delas, e o estado refeito do banco concorda com a linha da sessão.
+     */
+    @Test
+    void pausaTardiaNaoDesordenaOHistorico() {
+        long id = sessaoIniciadaHa(Duration.ofMinutes(62));
+        Instant agora = Instant.now();
+        evento(id, "PAUSA", "MANUAL", agora.minus(Duration.ofMinutes(10)));
+        evento(id, "RETOMADA", null, agora.minus(Duration.ofMinutes(2)));
+
+        EstadoDaSessao estado = controles.estado(id);
+        redis.delete("sessao:" + id + ":estado");
+        EstadoDaSessao doBanco = controles.estado(id);
+
+        assertThat(estado.status()).isEqualTo(StatusDaSessao.PAUSADA);
+        assertThat(estado.motivoDaPausa()).isEqualTo(MotivoDaPausa.LIMITE_50_MINUTOS);
+        assertThat(doBanco.status()).isEqualTo(StatusDaSessao.PAUSADA);
+        assertThat(doBanco.motivoDaPausa()).isEqualTo(MotivoDaPausa.LIMITE_50_MINUTOS);
+        assertThat(jdbc.queryForList(
+                        "SELECT tipo || ':' || coalesce(motivo, '') FROM evento_sessao WHERE sessao_id = ? ORDER BY ocorrido_em, id",
+                        String.class, id))
+                .containsExactly("PAUSA:MANUAL", "RETOMADA:", "PAUSA:LIMITE_50_MINUTOS");
+    }
+
     @Test
     void sessaoPausadaPeloProfessorNaoMudaDeMotivo() {
         long id = sessaoIniciadaHa(Duration.ofMinutes(30));

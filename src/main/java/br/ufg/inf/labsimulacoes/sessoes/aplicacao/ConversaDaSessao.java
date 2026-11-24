@@ -20,8 +20,10 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.MudancaNaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoNaoEncontrada;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessoes;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -127,30 +129,50 @@ public class ConversaDaSessao {
         String pergunta = texto.strip();
         etapas.medir(Etapa.CONFERENCIA_DA_SESSAO, () -> conferirAntesDaModeracao(sessaoId));
         ResultadoDaModeracao moderacao = adaptador.moderar(pergunta);
-        Optional<PerguntaRecebida> recebida = etapas.medir(Etapa.GRAVACAO_DA_PERGUNTA,
+        GravacaoDaPergunta gravacao = etapas.medir(Etapa.GRAVACAO_DA_PERGUNTA,
                 () -> transacao.execute(status -> gravarPergunta(sessaoId, pergunta, moderacao)));
-        if (recebida.isEmpty()) {
+        if (gravacao.pausadaPeloTempo()) {
+            // A pausa já está gravada; a pergunta é recusada como em qualquer pausa (RN-17).
+            throw new SessaoForaDoEstado(sessaoId, "enviar pergunta para", StatusDaSessao.PAUSADA);
+        }
+        if (gravacao.recebida() == null) {
             throw new PerguntaBloqueada(sessaoId);
         }
-        return recebida.get();
+        return gravacao.recebida();
     }
 
     /**
-     * O professor, o limite de 50 minutos e a própria sessão. A sessão que acabou de chegar aos 50
-     * minutos pausa aqui (RN-17), e a pergunta é recusada como em qualquer pausa.
+     * O professor, o limite de 50 minutos e a própria sessão, antes da moderação. O limite é conferido
+     * com o estado lido, e a sessão só é travada se o tempo passou: então ela pausa aqui (RN-17), e a
+     * pergunta é recusada como em qualquer pausa.
      */
     private void conferirAntesDaModeracao(long sessaoId) {
         Sessao sessao = leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId);
-        if (limiteDeTempo.conferir(sessaoId)) {
+        EstadoDaSessao estado = leitura.doBanco(sessaoId);
+        if (sessao.pausarNoLimiteDeTempo(estado, relogio.agora()).isPresent() && limiteDeTempo.conferir(sessaoId)) {
             sessao = sessoes.buscar(sessaoId).orElseThrow(() -> new SessaoNaoEncontrada(sessaoId));
+            estado = leitura.doBanco(sessaoId);
         }
-        sessao.aceitarPergunta(leitura.doBanco(sessaoId));
+        sessao.aceitarPergunta(estado);
     }
 
-    /** @return vazio se a pergunta foi bloqueada */
-    private Optional<PerguntaRecebida> gravarPergunta(long sessaoId, String texto, ResultadoDaModeracao moderacao) {
+    /**
+     * O resultado da gravação, dentro da transação: a pergunta aceita, ou nada se ela foi bloqueada ou se
+     * a sessão chegou aos 50 minutos durante a moderação. Nesse último caso a pausa precisa ser
+     * confirmada, então a recusa só sai depois da transação.
+     */
+    private record GravacaoDaPergunta(PerguntaRecebida recebida, boolean pausadaPeloTempo) {}
+
+    private GravacaoDaPergunta gravarPergunta(long sessaoId, String texto, ResultadoDaModeracao moderacao) {
         Sessao sessao = leitura.doProfessorLogado(sessoes.buscarParaAlterar(sessaoId), sessaoId);
-        EstadoDaSessao antes = leitura.doBanco(sessaoId);
+        EstadoDaSessao lido = leitura.doBanco(sessaoId);
+        // A moderação é uma chamada externa: a sessão pode ter chegado aos 50 minutos enquanto ela rodava.
+        Optional<MudancaNaSessao> peloTempo = limiteDeTempo.pausarSeChegou(sessao, lido);
+        if (peloTempo.isPresent()) {
+            sessao = peloTempo.get().sessao();
+            lido = lido.aplicar(peloTempo.get().evento());
+        }
+        EstadoDaSessao antes = lido;
         Instant agora = relogio.agora();
         if (moderacao.sinalizado()) {
             EstadoDaSessao depois = bloquear(sessao, agora).map(pausa -> antes.aplicar(pausa.evento())).orElse(antes);
@@ -158,14 +180,19 @@ public class ConversaDaSessao {
             eventos.publishEvent(new ConteudoBloqueado(
                     sessaoId, sessao.versaoId(), ConteudoBloqueado.Origem.PERGUNTA, texto, null,
                     moderacao.categorias(), null, agora));
-            return Optional.empty();
+            return new GravacaoDaPergunta(null, false);
+        }
+        if (peloTempo.isPresent()) {
+            estados.gravar(antes);
+            return new GravacaoDaPergunta(null, true);
         }
         sessao.aceitarPergunta(antes);
         var pergunta = new MensagemExibida(MensagemExibida.Autoria.TURMA, texto, agora);
         sessoes.registrarMensagem(sessaoId, pergunta, null);
         EstadoDaSessao depois = antes.registrarMensagem(pergunta);
         estados.gravar(depois);
-        return Optional.of(new PerguntaRecebida(pergunta, sessao.perguntasRestantes(depois.perguntasDaTurma())));
+        return new GravacaoDaPergunta(
+                new PerguntaRecebida(pergunta, sessao.perguntasRestantes(depois.perguntasDaTurma())), false);
     }
 
     /**
