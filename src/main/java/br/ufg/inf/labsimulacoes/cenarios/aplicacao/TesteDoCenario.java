@@ -13,6 +13,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.TesteNaoPermitido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
+import br.ufg.inf.labsimulacoes.ia.BloqueioDeDadosPessoais;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
 import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
@@ -66,6 +67,7 @@ public class TesteDoCenario {
     private final AdaptadorDeIa adaptador;
     private final UsuarioLogado usuarioLogado;
     private final TransactionTemplate transacao;
+    private final BloqueioDeDadosPessoais dadosPessoais;
 
     TesteDoCenario(
             Cenarios cenarios,
@@ -73,13 +75,15 @@ public class TesteDoCenario {
             LimiteDoTeste limite,
             AdaptadorDeIa adaptador,
             UsuarioLogado usuarioLogado,
-            TransactionTemplate transacao) {
+            TransactionTemplate transacao,
+            BloqueioDeDadosPessoais dadosPessoais) {
         this.cenarios = cenarios;
         this.perguntas = perguntas;
         this.limite = limite;
         this.adaptador = adaptador;
         this.usuarioLogado = usuarioLogado;
         this.transacao = transacao;
+        this.dadosPessoais = dadosPessoais;
     }
 
     /** O que a reserva leva para a chamada à IA, lido com o cenário travado. */
@@ -97,6 +101,8 @@ public class TesteDoCenario {
      *     {@link PerguntaDeTeste.Situacao#CONCLUIDA}
      * @throws IllegalArgumentException se a pergunta estiver vazia ou passar de
      *     {@value PerguntaDeTeste#TAMANHO_MAXIMO_DA_PERGUNTA} caracteres
+     * @throws br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal antes de reservar, se a pergunta tiver e-mail,
+     *     telefone, CPF ou endereço (RN-13): nada é gravado nem enviado e a vaga do teto fica livre
      * @throws CenarioNaoEncontrado se o cenário não existir
      * @throws TesteNaoPermitido se a versão não estiver em curadoria ou se o curador for o autor; também
      *     quando uma devolução fecha a rodada durante a resposta, e então a pergunta fica guardada na rodada
@@ -108,6 +114,7 @@ public class TesteDoCenario {
      */
     public PerguntaDeTeste perguntar(long cenarioId, String texto) {
         String pergunta = PerguntaDeTeste.textoDaPergunta(texto);
+        dadosPessoais.exigirSemDadoPessoal(pergunta);
         long curador = usuarioLogado.id();
         Reserva reserva = reservar(cenarioId, curador, pergunta);
 
