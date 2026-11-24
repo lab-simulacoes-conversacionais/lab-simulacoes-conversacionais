@@ -117,6 +117,7 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
 | `cenarios` | `BibliotecaDeCenarios` | Listar, em páginas de até 100, os cenários aprovados da escola, com busca por tema e filtros combináveis por componente, ano e habilidade BNCC (RF-12), com perfil Professor ou Curador |
 | `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
+| `ia` | `BloqueioDeDadosPessoais` | Recusar, antes de qualquer chamada ao provedor, um texto digitado com e-mail, telefone, CPF ou endereço (RN-13), com perfil Professor ou Curador |
 | `ia` | `ConsumoDaIa` | Somar o consumo da IA (respostas, tokens, custo e respostas sem custo) num intervalo ou de uma sessão (RNF-13), sem conferir perfil, porque a conferência agendada roda sem login |
 
 ### Catálogo da BNCC
@@ -177,6 +178,27 @@ A sessão fica ligada ao professor, à turma e à versão aprovada vigente no in
 - **Estado no Redis:** cada sessão tem a chave `sessao:<id>:estado`, com status, motivo da pausa, tempo em pausa, ponto de reinício, contador de perguntas e as 20 últimas mensagens da tela. A chave é gravada só depois que a transação é confirmada, e a validade recomeça a cada gravação (`sessoes.estado.validade`, 6 horas por padrão).
 - **Reconstrução:** o PostgreSQL é a fonte da verdade. Os controles (pausar, retomar, reiniciar e encerrar) sempre partem do estado refeito a partir de `sessao`, `evento_sessao` e `mensagem`, com a sessão travada, e nunca da chave do Redis, que pode ainda não ter recebido a gravação do controle anterior. A chave serve à leitura da tela: se ela sumir ou discordar do banco, o estado é refeito e gravado de novo (RNF-04). Falha do Redis não derruba a aula.
 - **Mensagens:** quem gravar mensagens (RF-16) precisa usar o horário da aplicação em `mensagem.criado_em`, porque o ponto de reinício também usa esse relógio.
+
+### Bloqueio de dados pessoais
+
+Um texto digitado com padrão de dado pessoal não vai ao provedor (RF-21, RN-13, RNF-01).
+
+- **Onde:** a `BloqueioDeDadosPessoais`, na API do `ia`, usa os padrões de `DadosPessoais`, só com expressões regulares em Java. Fica no `ia` porque o teste do curador está em `cenarios`, que não pode depender de `sessoes`.
+- **Caminhos:** a pergunta da sala (`ConversaDaSessao`), o tema da sugestão (`SugestaoDeCenarios`) e a pergunta do teste do curador (`TesteDoCenario`) passam pelo bloqueio antes de qualquer chamada ao provedor, inclusive a moderação. A moderação já envia o texto, e um texto impróprio vira caso na fila do curador com o texto copiado.
+- **Segunda barreira:** a porta `AdaptadorDeIa` confere de novo a pergunta, em `responder`, e o tema, em `sugerirCenario`. A `moderar` fica de fora, porque também recebe as frases geradas pela IA, que ninguém pode reescrever.
+- **Fora do escopo:** o conteúdo do cenário (contexto, fontes, objetivos e o resto), escrito por professores e curadores, ainda não passa pelo bloqueio. Fica para outra issue.
+- **O que bloqueia:**
+  - **E-mail**, também escrito com "arroba" e "ponto".
+  - **Telefone:** celular de 9 dígitos começando com 9, com ou sem DDD e +55; fixo com o DDD entre parênteses ou depois do +55; 10 ou 11 dígitos seguidos começando com DDD. O fixo sem DDD só bloqueia com uma palavra de telefone por perto ("tel", "whatsapp", "ligar"...). Números públicos também bloqueiam.
+  - **CPF** com e sem pontuação, sem conferir os dígitos verificadores.
+  - **Endereço:** CEP, logradouro com número depois da vírgula ou de "nº" ("Rua das Flores, 123"), quadra e lote, e complemento junto com logradouro.
+- **O que não bloqueia:** códigos da BNCC, datas, anos e intervalos de anos ("1914-1918"), notas, medidas, valores, URLs e logradouros sem número ("Rua 25 de Março", "moro na rua das Flores"). Números por extenso não são reconhecidos. "Logradouro, número" bloqueia mesmo num contexto histórico ("Avenida Paulista, 1578").
+- **Normalização:** só para a busca, sem acentos, em minúsculas, sem caracteres invisíveis e com os espaços juntados. Nenhuma regra tem quantificador aninhado, e o tempo cresce em linha com o texto.
+- **Ao bloquear:** nada é gravado, e nada vai para log, evento ou auditoria. A exceção `TextoComDadoPessoal` leva só o tipo. O aviso nomeia o tipo sem repetir o dado: "A pergunta parece ter um dado pessoal (telefone). Reescreva sem e-mail, telefone, CPF ou endereço, e não digite nomes de estudantes."
+  - **Na sala:** volta 422, a sessão continua em andamento, a pergunta não conta no limite (RN-18) e o texto fica no campo.
+  - **Na sugestão e no teste do curador:** o pedido volta com o aviso, mas sem o texto bloqueado, para a tela não repetir o dado. A sugestão não gasta a cota de pedidos, e o teste não ocupa vaga do teto.
+- **Métrica:** `lab.privacidade.bloqueio`, com a tag `tipo` (`email`, `telefone`, `cpf` ou `endereco`). Nenhum usuário, sessão ou texto vira tag.
+- **Tamanho:** a pergunta da sala e a do teste têm no máximo `PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA` (1000) caracteres, conferidos também no servidor.
 
 ### Observabilidade e custo da IA
 

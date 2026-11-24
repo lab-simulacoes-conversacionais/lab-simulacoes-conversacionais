@@ -69,10 +69,10 @@ A tabela mostra o que cada módulo faz e de quem depende. As setas de dependênc
 | --- | --- | --- | --- |
 | Acesso | Usuários, perfis acumuláveis, turmas, parâmetros (limite de perguntas, custo diário) e autenticação. | — | RF-01 a RF-04 |
 | Cenários | Cenários, versões, vínculo com a BNCC, quiz, curadoria (envio, teste, checklist, decisão), biblioteca e arquivamento. | Acesso, Adaptador de IA | RF-05 a RF-13, RF-27 |
-| Sessões | Sessões em sala, mensagens, controles (pausar, retomar, reiniciar, encerrar), tempo, bloqueio de dados pessoais, aplicação do quiz e engajamento. | Acesso, Cenários, Adaptador de IA | RF-14 a RF-22, RF-28 a RF-30 |
+| Sessões | Sessões em sala, mensagens, controles (pausar, retomar, reiniciar, encerrar), tempo, aplicação do quiz e engajamento. | Acesso, Cenários, Adaptador de IA | RF-14 a RF-22, RF-28 a RF-30 |
 | Auditoria | Casos de conteúdo bloqueado, sinalizações, triagem, regras de suspensão e log de ações críticas. | Acesso | RF-23 a RF-26 |
 | Métricas | Indicadores por sessão, cenário e turma, comparação com sessões de controle, painel e exportação CSV/PDF; alerta de custo diário da IA ao administrador. | Acesso (lê dados por eventos), Adaptador de IA (lê o consumo) | RF-31, RF-32, RNF-13 |
-| Adaptador de IA | Porta única para o provedor: falas do personagem, sugestão de cenário, moderação, prompts versionados e metadados de cada chamada. | — | RNF-02, RNF-10, RNF-13 |
+| Adaptador de IA | Porta única para o provedor: falas do personagem, sugestão de cenário, moderação, bloqueio de dados pessoais antes do envio, prompts versionados e metadados de cada chamada. | — | RNF-02, RNF-10, RNF-13, RF-21 |
 
 ### Regras de dependência e comunicação
 
@@ -112,13 +112,15 @@ A sessão tem três estados: **Em andamento, Pausada e Encerrada**. A pausa guar
 
 O módulo define uma **interface própria** (porta) com três operações: responder no papel do personagem, devolvendo a resposta em trechos; sugerir um cenário a partir de tema, componente, ano e habilidades BNCC; e moderar um texto. A implementação usa o ChatClient e o modelo de moderação do Spring AI, e o provedor é escolhido por configuração. Nenhum outro módulo importa classes do Spring AI, o que cumpre o RNF-02.
 
+O **bloqueio de dados pessoais** (RF-21, RN-13) também fica neste módulo, porque o teste do curador está em Cenários, e Cenários não pode depender de Sessões. Ele é a interface `BloqueioDeDadosPessoais`, que usa expressões regulares em Java. Cada caso de uso que envia um texto digitado chama o bloqueio antes de qualquer chamada ao provedor, inclusive a moderação: a pergunta da sala, a pergunta do teste do curador e o tema da sugestão. A porta confere de novo a pergunta e o tema, como segunda barreira. A moderação fica de fora dessa segunda conferência, porque também recebe frases geradas pela IA, que ninguém pode reescrever. O conteúdo do cenário escrito por professores e curadores ainda não passa pelo bloqueio e fica para outra issue.
+
 O **montador de prompt** junta o template versionado (arquivo no repositório) com os dados da versão do cenário na mensagem de sistema. O histórico da sessão vem em seguida, e a pergunta da turma vai sempre em uma mensagem de usuário separada, nunca concatenada às instruções, para reduzir injeção de prompt (RNF-09). Cada chamada devolve provedor, modelo, parâmetros, versão do prompt, tokens, custo e latência, que são gravados com a resposta (RNF-10, RNF-13).
 
 ### Fluxo de uma pergunta em sala
 
 1. O professor envia a pergunta digitada pelo painel de controle, por uma requisição HTMX.
 2. Sessões lê o estado da sessão no Redis e confere se ela está em andamento, se o limite de perguntas não foi atingido (RN-18) e o tempo decorrido (RN-17).
-3. O texto passa pelo bloqueio de dados pessoais, feito com expressões regulares em Java (RN-13). Se houver padrão de e-mail, telefone, CPF ou endereço, nada é enviado e o professor vê o aviso para reescrever.
+3. O texto passa pelo bloqueio de dados pessoais do Adaptador de IA, feito com expressões regulares em Java (RN-13). Se houver padrão de e-mail, telefone, CPF ou endereço, nada é enviado nem gravado, a sessão continua em andamento, a pergunta não conta no limite e o professor vê o aviso para reescrever.
 4. A pergunta passa pela moderação do provedor (RN-20).
 5. A pergunta é gravada no PostgreSQL com autoria "Turma" e o estado da sessão é atualizado no Redis.
 6. O Adaptador de IA monta o prompt e chama o provedor em streaming.
