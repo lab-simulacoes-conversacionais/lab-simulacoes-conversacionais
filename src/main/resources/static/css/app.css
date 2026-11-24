@@ -454,7 +454,13 @@ a.btn { text-decoration: none; }
 
 .results-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 28px 0 16px; }
 .results-bar strong { font-size: 14px; }
-.text-button { border: 0; background: transparent; color: var(--blue); font-weight: 800; text-decoration: underline; padding: 0; }
+.text-button { border: 0; background: transparent; color: var(--blue); font-weight: 800; text-decoration: underline; padding: 0; cursor: pointer; }
+
+/* Busca e filtros da biblioteca (RF-12), como no protótipo. */
+.filter-card { display: grid; grid-template-columns: 1.5fr 1fr .75fr 1fr auto; gap: 14px; align-items: end; background: var(--surface); border: 0; }
+.filter-card label { margin-top: 0; font-size: 12px; }
+.filter-card input, .filter-card select { width: 100%; }
+.filter-actions .btn { min-height: 46px; }
 .library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: var(--gap); }
 .library-grid .card { display: flex; flex-direction: column; min-height: 280px; transition: transform var(--medio) var(--ease), box-shadow var(--medio) var(--ease), border-color var(--medio) var(--ease); }
 .library-grid .card:hover { transform: translateY(-4px); box-shadow: var(--shadow-md); border-color: #b9c6ff; }
@@ -587,12 +593,63 @@ a.btn { text-decoration: none; }
 .review-actions > div strong, .review-actions > div span { display: block; font-size: 11px; }
 .review-actions > div span { color: var(--muted); margin-top: 3px; }
 .review-actions form { margin: 0; }
-.checklist-curadoria { margin-top: 18px; padding: 16px 18px; }
-.checklist-curadoria fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; }
-.checklist-curadoria legend { font-weight: 700; margin-bottom: 8px; }
-.checklist-curadoria label { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 500; }
-.checklist-teste { margin: 12px 0 0; font-size: 13px; color: var(--muted); }
-.checklist-teste.completo { color: inherit; font-weight: 600; }
+.review-actions .btn-primary:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+/* Checklist de revisão (RF-10), como no protótipo: cartões em duas colunas com a caixa desenhada. A caixa
+   de verdade continua no formulário, só fica invisível; o foco do teclado aparece no cartão. */
+.checklist-section .section-title { margin-top: 40px; }
+.review-checklist { border-radius: 0 0 var(--radius) var(--radius); display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.review-checklist label { position: relative; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 13px; margin: 0; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: border-color var(--rapido) var(--ease), background-color var(--rapido) var(--ease); }
+.review-checklist label:hover { border-color: #9aa8dc; }
+.review-checklist input { position: absolute; opacity: 0; width: 1px; height: 1px; min-height: 0; margin: 0; }
+.review-checklist label > span { width: 24px; height: 24px; flex: 0 0 auto; border: 2px solid var(--line); border-radius: 6px; color: transparent; display: grid; place-items: center; font-size: 13px; transition: background-color var(--rapido) var(--ease), border-color var(--rapido) var(--ease); }
+.review-checklist label:has(input:checked) { border-color: var(--blue); background: #f8f9ff; }
+.review-checklist input:checked + span { background: var(--blue); border-color: var(--blue); color: white; }
+.review-checklist label:has(input:focus-visible) { box-shadow: var(--ring); border-color: var(--blue); }
+
+/* Histórico de versões (RF-11), como no protótipo: a lista à esquerda e a comparação à direita, com o
+   que saiu em vermelho e riscado e o que entrou em verde e sublinhado. */
+.versions-section .section-title { margin-top: 40px; }
+.versions { border-radius: 0 0 var(--radius) var(--radius); display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 20px; align-items: start; }
+.version-list { list-style: none; margin: 0; padding: 0; }
+.version-list > li { border-left: 3px solid var(--line); padding: 0 0 15px 13px; }
+.version-list > li:first-child { border-left-color: var(--blue); }
+.version-list-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.version-list > li > span { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.version-list form { margin: 6px 0 0; }
+.version-list .text-button { font-size: 12px; }
+.versions-note { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+.versions-compare { min-width: 0; }
+.compare-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; margin: 0 0 14px; }
+.compare-form label { margin-top: 0; }
+.compare-form select { width: 100%; }
+.comparison-empty { color: var(--muted); font-size: 13px; margin: 0; }
+.comparison { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.comparison-row { display: grid; grid-template-columns: 1fr 1fr; }
+.comparison-row + .comparison-row { border-top: 1px solid var(--line); }
+.comparison-head > span { display: none; }
+.comparison-head > strong { padding: 10px 14px; font-size: 11px; background: #fff6f6; }
+.comparison-head > strong + strong { background: #effaf3; border-left: 1px solid var(--line); }
+.comparison-field { grid-column: 1 / -1; padding: 10px 14px 0; font-size: 11px; font-weight: 800; color: var(--blue-dark); text-transform: uppercase; letter-spacing: .06em; background: white; }
+.comparison-field small { display: block; margin-top: 2px; color: var(--muted); font-weight: 700; text-transform: none; letter-spacing: 0; }
+.comparison-old, .comparison-new { padding: 8px 14px 12px; background: #fff6f6; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.comparison-new { background: #effaf3; border-left: 1px solid var(--line); }
+.comparison-old p, .comparison-new p { margin: 0; white-space: pre-line; }
+.comparison-old ul, .comparison-new ul { margin: 0; padding-left: 18px; }
+.comparison-old li + li, .comparison-new li + li { margin-top: 4px; }
+.diff-mark { border-radius: 4px; padding: 0 3px; color: inherit; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.comparison-old .diff-mark { background: #ffd4d4; text-decoration: line-through; text-decoration-color: #9c0000; }
+.comparison-new .diff-mark { background: #c6efd6; text-decoration: underline; text-decoration-color: var(--green); text-underline-offset: 2px; }
+.comparison-none { color: var(--muted); font-style: italic; }
+.comparison-same { margin-top: 12px; font-size: 13px; }
+.comparison-same summary { cursor: pointer; color: var(--blue); font-weight: 800; }
+.comparison-same dl { margin: 10px 0 0; }
+.comparison-same dl > div { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.comparison-same dt { font-size: 11px; font-weight: 800; color: var(--muted); }
+.comparison-same dd { margin: 3px 0 0; overflow-wrap: anywhere; }
+.versions-page .versions { margin-bottom: 0; }
+.heading-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.heading-actions form { margin: 0; }
 
 .detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: var(--gap); align-items: start; }
 .detail-card { border-radius: 0 0 16px 16px; }
@@ -752,7 +809,9 @@ kbd { font-family: inherit; font-size: 10px; border-radius: 4px; padding: 2px 5p
   .editor-steps { display: grid; grid-template-columns: 1fr 1fr; }
   .requirements-card { position: static; }
   .review-actions { bottom: 0; }
-  .review-layout, .detail-layout { grid-template-columns: 1fr; }
+  .review-layout, .detail-layout, .versions { grid-template-columns: 1fr; }
+  .filter-card { grid-template-columns: 1fr 1fr; }
+  .filter-card .search-field { grid-column: 1 / -1; }
   .review-list { position: static; }
   .projection { grid-template-columns: 1fr; height: auto; overflow: visible; }
   .teacher-panel { border-left: 0; border-top: 1px solid var(--line); }
@@ -769,6 +828,14 @@ kbd { font-family: inherit; font-size: 10px; border-radius: 4px; padding: 2px 5p
   .bncc-results li { align-items: stretch; flex-direction: column; }
   .review-summary, .review-actions, .queue-stats { align-items: stretch; flex-direction: column; }
   .review-actions > div { margin-right: 0; }
+  .filter-card, .review-checklist, .compare-form { grid-template-columns: 1fr; }
+  .comparison-row { grid-template-columns: 1fr; }
+  .comparison-head { display: none; }
+  .comparison-new { border-left: 0; border-top: 1px dashed var(--line); }
+  .comparison-old::before { content: "Antes"; display: block; font-size: 11px; font-weight: 800; }
+  .comparison-new::before { content: "Depois"; display: block; font-size: 11px; font-weight: 800; }
+  .heading-actions { justify-content: stretch; }
+  .heading-actions > * { flex: 1 1 auto; }
   .setup-footer, .end-actions { align-items: stretch; flex-direction: column; }
   .scenario-choice { align-items: flex-start; flex-wrap: wrap; }
   .scenario-choice > .badge { margin-left: 35px; }

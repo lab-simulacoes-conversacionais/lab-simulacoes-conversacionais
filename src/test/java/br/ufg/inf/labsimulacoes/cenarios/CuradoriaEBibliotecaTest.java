@@ -161,8 +161,8 @@ class CuradoriaEBibliotecaTest {
 
         var resposta = curador.postForm("/curadoria/" + id + "/arquivar", "");
 
-        assertThat(local(resposta)).endsWith("/curadoria");
-        assertThat(curador.get("/curadoria").body()).contains("foi arquivado e saiu da biblioteca");
+        assertThat(local(resposta)).endsWith("/biblioteca");
+        assertThat(curador.get("/biblioteca").body()).contains("foi arquivado e saiu da biblioteca");
         var professor = logado(novoUsuario(Perfil.PROFESSOR));
         assertThat(professor.get("/biblioteca?pagina=0").body()).doesNotContain("/biblioteca/" + id + "\"");
         assertThat(local(professor.get("/biblioteca/" + id))).endsWith("/biblioteca");
@@ -175,7 +175,7 @@ class CuradoriaEBibliotecaTest {
 
         curador.postForm("/curadoria/" + id + "/arquivar", "");
 
-        assertThat(curador.get("/curadoria").body()).contains("Só um cenário aprovado ou suspenso pode ser arquivado.");
+        assertThat(curador.get("/biblioteca").body()).contains("Só um cenário aprovado ou suspenso pode ser arquivado.");
     }
 
     @Test
@@ -197,13 +197,13 @@ class CuradoriaEBibliotecaTest {
         var curador = logado(email);
 
         assertThat(curador.get("/curadoria?cenario=" + id).body())
-                .contains("Checklist de curadoria")
+                .contains("Checklist de revisão")
                 .contains("Fatos conferidos com as fontes")
                 .contains("Limites de assunto respeitados no teste")
-                .contains("Perguntas de teste feitas por você nesta versão: 0 de 5");
+                .contains("Faltam 5 perguntas de teste.");
         TesteDoPersonagemFeito.pelo(jdbc, email, id);
         assertThat(curador.get("/curadoria?cenario=" + id).body())
-                .contains("Perguntas de teste feitas por você nesta versão: 5 de 5");
+                .contains("Conclua todo o checklist.");
     }
 
     /** Critério de aceite: sem checklist completo e sem 5 perguntas de teste, não aprova. */

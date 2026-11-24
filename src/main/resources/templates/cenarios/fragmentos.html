@@ -42,10 +42,11 @@
 <!--
   Conteúdo de uma versão do cenário (ConteudoExibido), como no detalhe do protótipo. Serve à fila do
   curador, que revisa a versão em curadoria, e ao detalhe da biblioteca, que mostra a aprovada vigente.
+  As duas seções são numeradas a partir de "primeira", para seguir a numeração da tela que as usa.
 -->
-<div th:fragment="conteudo(c)" class="detail-layout">
+<div th:fragment="conteudo(c, primeira)" class="detail-layout">
   <div>
-    <div class="section-title"><div class="section-title-main"><span>1</span><h2>Intenção pedagógica</h2></div></div>
+    <div class="section-title"><div class="section-title-main"><span th:text="${primeira}">1</span><h2>Intenção pedagógica</h2></div></div>
     <section class="card detail-card">
       <dl>
         <div><dt>Personagem e papel</dt>
@@ -60,7 +61,7 @@
           </ul></dd></div>
       </dl>
     </section>
-    <div class="section-title"><div class="section-title-main"><span>2</span><h2>Segurança e referências</h2></div></div>
+    <div class="section-title"><div class="section-title-main"><span th:text="${primeira + 1}">2</span><h2>Segurança e referências</h2></div></div>
     <section class="card detail-card">
       <dl>
         <div><dt>Limites de assunto</dt>
@@ -90,6 +91,83 @@
     </section>
   </aside>
 </div>
+
+<!--
+  Histórico de versões (RF-11), como a lista "Histórico de versões" do protótipo: da mais nova para a
+  mais antiga, com o selo de cada uma e a vigente marcada (RN-08). Com "acoes", o autor restaura uma
+  versão aprovada anterior, que volta como a versão seguinte, em rascunho.
+-->
+<ol th:fragment="listaDeVersoes(h, cenarioId, acoes)" class="version-list" aria-label="Versões do cenário">
+  <li th:each="v : ${h.versoes}">
+    <div class="version-list-head">
+      <strong th:text="|v${v.numero}|">v3</strong>
+      <span class="badge" th:classappend="${v.classe}"><span aria-hidden="true" th:text="${v.icone}">✓</span><th:block th:text="${v.rotulo}">Aprovada</th:block></span>
+    </div>
+    <span th:text="|Criada em ${v.criadaEm}|">Criada em 18/06/2026 às 16:40</span>
+    <form th:if="${acoes and v.restauravel}" method="post"
+          th:action="@{/cenarios/{id}/versoes/{n}/restaurar(id=${cenarioId},n=${v.numero})}">
+      <button class="text-button" type="submit" th:text="|Restaurar a v${v.numero}|"
+              th:attr="aria-label=|Restaurar a versão ${v.numero} como versão nova|">Restaurar</button>
+    </form>
+  </li>
+</ol>
+
+<!--
+  Duas versões lado a lado (RF-11), como a comparação do protótipo: a antiga à esquerda, em vermelho, e a
+  nova à direita, em verde. Em cada campo que mudou, o que saiu aparece riscado e o que entrou,
+  sublinhado; o leitor de tela ouve "removido" e "incluído". Os campos iguais ficam recolhidos.
+-->
+<div th:fragment="comparacao(cmp)" class="comparison-block">
+  <p class="comparison-empty" th:if="${cmp.semDiferencas()}">
+    As versões <strong th:text="|v${cmp.antiga}|">v1</strong> e <strong th:text="|v${cmp.nova}|">v2</strong> têm o mesmo conteúdo.
+  </p>
+  <div class="comparison" th:unless="${cmp.semDiferencas()}" role="table"
+       th:attr="aria-label=|Diferenças entre a versão ${cmp.antiga} e a versão ${cmp.nova}|">
+    <div class="comparison-row comparison-head" role="row">
+      <span role="columnheader">Campo</span>
+      <strong role="columnheader" th:text="|v${cmp.antiga} · Antes|">v2 · Antes</strong>
+      <strong role="columnheader" th:text="|v${cmp.nova} · Depois|">v3 · Depois</strong>
+    </div>
+    <div class="comparison-row" role="row" th:each="campo : ${cmp.mudaram}">
+      <span class="comparison-field" role="rowheader">
+        <th:block th:text="${campo.rotulo}">Contexto</th:block>
+        <small th:if="${campo.soMudouAOrdem}">Mesmos itens, em outra ordem</small>
+      </span>
+      <div class="comparison-old" role="cell">
+        <div th:replace="~{cenarios/fragmentos :: valoresComparados(${campo.antes}, 'removido')}"></div>
+      </div>
+      <div class="comparison-new" role="cell">
+        <div th:replace="~{cenarios/fragmentos :: valoresComparados(${campo.depois}, 'incluído')}"></div>
+      </div>
+    </div>
+  </div>
+  <details class="comparison-same" th:unless="${cmp.iguais.isEmpty()}">
+    <summary th:text="${cmp.iguais.size() == 1} ? '1 campo sem mudança' : |${cmp.iguais.size()} campos sem mudança|">10 campos sem mudança</summary>
+    <dl>
+      <div th:each="campo : ${cmp.iguais}">
+        <dt th:text="${campo.rotulo}">Fontes</dt>
+        <dd th:if="${campo.depois.isEmpty()}" class="comparison-none">Não informado</dd>
+        <dd th:unless="${campo.depois.isEmpty()}" th:text="${#strings.listJoin(campo.depois.![texto], ' · ')}">Livro didático</dd>
+      </div>
+    </dl>
+  </details>
+</div>
+
+<!-- Os valores de um lado da comparação: um texto só vira parágrafo; vários, uma lista. -->
+<div th:fragment="valoresComparados(valores, marca)" th:remove="tag">
+  <p class="comparison-none" th:if="${valores.isEmpty()}">Não informado</p>
+  <p th:if="${valores.size() == 1}" th:with="v=${valores[0]}">
+    <th:block th:replace="~{cenarios/fragmentos :: valorComparado(${v}, ${marca})}"></th:block>
+  </p>
+  <ul th:if="${valores.size() > 1}">
+    <li th:each="v : ${valores}"><th:block th:replace="~{cenarios/fragmentos :: valorComparado(${v}, ${marca})}"></th:block></li>
+  </ul>
+</div>
+
+<th:block th:fragment="valorComparado(v, marca)">
+  <mark th:if="${v.destacado}" class="diff-mark"><span class="sr-only" th:text="|${marca}: |">removido: </span><th:block th:text="${v.texto}">texto</th:block></mark>
+  <th:block th:unless="${v.destacado}" th:text="${v.texto}">texto</th:block>
+</th:block>
 
 <!--
   Resultado da busca na BNCC (RF-05). "Vincular" acrescenta a habilidade à lista do cenário pelo

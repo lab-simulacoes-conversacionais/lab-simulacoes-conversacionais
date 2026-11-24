@@ -6,6 +6,7 @@ import br.ufg.inf.labsimulacoes.cenarios.aplicacao.AprovacaoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.ArquivamentoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.DevolucaoDeCenario;
 import br.ufg.inf.labsimulacoes.cenarios.aplicacao.TesteDoCenario;
+import br.ufg.inf.labsimulacoes.cenarios.aplicacao.VersoesDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.AprovacaoIncompleta;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ArquivamentoNaoPermitido;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
@@ -43,6 +44,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * curadoria, e o contador mostra quantas perguntas valem para o mínimo do RN-06. A pergunta vai pelo HTMX
  * e volta a seção inteira, com a resposta já moderada; uma recusa aparece dentro dela. O checklist
  * completo e o mínimo de perguntas também são exigidos para aprovar (RF-10, RN-06).
+ *
+ * <p>Abaixo do checklist fica o histórico de versões do cenário aberto (RF-11), com a versão em
+ * curadoria comparada à última aprovada, para o curador ver o que mudou desde a que está em sala.
  */
 @Controller
 @RequestMapping("/curadoria")
@@ -63,6 +67,7 @@ class CuradoriaController {
     private final DevolucaoDeCenario devolucao;
     private final ArquivamentoDeCenario arquivamento;
     private final TesteDoCenario teste;
+    private final VersoesDoCenario versoes;
     private final DescricoesDaBncc descricoes;
     private final UsuarioLogado usuarioLogado;
 
@@ -72,6 +77,7 @@ class CuradoriaController {
             DevolucaoDeCenario devolucao,
             ArquivamentoDeCenario arquivamento,
             TesteDoCenario teste,
+            VersoesDoCenario versoes,
             DescricoesDaBncc descricoes,
             UsuarioLogado usuarioLogado) {
         this.acervo = acervo;
@@ -79,6 +85,7 @@ class CuradoriaController {
         this.devolucao = devolucao;
         this.arquivamento = arquivamento;
         this.teste = teste;
+        this.versoes = versoes;
         this.descricoes = descricoes;
         this.usuarioLogado = usuarioLogado;
     }
@@ -160,7 +167,7 @@ class CuradoriaController {
 
     /**
      * RF-13: tira o cenário da biblioteca sem apagar o histórico (RN-09). O botão fica no detalhe da
-     * biblioteca, que chega com a #34; a rota já fica pronta para ele.
+     * biblioteca, e a resposta volta à biblioteca, de onde o cenário acabou de sair.
      */
     @PostMapping("/{id}/arquivar")
     String arquivar(@PathVariable long id, RedirectAttributes mensagens) {
@@ -173,7 +180,7 @@ class CuradoriaController {
         } catch (CenarioNaoEncontrado erro) {
             mensagens.addFlashAttribute("erro", "Este cenário não existe.");
         }
-        return "redirect:/curadoria";
+        return "redirect:/biblioteca";
     }
 
     // --------------------------------------------------------------------------------------------
@@ -238,6 +245,7 @@ class CuradoriaController {
         modelo.addAttribute("itensDoChecklist", ItemDoChecklist.values());
         modelo.addAttribute("minimoDeTeste", PerguntasDeTeste.MINIMO_PARA_APROVAR);
         modelo.addAttribute("perguntasDeTeste", souAutor ? 0 : aprovacao.perguntasDeTesteFeitas(cenario.id()));
+        historicoDeVersoes(cenario, modelo);
         // RN-05: o autor também não testa; a seção aparece, mas sem a conversa.
         if (souAutor) {
             return;
@@ -247,6 +255,19 @@ class CuradoriaController {
         } catch (TesteNaoPermitido | CenarioNaoEncontrado erro) {
             // Decidido por outro curador entre a leitura da fila e a da rodada: a seção avisa.
             modelo.addAttribute("avisoDoTeste", TESTE_INDISPONIVEL);
+        }
+    }
+
+    /**
+     * RF-11: as versões do cenário e, se houver mais de uma, a versão em curadoria ao lado da última
+     * aprovada. Criar e restaurar versões é do autor, na página de versões, e não aparece na fila.
+     */
+    private void historicoDeVersoes(Cenario cenario, Model modelo) {
+        var historico = HistoricoExibido.de(versoes.historico(cenario.id()), cenario, false);
+        modelo.addAttribute("historico", historico);
+        if (historico.temComparacao()) {
+            modelo.addAttribute("comparacao", ComparacaoExibida.de(
+                    versoes.comparar(cenario.id(), historico.antigaPadrao(), historico.novaPadrao())));
         }
     }
 
