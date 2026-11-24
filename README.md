@@ -184,7 +184,9 @@ A sessão fica ligada ao professor, à turma e à versão aprovada vigente no in
 - **Estado no Redis:** cada sessão tem a chave `sessao:<id>:estado`, com status, motivo da pausa, tempo em pausa, ponto de reinício, contador de perguntas e as 20 últimas mensagens da tela. A chave é gravada só depois que a transação é confirmada, e a validade recomeça a cada gravação (`sessoes.estado.validade`, 6 horas por padrão).
 - **Reconstrução:** o PostgreSQL é a fonte da verdade. Os controles (pausar, retomar, reiniciar e encerrar) sempre partem do estado refeito a partir de `sessao`, `evento_sessao` e `mensagem`, com a sessão travada, e nunca da chave do Redis, que pode ainda não ter recebido a gravação do controle anterior. A chave serve à leitura da tela: se ela sumir ou discordar do banco, o estado é refeito e gravado de novo (RNF-04). Falha do Redis não derruba a aula.
 - **Retomada após falha:** recarregar a página refaz a tela a partir do Redis, ou do banco se a chave tiver sumido, com a conversa, o estado e o tempo (RF-20, RNF-04). O canal da resposta (`ConversaDaSessao.entregarResposta`) cobre os casos de volta:
-  - se a página foi recarregada ou a conexão caiu no meio da resposta, o canal novo espera a resposta do anterior terminar, até 45 segundos, e recebe ela inteira, sem outra chamada ao modelo;
+  - se a página foi recarregada ou a conexão caiu no meio da resposta e a resposta antiga ainda está sendo gerada, o canal novo espera ela terminar, até 60 segundos, e recebe ela inteira, sem outra chamada ao modelo. O texto já exibido é apagado ao reabrir o canal, para não repetir;
+  - se o servidor já percebeu a queda e cancelou a resposta antiga, a pergunta é respondida de novo;
+  - se a espera passar de 60 segundos, a tela mostra a falha, e o "Tentar de novo" entrega a resposta gravada quando ela terminar;
   - se a pergunta foi respondida enquanto a tela estava fora, recebe a resposta gravada;
   - se a resposta não chegou ao fim, a pergunta continua pendente e é respondida de novo.
 
