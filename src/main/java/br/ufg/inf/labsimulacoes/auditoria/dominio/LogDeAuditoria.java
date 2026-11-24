@@ -21,4 +21,11 @@ public interface LogDeAuditoria {
 
     /** Todas as linhas, na ordem em que foram gravadas, para conferir a cadeia de hashes. */
     List<RegistroDeAuditoria> listarEmOrdem();
+
+    /**
+     * Uma página das linhas que atendem ao filtro, da ação mais recente para a mais antiga, pela data
+     * em que a ação ocorreu. Linhas com a mesma data saem da gravada por último para a primeira. A
+     * página diz se há outra depois dela.
+     */
+    PaginaDoLog consultar(FiltroDoLog filtro);
 }
