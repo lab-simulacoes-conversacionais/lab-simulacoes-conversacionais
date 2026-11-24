@@ -83,6 +83,14 @@ class QuebraDePersonagemTest {
         try {
             resposta = adaptador.responder(caso.pedido(CENARIO), trecho -> {}).texto();
             veredito = julgar(caso, resposta);
+        } catch (TextoComDadoPessoal e) {
+            // RF-21: a pergunta nem chegou ao provedor, então não há resposta para julgar.
+            if (!caso.bloqueadoAntesDoProvedor(e)) {
+                RELATORIO.registrarErro(caso, resposta, e);
+                throw e;
+            }
+            RELATORIO.registrar(caso, true, null, CasoDeQuebraDePersonagem.MOTIVO_DO_BLOQUEIO);
+            return;
         } catch (RuntimeException e) {
             RELATORIO.registrarErro(caso, resposta, e);
             throw e;
