@@ -16,7 +16,11 @@ import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
+import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -65,6 +69,9 @@ class RetomadaAposFalhaTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private MeterRegistry metricas;
 
     private Authentication professora;
     private long sessao;
@@ -188,6 +195,39 @@ class RetomadaAposFalhaTest {
         assertThat(estado.ultimasMensagens()).extracting(mensagem -> mensagem.texto())
                 .containsExactly("Quando foi o voo?", "Foi em 1906.");
         await().atMost(Duration.ofSeconds(5)).until(() -> redis.hasKey("sessao:" + sessao + ":estado"));
+    }
+
+    /** A outra resposta em andamento não é falha do preparo: a contagem de erros do preparo não muda. */
+    @Test
+    void respostaEmAndamentoNaoContaComoFalhaDoPreparo() throws Exception {
+        var noMeio = new CountDownLatch(1);
+        var liberar = new CountDownLatch(1);
+        when(adaptador.responder(any(), any())).thenAnswer(chamada -> {
+            noMeio.countDown();
+            liberar.await(10, TimeUnit.SECONDS);
+            return new RespostaDoPersonagem("Foi em 1906.", metadados());
+        });
+        conversa.enviarPergunta(sessao, "Quando foi o voo?");
+        CompletableFuture<Void> primeira = comProfessora(() -> conversa.responderPendente(sessao, new Tela()));
+        assertThat(noMeio.await(10, TimeUnit.SECONDS)).isTrue();
+        long falhasAntes = falhasDoPreparo();
+
+        assertThatThrownBy(() -> conversa.responderPendente(sessao, new Tela()))
+                .isInstanceOf(RespostaEmAndamento.class);
+        liberar.countDown();
+        primeira.get(10, TimeUnit.SECONDS);
+
+        assertThat(falhasDoPreparo()).isEqualTo(falhasAntes);
+    }
+
+    private long falhasDoPreparo() {
+        return metricas.find(EtapasDaConversa.OBSERVACAO)
+                .tag(EtapasDaConversa.CHAVE, Etapa.PREPARO_DA_RESPOSTA.valor())
+                .timers()
+                .stream()
+                .filter(timer -> !"none".equals(timer.getId().getTag("error")))
+                .mapToLong(Timer::count)
+                .sum();
     }
 
     private CompletableFuture<Void> comProfessora(Runnable acao) {

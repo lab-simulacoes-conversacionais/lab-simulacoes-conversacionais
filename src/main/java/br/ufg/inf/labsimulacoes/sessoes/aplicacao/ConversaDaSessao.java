@@ -195,6 +195,9 @@ public class ConversaDaSessao {
         EtapaEmAndamento preparo = etapas.iniciar(Etapa.PREPARO_DA_RESPOSTA);
         try {
             return responderPendente(sessaoId, tela, preparo);
+        } catch (RespostaEmAndamento e) {
+            // Não é falha do preparo: outra resposta desta sessão está sendo gerada, e quem chama espera.
+            throw e;
         } catch (RuntimeException e) {
             preparo.falhar(e);
             throw e;
