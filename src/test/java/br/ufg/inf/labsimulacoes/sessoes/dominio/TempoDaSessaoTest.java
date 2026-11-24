@@ -79,6 +79,46 @@ class TempoDaSessaoTest {
                 .isEqualTo(minutos(60));
     }
 
+    /**
+     * A pausa conferida tarde nunca fica antes do que já foi registrado: o histórico é refeito em ordem
+     * de data. Aqui o professor pausou aos 52 minutos e retomou aos 60, e ninguém tinha conferido.
+     */
+    @Test
+    void pausaConferidaTardeNaoFicaAntesDoUltimoEvento() {
+        EstadoDaSessao estado = inicial()
+                .aplicar(EventoDaSessao.pausa(MotivoDaPausa.MANUAL, minutos(52)))
+                .aplicar(EventoDaSessao.retomada(minutos(60)));
+
+        MudancaNaSessao pausa = emAndamento().pausarNoLimiteDeTempo(estado, minutos(61)).orElseThrow();
+
+        assertThat(pausa.evento().em()).isEqualTo(minutos(60));
+        assertThat(estado.ultimoEventoEm()).isEqualTo(minutos(60));
+    }
+
+    /** Uma pergunta gravada logo depois dos 50 minutos também não fica dentro da pausa. */
+    @Test
+    void pausaConferidaTardeNaoFicaAntesDaUltimaMensagem() {
+        EstadoDaSessao estado = inicial().registrarMensagem(
+                new MensagemExibida(MensagemExibida.Autoria.TURMA, "Como o 14-bis voou?", minutos(50).plusSeconds(3)));
+
+        MudancaNaSessao pausa = emAndamento().pausarNoLimiteDeTempo(estado, minutos(51)).orElseThrow();
+
+        assertThat(pausa.evento().em()).isEqualTo(minutos(50).plusSeconds(3));
+    }
+
+    @Test
+    void ultimaAtividadeEOEventoOuAMensagemMaisRecente() {
+        assertThat(inicial().ultimaAtividade()).isEmpty();
+        EstadoDaSessao comPausa = inicial().aplicar(EventoDaSessao.pausa(MotivoDaPausa.MANUAL, minutos(5)));
+        assertThat(comPausa.ultimaAtividade()).contains(minutos(5));
+        EstadoDaSessao comMensagemAntes = comPausa.registrarMensagem(
+                new MensagemExibida(MensagemExibida.Autoria.IA, "Olá.", minutos(4)));
+        assertThat(comMensagemAntes.ultimaAtividade()).contains(minutos(5));
+        EstadoDaSessao soComMensagem = inicial().registrarMensagem(
+                new MensagemExibida(MensagemExibida.Autoria.TURMA, "Oi?", minutos(2)));
+        assertThat(soComMensagem.ultimaAtividade()).contains(minutos(2));
+    }
+
     /** Depois que o professor confirma e retoma, a sessão não pausa de novo pelo tempo. */
     @Test
     void depoisDeRetomarNaoPausaDeNovoPeloTempo() {

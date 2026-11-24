@@ -24,6 +24,9 @@ import java.util.Optional;
  *     mais recente
  * @param limiteDeTempoAtingido se a sessão já pausou uma vez aos 50 minutos (RN-17). Depois que o
  *     professor confirma e retoma, ela não pausa de novo pelo tempo
+ * @param ultimoEventoEm quando aconteceu a última pausa, retomada ou reinício, ou {@code null} se ainda
+ *     não houve nenhum. Uma pausa registrada depois não pode ficar antes dele, para o histórico, que é
+ *     refeito em ordem de data, não sair fora de ordem
  */
 public record EstadoDaSessao(
         long sessaoId,
@@ -35,7 +38,8 @@ public record EstadoDaSessao(
         Instant reiniciadaEm,
         int perguntasDaTurma,
         List<MensagemExibida> ultimasMensagens,
-        boolean limiteDeTempoAtingido) {
+        boolean limiteDeTempoAtingido,
+        Instant ultimoEventoEm) {
 
     /** Quantas mensagens a tela reconstrói. As anteriores continuam no banco. */
     public static final int MENSAGENS_GUARDADAS = 20;
@@ -50,7 +54,7 @@ public record EstadoDaSessao(
         ultimasMensagens = ultimas(ultimasMensagens);
     }
 
-    /** Estado de uma sessão que ainda não pausou pelo limite de tempo. */
+    /** Estado de uma sessão que ainda não pausou pelo limite de tempo, sem o horário do último evento. */
     public EstadoDaSessao(
             long sessaoId,
             StatusDaSessao status,
@@ -62,7 +66,7 @@ public record EstadoDaSessao(
             int perguntasDaTurma,
             List<MensagemExibida> ultimasMensagens) {
         this(sessaoId, status, motivoDaPausa, iniciadaEm, tempoEmPausa, pausadaDesde, reiniciadaEm, perguntasDaTurma,
-                ultimasMensagens, false);
+                ultimasMensagens, false, null);
     }
 
     /** A sessão acabou de começar: em andamento, sem pausas nem mensagens. */
@@ -88,7 +92,8 @@ public record EstadoDaSessao(
                 estado.reiniciadaEm,
                 historico.perguntasDaTurma(),
                 historico.mensagensDesdeOReinicio(),
-                estado.limiteDeTempoAtingido);
+                estado.limiteDeTempoAtingido,
+                estado.ultimoEventoEm);
         Sessao sessao = historico.sessao();
         return sessao.status() == StatusDaSessao.ENCERRADA ? estado.encerrar(sessao.encerradaEm()) : estado;
     }
@@ -99,14 +104,14 @@ public record EstadoDaSessao(
             case PAUSA -> new EstadoDaSessao(
                     sessaoId, StatusDaSessao.PAUSADA, evento.motivo(), iniciadaEm, tempoEmPausa, evento.em(),
                     reiniciadaEm, perguntasDaTurma, ultimasMensagens,
-                    limiteDeTempoAtingido || evento.motivo() == MotivoDaPausa.LIMITE_50_MINUTOS);
+                    limiteDeTempoAtingido || evento.motivo() == MotivoDaPausa.LIMITE_50_MINUTOS, evento.em());
             case RETOMADA -> new EstadoDaSessao(
                     sessaoId, StatusDaSessao.EM_ANDAMENTO, null, iniciadaEm, tempoEmPausaAte(evento.em()), null,
-                    reiniciadaEm, perguntasDaTurma, ultimasMensagens, limiteDeTempoAtingido);
+                    reiniciadaEm, perguntasDaTurma, ultimasMensagens, limiteDeTempoAtingido, evento.em());
             // RN-19: a tela fica limpa, mas o contador e o registro no banco continuam.
             case REINICIO -> new EstadoDaSessao(
                     sessaoId, status, motivoDaPausa, iniciadaEm, tempoEmPausa, pausadaDesde, evento.em(),
-                    perguntasDaTurma, List.of(), limiteDeTempoAtingido);
+                    perguntasDaTurma, List.of(), limiteDeTempoAtingido, evento.em());
         };
     }
 
@@ -114,7 +119,7 @@ public record EstadoDaSessao(
     public EstadoDaSessao encerrar(Instant em) {
         return new EstadoDaSessao(
                 sessaoId, StatusDaSessao.ENCERRADA, null, iniciadaEm, tempoEmPausaAte(em), null, reiniciadaEm,
-                perguntasDaTurma, ultimasMensagens, limiteDeTempoAtingido);
+                perguntasDaTurma, ultimasMensagens, limiteDeTempoAtingido, ultimoEventoEm);
     }
 
     /** Uma pergunta da turma ou uma resposta da IA apareceu na tela. Só a pergunta conta (RN-18). */
@@ -124,7 +129,7 @@ public record EstadoDaSessao(
         int perguntas = perguntasDaTurma + (mensagem.autoria() == MensagemExibida.Autoria.TURMA ? 1 : 0);
         return new EstadoDaSessao(
                 sessaoId, status, motivoDaPausa, iniciadaEm, tempoEmPausa, pausadaDesde, reiniciadaEm, perguntas,
-                mensagens, limiteDeTempoAtingido);
+                mensagens, limiteDeTempoAtingido, ultimoEventoEm);
     }
 
     /**
@@ -169,6 +174,18 @@ public record EstadoDaSessao(
         Instant fim = pausadaDesde != null ? pausadaDesde : momento;
         Duration tempo = Duration.between(iniciadaEm, fim).minus(tempoEmPausa);
         return tempo.isNegative() ? Duration.ZERO : tempo;
+    }
+
+    /**
+     * O último momento já registrado na sessão: o último evento ou a última mensagem da tela, o que for
+     * mais recente. Vazio na sessão sem eventos nem mensagens.
+     */
+    public Optional<Instant> ultimaAtividade() {
+        Instant mensagem = ultimasMensagens.isEmpty() ? null : ultimasMensagens.getLast().em();
+        if (mensagem == null) {
+            return Optional.ofNullable(ultimoEventoEm);
+        }
+        return Optional.of(ultimoEventoEm == null || mensagem.isAfter(ultimoEventoEm) ? mensagem : ultimoEventoEm);
     }
 
     private static List<MensagemExibida> ultimas(List<MensagemExibida> mensagens) {

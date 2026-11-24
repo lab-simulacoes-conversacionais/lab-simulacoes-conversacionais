@@ -128,7 +128,9 @@ public record Sessao(
      *
      * <p>A pausa é registrada no momento exato em que a conversa completou 50 minutos, mesmo que a
      * conferência venha um pouco depois. Assim o tempo de conversa da sessão fica em 50 minutos, e não
-     * cresce com o atraso de quem conferiu.
+     * cresce com o atraso de quem conferiu. A exceção é quando algo já foi registrado depois desse
+     * momento, como uma pausa e retomada do professor ou uma mensagem: a pausa fica no último registro,
+     * nunca antes dele, porque o histórico é refeito em ordem de data e sairia fora de ordem.
      *
      * @param estado o estado atual da sessão, com as pausas já feitas
      * @param agora o momento da conferência
@@ -143,7 +145,11 @@ public record Sessao(
         if (excedente.isNegative()) {
             return Optional.empty();
         }
-        return Optional.of(pausar(MotivoDaPausa.LIMITE_50_MINUTOS, agora.minus(excedente)));
+        Instant aosCinquentaMinutos = agora.minus(excedente);
+        Instant em = estado.ultimaAtividade()
+                .filter(ultima -> ultima.isAfter(aosCinquentaMinutos))
+                .orElse(aosCinquentaMinutos);
+        return Optional.of(pausar(MotivoDaPausa.LIMITE_50_MINUTOS, em));
     }
 
     /**
