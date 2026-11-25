@@ -121,6 +121,17 @@ class ConversaController {
     }
 
     /**
+     * RNF-04: tentar de novo depois de uma falha do provedor. Devolve a resposta vazia que abre o canal
+     * outra vez, para a tela trocar a resposta que falhou sem recarregar a página. A pergunta continua
+     * pendente e é respondida de novo.
+     */
+    @GetMapping("/resposta-pendente")
+    String respostaPendente(@PathVariable long id) {
+        controles.estado(id);
+        return "sessoes/conversa :: resposta(sessaoId=" + id + ")";
+    }
+
+    /**
      * Abre o canal e responde à pergunta pendente. Sessão e professor são conferidos antes, para uma
      * recusa voltar como status HTTP e não como evento.
      */
@@ -128,7 +139,9 @@ class ConversaController {
     @ResponseBody
     SseEmitter resposta(@PathVariable long id) {
         controles.estado(id);
-        var canal = new SseEmitter(TEMPO_MAXIMO_DA_RESPOSTA.toMillis());
+        // RF-20: o canal pode esperar a resposta de um canal anterior; o prazo da resposta conta depois dela.
+        var canal = new SseEmitter(
+                ConversaDaSessao.ESPERA_PELA_OUTRA_RESPOSTA.plus(TEMPO_MAXIMO_DA_RESPOSTA).toMillis());
         EtapaEmAndamento espera = etapas.iniciar(Etapa.ESPERA_DA_THREAD);
         try {
             respostas.execute(() -> {
@@ -142,17 +155,21 @@ class ConversaController {
         return canal;
     }
 
+    /**
+     * RF-20: a tela que recarregou ou reconectou no meio da resposta recebe a resposta inteira quando
+     * ela termina, ou a resposta já gravada ({@link ConversaDaSessao#entregarResposta}).
+     */
     private void transmitir(long id, SseEmitter canal) {
         var tela = new TelaNoCanal(canal, etapas);
         try {
-            conversa.responderPendente(id, tela);
+            conversa.entregarResposta(id, tela);
         } catch (FalhaNoProvedorDeIa e) {
             LOG.warn("O provedor de IA falhou na sessão {}", id, e);
             tela.falhar();
         } catch (RespostaEmAndamento e) {
-            // A tela reconectou enquanto a resposta anterior ainda chegava, antes de qualquer bloqueio:
-            // o canal antigo segue com ela.
-            LOG.debug("Canal repetido na sessão {}", id);
+            // A resposta do canal anterior não terminou a tempo: a tela oferece tentar de novo (RNF-04).
+            LOG.warn("A resposta anterior da sessão {} não terminou a tempo", id);
+            tela.falhar();
         } catch (UncheckedIOException e) {
             // A tela fechou no meio da resposta; o streaming do provedor já foi cancelado.
             LOG.info("A tela da sessão {} fechou antes do fim da resposta", id);
