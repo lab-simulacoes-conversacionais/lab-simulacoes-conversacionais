@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -57,6 +58,9 @@ class ProjecaoPelaTelaTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private StringRedisTemplate redis;
 
     private DadosDeSessao dados;
     private Navegador professora;
@@ -200,6 +204,64 @@ class ProjecaoPelaTelaTest {
         assertThat(resposta.body()).contains("A sessão já estava assim");
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Controle de tempo (RF-19, RN-17)
+    // ---------------------------------------------------------------------------------------------
+
+    /** O cronômetro da tela recebe o previsto do cenário (20 min) e o limite de 50 minutos. */
+    @Test
+    void painelLevaOPrevistoEOLimiteAoCronometro() throws Exception {
+        long sessao = iniciar();
+
+        String painel = painelDe(professora.get("/sessoes/" + sessao).body());
+
+        assertThat(painel).contains("data-previsto=\"1200\"").contains("data-limite=\"3000\"")
+                .containsPattern("data-aviso-previsto[^>]*hidden");
+    }
+
+    /** Critério de aceite: o aviso do previsto não interrompe a conversa. */
+    @Test
+    void tempoPrevistoAtingidoAvisaSemPausar() throws Exception {
+        long sessao = iniciar();
+        recuarInicio(sessao, 21);
+
+        String painel = professora.get("/sessoes/" + sessao + "/painel").body();
+
+        assertThat(painel).contains("O tempo previsto de 20 min foi atingido. A conversa pode continuar.")
+                .doesNotContainPattern("data-aviso-previsto[^>]*hidden")
+                .contains("Em andamento")
+                .contains("data-pode-perguntar=\"true\"");
+    }
+
+    /** Critério de aceite: aos 50 minutos a sessão pausa, e retomar pede a confirmação do professor. */
+    @Test
+    void aosCinquentaMinutosOPainelMostraAPausaEPedeConfirmacao() throws Exception {
+        long sessao = iniciar();
+        recuarInicio(sessao, 52);
+
+        String painel = professora.get("/sessoes/" + sessao + "/painel").body();
+
+        assertThat(painel).contains("Pausada")
+                .contains("A sessão chegou a 50 minutos de conversa, uma hora-aula, e foi pausada.")
+                .contains("hx-confirm=\"A sessão já tem 50 minutos de conversa, uma hora-aula. Continuar mesmo assim?\"")
+                .contains("data-pode-perguntar=\"false\"");
+        var retomada = professora.postHtmx("/sessoes/" + sessao + "/retomar", "");
+        assertThat(retomada.body()).contains("Em andamento").doesNotContain("hx-confirm=\"A sessão já tem 50");
+    }
+
+    /** A pergunta que chega depois dos 50 minutos é recusada, e a tela pede o painel de novo. */
+    @Test
+    void perguntaDepoisDosCinquentaMinutosAtualizaOPainel() throws Exception {
+        long sessao = iniciar();
+        recuarInicio(sessao, 51);
+
+        var resposta = professora.postHtmx("/sessoes/" + sessao + "/perguntas", "texto=Como+o+14-bis+voou%3F");
+
+        assertThat(resposta.statusCode()).isEqualTo(409);
+        assertThat(resposta.headers().firstValue("HX-Trigger")).contains("sessao-mudou");
+        assertThat(resposta.body()).contains("A sessão está pausada");
+    }
+
     /** RN-19: reiniciar limpa a tela; a conversa continua registrada. */
     @Test
     void reiniciarLimpaAConversaDaTela() throws Exception {
@@ -303,6 +365,16 @@ class ProjecaoPelaTelaTest {
         var id = SESSAO.matcher(local(resposta));
         assertThat(id.find()).as("redireciona para a projeção: " + local(resposta)).isTrue();
         return Long.parseLong(id.group(1));
+    }
+
+    /**
+     * Simula uma aula longa sem esperar: recua o início da sessão no banco e apaga a chave do Redis,
+     * que guarda o início antigo.
+     */
+    private void recuarInicio(long sessao, int minutos) {
+        jdbc.update("UPDATE sessao SET iniciada_em = iniciada_em - make_interval(mins => ?) WHERE id = ?",
+                minutos, sessao);
+        redis.delete("sessao:" + sessao + ":estado");
     }
 
     private long cenarioComDisparadoras() {
