@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.sessoes.dominio;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -26,6 +27,9 @@ public record Sessao(
         MotivoDaPausa motivoDaPausa,
         Instant iniciadaEm,
         Instant encerradaEm) {
+
+    /** RN-17: uma hora-aula. Aos 50 minutos de conversa, a sessão pausa sozinha. */
+    public static final Duration LIMITE_DE_TEMPO = Duration.ofMinutes(50);
 
     public Sessao {
         Objects.requireNonNull(status, "status");
@@ -115,6 +119,37 @@ public record Sessao(
         return status == StatusDaSessao.EM_ANDAMENTO
                 ? Optional.of(pausar(MotivoDaPausa.CONTEUDO_BLOQUEADO, em))
                 : Optional.empty();
+    }
+
+    /**
+     * RN-17: aos 50 minutos de conversa, sem contar as pausas, a sessão pausa sozinha, e só continua se o
+     * professor confirmar, retomando. Isso acontece uma vez só: depois da confirmação, ela não pausa de
+     * novo pelo tempo.
+     *
+     * <p>A pausa é registrada no momento exato em que a conversa completou 50 minutos, mesmo que a
+     * conferência venha um pouco depois. Assim o tempo de conversa da sessão fica em 50 minutos, e não
+     * cresce com o atraso de quem conferiu. A exceção é quando algo já foi registrado depois desse
+     * momento, como uma pausa e retomada do professor ou uma mensagem: a pausa fica no último registro,
+     * nunca antes dele, porque o histórico é refeito em ordem de data e sairia fora de ordem.
+     *
+     * @param estado o estado atual da sessão, com as pausas já feitas
+     * @param agora o momento da conferência
+     * @return a pausa, ou vazio se a sessão não está em andamento, não chegou aos 50 minutos ou já pausou
+     *     por isso antes
+     */
+    public Optional<MudancaNaSessao> pausarNoLimiteDeTempo(EstadoDaSessao estado, Instant agora) {
+        if (status != StatusDaSessao.EM_ANDAMENTO || estado.limiteDeTempoAtingido()) {
+            return Optional.empty();
+        }
+        Duration excedente = estado.tempoDeConversaAte(agora).minus(LIMITE_DE_TEMPO);
+        if (excedente.isNegative()) {
+            return Optional.empty();
+        }
+        Instant aosCinquentaMinutos = agora.minus(excedente);
+        Instant em = estado.ultimaAtividade()
+                .filter(ultima -> ultima.isAfter(aosCinquentaMinutos))
+                .orElse(aosCinquentaMinutos);
+        return Optional.of(pausar(MotivoDaPausa.LIMITE_50_MINUTOS, em));
     }
 
     /**

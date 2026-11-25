@@ -152,6 +152,21 @@ class EstadosNoRedisTest {
 
         assertThat(lido.ultimasMensagens()).extracting(MensagemExibida::respostaBloqueada).containsExactly(false);
         assertThat(lido.perguntaPendente()).isPresent();
+        // Também sem a marca do limite de tempo (RN-17), que entrou depois.
+        assertThat(lido.limiteDeTempoAtingido()).isFalse();
+    }
+
+    /** RN-17: a sessão que já pausou aos 50 minutos continua marcada depois de ir ao Redis. */
+    @Test
+    void marcaDoLimiteDeTempoEhLidaIgual() {
+        EstadoDaSessao estado = inicial()
+                .aplicar(EventoDaSessao.pausa(MotivoDaPausa.LIMITE_50_MINUTOS, INICIO.plusSeconds(3000)))
+                .aplicar(EventoDaSessao.retomada(INICIO.plusSeconds(3060)));
+
+        estados.gravar(estado);
+
+        assertThat(estados.buscar(sessaoId)).contains(estado);
+        assertThat(estados.buscar(sessaoId).orElseThrow().limiteDeTempoAtingido()).isTrue();
     }
 
     private EstadoDaSessao inicial() {

@@ -21,8 +21,12 @@
 
   <p class="aviso" role="alert" th:if="${tela.avisoDaPausa()}" th:text="${tela.avisoDaPausa()}">Aviso da pausa</p>
 
+  <!--
+    RF-19, RN-17: o cronômetro sabe o previsto e o limite, para avisar do previsto e pedir o painel de novo
+    aos 50 minutos sem esperar outro clique (projecao.js). O servidor é quem pausa.
+  -->
   <section class="card timer-card" data-cronometro
-           th:attr="data-decorrido=${tela.decorridoSegundos},data-rodando=${!tela.pausada()}">
+           th:attr="data-decorrido=${tela.decorridoSegundos},data-rodando=${!tela.pausada()},data-previsto=${tela.previstoSegundos()},data-limite=${tela.limiteSegundos()}">
     <div class="timer-top">
       <span>Tempo de conversa</span>
       <strong data-tempo th:text="${tela.decorridoFormatado()}">18:42</strong>
@@ -36,13 +40,22 @@
     </div>
   </section>
 
+  <!-- RN-17: o aviso do previsto não interrompe a conversa; só informa o professor. -->
+  <p class="aviso aviso-tempo" role="status" data-aviso-previsto th:if="${tela.previstoMinutos}"
+     th:hidden="${!tela.previstoAtingido()}"
+     th:text="|O tempo previsto de ${tela.previstoMinutos} min foi atingido. A conversa pode continuar.|">
+    O tempo previsto de 20 min foi atingido. A conversa pode continuar.
+  </p>
+
   <p class="aviso" role="status" th:if="${tela.noLimite()}">
     A turma já fez todas as perguntas desta sessão. Que tal encerrar e conversar sobre o que aprenderam?
   </p>
 
   <div class="controls">
+    <!-- RN-17: depois dos 50 minutos, retomar pede a confirmação do professor. -->
     <button th:if="${tela.pausada()}" class="btn btn-secondary" type="button" data-atalho="p"
-            th:hx-post="@{/sessoes/{id}/retomar(id=${tela.id})}" hx-target="#painel" hx-swap="outerHTML">
+            th:hx-post="@{/sessoes/{id}/retomar(id=${tela.id})}" hx-target="#painel" hx-swap="outerHTML"
+            th:attr="hx-confirm=${tela.pausadaPeloTempo()} ? 'A sessão já tem 50 minutos de conversa, uma hora-aula. Continuar mesmo assim?' : null">
       <svg th:replace="~{fragmentos/base :: iconePlay}"></svg> Retomar <kbd>P</kbd>
     </button>
     <button th:unless="${tela.pausada()}" class="btn btn-secondary" type="button" data-atalho="p"

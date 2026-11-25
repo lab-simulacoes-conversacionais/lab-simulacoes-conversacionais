@@ -268,8 +268,13 @@ class ConversaController {
                 "Não foi possível conferir a pergunta agora. Tente de novo daqui a pouco.");
     }
 
+    /**
+     * A sessão pode ter acabado de pausar sozinha, aos 50 minutos (RN-17). O painel é pedido de novo, para
+     * mostrar a pausa e o motivo.
+     */
     @ExceptionHandler(SessaoForaDoEstado.class)
     ModelAndView sessaoPausada(HttpServletResponse resposta) {
+        resposta.setHeader("HX-Trigger", "sessao-mudou");
         return aviso(resposta, HttpStatus.CONFLICT, "A sessão está pausada. Retome a sessão para continuar a conversa.");
     }
 
