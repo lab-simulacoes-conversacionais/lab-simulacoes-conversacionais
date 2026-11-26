@@ -4,13 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadeFinal;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.OrigemDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoPendente;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado.MetadadosCopiados;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.Triagem;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -231,11 +235,99 @@ class SinalizacoesJdbcTest {
         assertThat(contarDaMensagem()).isEqualTo(1);
     }
 
+    /** A fila traz só as pendentes, da mais antiga para a mais recente, com o que o curador precisa ver. */
+    @Test
+    void filaTrazAsPendentesDaMaisAntiga() {
+        long doCurador = sinalizar(curador, "CURADOR", AGORA.minusSeconds(60));
+        long doProfessor = sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(120));
+        long triada = sinalizarOutraResposta(AGORA.minusSeconds(180));
+        sinalizacoes.triar(Triagem.descartar(triada, curador, AGORA));
+
+        var daVersao = sinalizacoes.pendentes().stream().filter(pendente -> pendente.versaoId() == versao).toList();
+
+        assertThat(daVersao).extracting(SinalizacaoPendente::id).containsExactly(doProfessor, doCurador);
+        assertThat(daVersao.getFirst()).isEqualTo(new SinalizacaoPendente(doProfessor, sessao, versao,
+                "Como foi o primeiro voo?", "Voei em 1906, em Paris.", TipoDeErro.ERRO_HISTORICO,
+                GravidadePercebida.MODERADA, "O primeiro voo homologado foi em outubro de 1906.",
+                PerfilDaSinalizacao.PROFESSOR, professor, AGORA.minusSeconds(120)));
+    }
+
+    @Test
+    void confirmarGravaAGravidadeFinalEQuemTriou() {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        OrigemDaSinalizacao origem =
+                sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.GRAVE, curador, AGORA)).orElseThrow();
+
+        assertThat(origem).isEqualTo(new OrigemDaSinalizacao(
+                versao, GravidadePercebida.MODERADA, PerfilDaSinalizacao.PROFESSOR, AGORA));
+        assertThat(linha(id))
+                .containsEntry("status", "CONFIRMADA")
+                .containsEntry("gravidade_final", "GRAVE")
+                .containsEntry("triada_por_id", curador);
+        assertThat(jdbc.queryForObject("SELECT triada_em = ? FROM sinalizacao WHERE id = ?", Boolean.class,
+                        AGORA.atOffset(ZoneOffset.UTC), id))
+                .isTrue();
+    }
+
+    @Test
+    void descartarNaoGravaGravidade() {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        assertThat(sinalizacoes.triar(Triagem.descartar(id, curador, AGORA))).isPresent();
+
+        assertThat(linha(id)).containsEntry("status", "DESCARTADA").containsEntry("gravidade_final", null);
+    }
+
+    /** A segunda triagem não muda nada, e a transação continua usável. */
+    @Test
+    void sinalizacaoTriadaNaoETriadaDeNovo() {
+        long id = sinalizar(professor, "PROFESSOR");
+        sinalizacoes.triar(Triagem.descartar(id, curador, AGORA));
+
+        assertThat(sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.LEVE, curador, AGORA))).isEmpty();
+
+        assertThat(linha(id)).containsEntry("status", "DESCARTADA").containsEntry("gravidade_final", null);
+        assertThat(sinalizacoes.existe(id)).isTrue();
+    }
+
+    @Test
+    void sinalizacaoInexistenteNaoETriada() {
+        assertThat(sinalizacoes.triar(Triagem.descartar(-1, curador, AGORA))).isEmpty();
+        assertThat(sinalizacoes.existe(-1)).isFalse();
+    }
+
+    private long sinalizarOutraResposta(Instant criadaEm) {
+        long outra = jdbc.queryForObject(
+                """
+                INSERT INTO mensagem (sessao_id, autoria, texto, criado_em)
+                VALUES (?, 'IA', 'Outra resposta.', ?) RETURNING id""",
+                Long.class, sessao, RESPOSTA.plusSeconds(30).atOffset(ZoneOffset.UTC));
+        return jdbc.queryForObject(
+                """
+                INSERT INTO sinalizacao (sessao_id, sessao_iniciada_em, sessao_professor_id, cenario_versao_id,
+                                         mensagem_id, pergunta, resposta, respondida_em, tipo, gravidade_percebida,
+                                         justificativa, sinalizado_por_id, perfil, criada_em)
+                VALUES (?, ?, ?, ?, ?, 'Pergunta', 'Outra resposta.', ?, 'ANACRONISMO', 'LEVE', 'Inventada.', ?,
+                        'PROFESSOR', ?)
+                RETURNING id""",
+                Long.class, sessao, INICIO.atOffset(ZoneOffset.UTC), professor, versao, outra,
+                RESPOSTA.atOffset(ZoneOffset.UTC), professor, criadaEm.atOffset(ZoneOffset.UTC));
+    }
+
+    private long sinalizar(long quem, String perfil, Instant criadaEm) {
+        return sinalizar(quem, perfil, meta, METADADOS, criadaEm);
+    }
+
     private long sinalizar(long quem, String perfil) {
         return sinalizar(quem, perfil, meta, METADADOS);
     }
 
     private long sinalizar(long quem, String perfil, Long metaId, String metadados) {
+        return sinalizar(quem, perfil, metaId, metadados, AGORA);
+    }
+
+    private long sinalizar(long quem, String perfil, Long metaId, String metadados, Instant criadaEm) {
         return jdbc.queryForObject(
                 """
                 INSERT INTO sinalizacao (sessao_id, sessao_iniciada_em, sessao_professor_id, cenario_versao_id,
@@ -247,7 +339,7 @@ class SinalizacoesJdbcTest {
                 RETURNING id""",
                 Long.class,
                 sessao, INICIO.atOffset(ZoneOffset.UTC), professor, versao, mensagem, metaId, metadados,
-                RESPOSTA.atOffset(ZoneOffset.UTC), quem, perfil, AGORA.atOffset(ZoneOffset.UTC));
+                RESPOSTA.atOffset(ZoneOffset.UTC), quem, perfil, criadaEm.atOffset(ZoneOffset.UTC));
     }
 
     private Map<String, Object> linha(long id) {

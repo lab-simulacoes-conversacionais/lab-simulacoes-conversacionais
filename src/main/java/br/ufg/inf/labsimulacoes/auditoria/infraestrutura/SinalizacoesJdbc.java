@@ -1,13 +1,20 @@
 package br.ufg.inf.labsimulacoes.auditoria.infraestrutura;
 
+import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.OrigemDaSinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoPendente;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.Triagem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,6 +36,19 @@ class SinalizacoesJdbc implements Sinalizacoes {
             VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT ON CONSTRAINT uq_sinalizacao_mensagem_por_pessoa DO NOTHING
             RETURNING id""";
+
+    /** Só a pendente é triada: a segunda triagem, mesmo ao mesmo tempo, não encontra a linha. */
+    private static final String TRIAR = """
+            UPDATE sinalizacao SET status = ?, gravidade_final = ?, triada_por_id = ?, triada_em = ?
+            WHERE id = ? AND status = 'PENDENTE'
+            RETURNING cenario_versao_id, gravidade_percebida, perfil, criada_em""";
+
+    private static final String PENDENTES = """
+            SELECT id, sessao_id, cenario_versao_id, pergunta, resposta, tipo, gravidade_percebida, justificativa,
+                   perfil, sinalizado_por_id, criada_em
+            FROM sinalizacao
+            WHERE status = 'PENDENTE'
+            ORDER BY criada_em, id""";
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
@@ -70,6 +90,44 @@ class SinalizacoesJdbc implements Sinalizacoes {
                 SELECT mensagem_id FROM sinalizacao
                 WHERE sessao_id = ? AND sinalizado_por_id = ? AND mensagem_id IS NOT NULL""",
                 Long.class, sessaoId, sinalizadoPorId));
+    }
+
+    @Override
+    public List<SinalizacaoPendente> pendentes() {
+        return jdbc.query(PENDENTES, (linha, n) -> new SinalizacaoPendente(
+                linha.getLong("id"),
+                linha.getObject("sessao_id", Long.class),
+                linha.getLong("cenario_versao_id"),
+                linha.getString("pergunta"),
+                linha.getString("resposta"),
+                TipoDeErro.valueOf(linha.getString("tipo")),
+                GravidadePercebida.valueOf(linha.getString("gravidade_percebida")),
+                linha.getString("justificativa"),
+                PerfilDaSinalizacao.valueOf(linha.getString("perfil")),
+                linha.getLong("sinalizado_por_id"),
+                linha.getObject("criada_em", OffsetDateTime.class).toInstant()));
+    }
+
+    @Override
+    public Optional<OrigemDaSinalizacao> triar(Triagem triagem) {
+        return jdbc.query(TRIAR, (linha, n) -> new OrigemDaSinalizacao(
+                                linha.getLong("cenario_versao_id"),
+                                GravidadePercebida.valueOf(linha.getString("gravidade_percebida")),
+                                PerfilDaSinalizacao.valueOf(linha.getString("perfil")),
+                                linha.getObject("criada_em", OffsetDateTime.class).toInstant()),
+                        triagem.decisao().name(),
+                        triagem.gravidade() == null ? null : triagem.gravidade().name(),
+                        triagem.triadaPorId(),
+                        momento(triagem.triadaEm()),
+                        triagem.sinalizacaoId())
+                .stream()
+                .findFirst();
+    }
+
+    @Override
+    public boolean existe(long id) {
+        return Boolean.TRUE.equals(
+                jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM sinalizacao WHERE id = ?)", Boolean.class, id));
     }
 
     /** As chaves são os nomes do registro: provedor, modelo e versaoPrompt. */
