@@ -7,6 +7,8 @@ import java.lang.reflect.RecordComponent;
 import java.time.Instant;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * O evento da triagem leva só ids, códigos e o momento (RF-24, RNF-01). Se alguém acrescentar um campo de
@@ -45,6 +47,21 @@ class SinalizacaoTriadaTest {
         assertThatThrownBy(() -> new SinalizacaoTriada(1, 2, "CONFIRMADA", null, "GRAVE", "PROFESSOR", 3, MOMENTO))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new SinalizacaoTriada(1, 2, "DESCARTADA", "LEVE", "GRAVE", "PROFESSOR", 3, MOMENTO))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** Uma decisão desconhecida não pode passar por descarte nos ouvintes da RF-25 (RN-23d). */
+    @ParameterizedTest(name = "[{index}] {0}, {1}, {2}, {3}")
+    @CsvSource(nullValues = "-", value = {
+        "PENDENTE, -, GRAVE, PROFESSOR",
+        "TRIADA, -, GRAVE, PROFESSOR",
+        "confirmada, LEVE, GRAVE, PROFESSOR",
+        "CONFIRMADA, GRAVISSIMA, GRAVE, PROFESSOR",
+        "DESCARTADA, -, GRAVISSIMA, PROFESSOR",
+        "DESCARTADA, -, GRAVE, ADMINISTRADOR"
+    })
+    void codigoDesconhecidoERecusado(String decisao, String gravidadeFinal, String percebida, String perfil) {
+        assertThatThrownBy(() -> new SinalizacaoTriada(1, 2, decisao, gravidadeFinal, percebida, perfil, 3, MOMENTO))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
