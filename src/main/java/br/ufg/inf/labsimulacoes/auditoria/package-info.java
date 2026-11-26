@@ -6,5 +6,5 @@
  */
 @org.springframework.modulith.ApplicationModule(
         displayName = "Auditoria",
-        allowedDependencies = {"acesso", "eventos"})
+        allowedDependencies = {"acesso", "sessoes", "ia", "eventos"})
 package br.ufg.inf.labsimulacoes.auditoria;

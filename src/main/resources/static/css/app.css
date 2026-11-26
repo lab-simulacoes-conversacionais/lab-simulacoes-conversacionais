@@ -851,3 +851,29 @@ kbd { font-family: inherit; font-size: 10px; border-radius: 4px; padding: 2px 5p
   .admin-tabs { grid-template-columns: 1fr 1fr; }
   .period-options { align-items: stretch; flex-direction: column; }
 }
+
+/* Revisão da conversa e sinalização de erro (RF-23) */
+.revisao-conversa { margin-top: 8px; }
+.sinalizacao { margin: -4px 0 18px; max-width: 80%; }
+.sinalizacao summary { list-style: none; min-height: 34px; padding: 6px 14px; font-size: 12px; }
+.sinalizacao summary::-webkit-details-marker { display: none; }
+.sinalizacao details[open] summary { margin-bottom: 12px; }
+.sinalizacao-form { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px 16px; background: var(--surface); }
+.sinalizacao-form label { font-size: 12px; font-weight: 800; }
+.sinalizacao-form textarea { width: 100%; margin: 6px 0 4px; }
+.sinalizacao-form small { display: block; color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+/* Radios nativos: desfazem o estilo de campo de texto das regras globais "select, input, textarea"
+   (altura 46px, padding, borda) e "form input" (largura 100%), e a de "form label" (display block).
+   Os seletores dependem só da classe do formulário, para ganhar delas em especificidade. */
+.sinalizacao-form fieldset { border: 0; margin: 0 0 14px; padding: 0; min-width: 0; }
+.sinalizacao-form legend { padding: 0; margin-bottom: 6px; font-size: 12px; font-weight: 800; }
+.sinalizacao-form label:has(> input[type="radio"]) { display: flex; align-items: center; gap: .5rem; width: auto; margin: 6px 0; font-weight: 600; cursor: pointer; }
+.sinalizacao-form label:has(> input[type="radio"] + span small) { align-items: flex-start; }
+.sinalizacao-form input[type="radio"] { flex: none; box-sizing: border-box; width: 1.1rem; height: 1.1rem; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 50%; box-shadow: none; accent-color: var(--blue); }
+.sinalizacao-form input[type="radio"]:focus { box-shadow: none; outline: none; }
+.sinalizacao-form input[type="radio"]:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.sinalizacao-form label small { display: inline; margin: 0; font-weight: 600; }
+.sinalizacao-feita { color: #075d33; font-weight: 800; font-size: 13px; margin: 0 0 7px; }
+.sessoes-recentes { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.sessoes-recentes .card-top { margin-bottom: 8px; }
+.sessoes-recentes .card-top p { margin: 4px 0 0; }

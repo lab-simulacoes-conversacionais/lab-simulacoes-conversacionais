@@ -70,7 +70,7 @@ A tabela mostra o que cada módulo faz e de quem depende. As setas de dependênc
 | Acesso | Usuários, perfis acumuláveis, turmas, parâmetros (limite de perguntas, custo diário) e autenticação. | — | RF-01 a RF-04 |
 | Cenários | Cenários, versões, vínculo com a BNCC, quiz, curadoria (envio, teste, checklist, decisão), biblioteca e arquivamento. | Acesso, Adaptador de IA | RF-05 a RF-13, RF-27 |
 | Sessões | Sessões em sala, mensagens, controles (pausar, retomar, reiniciar, encerrar), tempo, aplicação do quiz e engajamento. | Acesso, Cenários, Adaptador de IA | RF-14 a RF-20, RF-22, RF-28 a RF-30 |
-| Auditoria | Casos de conteúdo bloqueado, sinalizações, triagem, regras de suspensão e log de ações críticas. | Acesso | RF-23 a RF-26 |
+| Auditoria | Casos de conteúdo bloqueado, sinalizações, triagem, regras de suspensão e log de ações críticas. | Acesso, Sessões, Adaptador de IA | RF-23 a RF-26 |
 | Métricas | Indicadores por sessão, cenário e turma, comparação com sessões de controle, painel e exportação CSV/PDF; alerta de custo diário da IA ao administrador. | Acesso (lê dados por eventos), Adaptador de IA (lê o consumo) | RF-31, RF-32, RNF-13 |
 | Adaptador de IA | Porta única para o provedor: falas do personagem, sugestão de cenário, moderação, bloqueio de dados pessoais antes do envio, prompts versionados e metadados de cada chamada. | — | RNF-02, RNF-10, RNF-13, RF-21 |
 
@@ -87,7 +87,7 @@ Cada módulo expõe apenas o pacote raiz (sua API); os subpacotes internos ficam
 | --- | --- | --- | --- |
 | CenarioAprovado, CenarioDevolvido, CenarioArquivado | Cenários | Auditoria | Registra a ação crítica no log (RN-35). |
 | ConteudoBloqueado | Sessões | Auditoria | Abre caso na fila do curador; a sessão já foi pausada (RN-20). |
-| SinalizacaoRegistrada | Auditoria | Cenários, Sessões | Se marcada como grave, suspende o cenário e pausa sessões em andamento (RN-23a, RN-25). |
+| SinalizacaoRegistrada | Auditoria | Cenários, Sessões (a partir da RF-25) | Se marcada como grave pelo professor, suspende o cenário e pausa sessões em andamento (RN-23a, RN-25). Leva só ids e códigos, sem a pergunta, a resposta nem a justificativa. Até a RF-25 é publicado sem consumidor. |
 | SinalizacaoTriada | Auditoria | Cenários, Métricas | Mantém ou retira a suspensão (RN-23b a d) e atualiza a taxa de erros (RN-29). |
 | SessaoEncerrada | Sessões | Métricas | Grava contadores e indicadores da sessão (RN-28). |
 | PerfilAlterado, RelatorioExportado | Acesso, Métricas | Auditoria | Registra a ação crítica no log (RN-35). |
@@ -193,7 +193,7 @@ Principais tabelas do PostgreSQL. Todas usam chave primária própria e datas de
 | `mensagem`, `evento_sessao` | Sessões | Autoria (Turma ou IA), texto, data; pausas, retomadas e reinícios com motivo. | Mensagens apagadas pela retenção (RN-33). |
 | `resposta_ia_meta` | Adaptador de IA | Provedor, modelo, parâmetros, versão do prompt, tokens, custo, latência. | Um registro por resposta da IA (RNF-10). |
 | `resultado_quiz` | Sessões | Contagem por alternativa de cada questão. | Soma ≤ presentes (RN-27). |
-| `sinalizacao` | Auditoria | Trecho copiado, tipo, gravidade percebida e final, justificativa, status. | Referência à mensagem pode ficar nula após a retenção. |
+| `sinalizacao` | Auditoria | Pergunta e resposta copiadas, início e professor da sessão, versão, metadados da resposta copiados em JSONB (provedor, modelo, versão do prompt), tipo, gravidade percebida, justificativa, quem sinalizou e com que perfil, status. A gravidade final vem com a triagem (RF-24). | Referências à sessão, à mensagem e aos metadados com `ON DELETE SET NULL`; uma sinalização por pessoa e mensagem. |
 | `log_auditoria` | Auditoria | Usuário, ação, entidade, detalhes em JSONB, data, hash encadeado. | Sem UPDATE e DELETE (RN-35). |
 | `execucao_retencao` | Sessões | Data da execução e quantidade de registros apagados. | Registro de cada execução (RNF-15). |
 
@@ -201,7 +201,8 @@ Principais tabelas do PostgreSQL. Todas usam chave primária própria e datas de
 
 Os dois pontos vêm do conflito entre a exclusão das conversas (RN-33) e dados que precisam ser mantidos, e ficam definidos assim.
 
-- **Sinalização × retenção.** Ao ser criada, a sinalização copia o texto da resposta sinalizada e da pergunta que a originou, além de guardar a sessão, a versão do cenário e os metadados da resposta (provedor, modelo, versão do prompt). A referência à mensagem é opcional (`ON DELETE SET NULL`), então a exclusão das conversas não deixa a sinalização órfã nem apaga a evidência usada na triagem.
+- **Sinalização × retenção.** Ao ser criada, a sinalização copia o texto da resposta sinalizada e da pergunta que a originou, o início e o professor da sessão, a versão do cenário e os metadados da resposta (provedor, modelo, versão do prompt). As referências à mensagem, à sessão e aos metadados são opcionais (`ON DELETE SET NULL`), então a exclusão das conversas não deixa a sinalização órfã nem apaga a evidência usada na triagem.
+- **Divergência em aberto: apagar a sessão ou só as mensagens.** Este documento prevê que a retenção apague as conversas e mantenha a sessão, onde ficam os contadores das métricas (próximo item). A sinalização (RF-23) não depende dessa escolha: ela também sobrevive à exclusão da sessão, porque copia o que precisa e a referência à sessão fica nula. Hoje, porém, `mensagem`, `evento_sessao` e `caso_bloqueado` apontam para a sessão sem `ON DELETE`, o que impede apagá-la. A decisão fica para o job de retenção (RNF-15), que precisa escolher entre manter a sessão ou tratar essas referências antes.
 - **Métricas × retenção.** Ao encerrar a sessão, o sistema grava nela os contadores de perguntas da turma, respostas da IA, duração efetiva e tempo em pausa. A taxa de erros (RN-29) passa a usar a soma das respostas registradas nas sessões de cada versão, e não a contagem de mensagens, e continua correta depois da exclusão das conversas. Antes de apagar mensagens, o job de retenção confere se toda sessão já tem contadores e os calcula quando faltarem.
 
 ## 7. Segurança e privacidade
