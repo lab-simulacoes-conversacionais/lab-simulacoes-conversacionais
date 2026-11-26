@@ -4,6 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado.MetadadosCopiados;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -37,6 +44,9 @@ class SinalizacoesJdbcTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private Sinalizacoes sinalizacoes;
 
     private DadosDeSessao dados;
     private long professor;
@@ -161,6 +171,27 @@ class SinalizacoesJdbcTest {
                     .containsEntry("resposta", "Voei em 1906, em Paris.");
             assertThat(linha.get("metadados_da_resposta")).isNotNull();
         }
+    }
+
+    /**
+     * Pelo repositório: a sinalização entra com o JSON dos metadados nas três chaves do registro, e a
+     * repetida volta vazia sem abortar a transação, que continua usável.
+     */
+    @Test
+    void repositorioGravaUmaVezEAvisaARepetida() {
+        var trecho = new TrechoSinalizado(sessao, INICIO, professor, versao, mensagem, meta,
+                new MetadadosCopiados("openai", "m", "v1"), "Como foi o primeiro voo?", "Voei em 1906, em Paris.",
+                RESPOSTA);
+        var sinalizacao = new Sinalizacao(trecho, TipoDeErro.ANACRONISMO, GravidadePercebida.GRAVE,
+                "Justificativa inventada.", professor, PerfilDaSinalizacao.PROFESSOR, AGORA);
+
+        long id = sinalizacoes.registrar(sinalizacao).orElseThrow();
+
+        assertThat(sinalizacoes.registrar(sinalizacao)).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT metadados_da_resposta::text FROM sinalizacao WHERE id = ?", String.class, id))
+                .isEqualTo("{\"modelo\": \"m\", \"provedor\": \"openai\", \"versaoPrompt\": \"v1\"}");
+        assertThat(linha(id)).containsEntry("perfil", "PROFESSOR").containsEntry("status", "PENDENTE");
+        assertThat(contarDaMensagem()).isEqualTo(1);
     }
 
     private long sinalizar(long quem, String perfil) {
