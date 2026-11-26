@@ -21,6 +21,9 @@ public interface Sinalizacoes {
     /** As sinalizações que aguardam a triagem, da mais antiga para a mais recente (RF-24). */
     List<SinalizacaoPendente> pendentes();
 
+    /** As mesmas pendentes, só com o id, o tipo e quando foram criadas, para o resumo do prazo (RN-24, RN-37). */
+    List<PendenciaDaTriagem> pendenciasSemTexto();
+
     /**
      * Lê a sinalização para a triagem e a trava até o fim da transação: com dois curadores ao mesmo tempo, o
      * segundo espera e já a encontra triada.

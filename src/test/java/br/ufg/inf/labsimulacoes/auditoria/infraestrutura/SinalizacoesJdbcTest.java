@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadeFinal;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PendenciaDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoATriar;
@@ -250,6 +251,22 @@ class SinalizacoesJdbcTest {
                 "Como foi o primeiro voo?", "Voei em 1906, em Paris.", TipoDeErro.ERRO_HISTORICO,
                 GravidadePercebida.MODERADA, "O primeiro voo homologado foi em outubro de 1906.",
                 PerfilDaSinalizacao.PROFESSOR, professor, AGORA.minusSeconds(120)));
+    }
+
+    /** O resumo do prazo lê as mesmas pendentes, na mesma ordem, sem os textos (RN-37). */
+    @Test
+    void pendenciasSemTextoTrazemAsPendentesDaMaisAntiga() {
+        long doCurador = sinalizar(curador, "CURADOR", AGORA.minusSeconds(60));
+        long doProfessor = sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(120));
+        long triada = sinalizarOutraResposta(AGORA.minusSeconds(180));
+        sinalizacoes.triar(Triagem.descartar(triada, curador, AGORA));
+
+        assertThat(sinalizacoes.pendenciasSemTexto())
+                .filteredOn(pendencia -> pendencia.id() == doCurador || pendencia.id() == doProfessor
+                        || pendencia.id() == triada)
+                .containsExactly(
+                        new PendenciaDaTriagem(doProfessor, TipoDeErro.ERRO_HISTORICO, AGORA.minusSeconds(120)),
+                        new PendenciaDaTriagem(doCurador, TipoDeErro.ERRO_HISTORICO, AGORA.minusSeconds(60)));
     }
 
     /** A triagem lê a sinalização com o que o log e o evento precisam. */

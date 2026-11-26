@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.auditoria.aplicacao;
 
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PendenciaDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoPendente;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
@@ -46,11 +47,14 @@ public class FilaDeTriagem {
                 .toList();
     }
 
-    /** Quantas sinalizações aguardam a triagem e quais passaram do prazo, da mais antiga. */
+    /**
+     * Quantas sinalizações aguardam a triagem e quais passaram do prazo, da mais antiga. A consulta não lê a
+     * pergunta, a resposta nem a justificativa.
+     */
     @PreAuthorize("hasAnyRole('CURADOR', 'ADMINISTRADOR')")
     public ResumoDoPrazo resumoDoPrazo() {
         Instant agora = relogio.agora();
-        List<SinalizacaoPendente> pendentes = sinalizacoes.pendentes();
+        List<PendenciaDaTriagem> pendentes = sinalizacoes.pendenciasSemTexto();
         return new ResumoDoPrazo(
                 pendentes.size(),
                 pendentes.stream()

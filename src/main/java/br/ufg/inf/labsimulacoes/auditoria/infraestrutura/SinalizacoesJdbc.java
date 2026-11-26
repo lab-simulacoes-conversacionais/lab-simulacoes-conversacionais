@@ -1,6 +1,7 @@
 package br.ufg.inf.labsimulacoes.auditoria.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PendenciaDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoATriar;
@@ -52,6 +53,12 @@ class SinalizacoesJdbc implements Sinalizacoes {
     private static final String PENDENTES = """
             SELECT id, sessao_id, cenario_versao_id, pergunta, resposta, tipo, gravidade_percebida, justificativa,
                    perfil, sinalizado_por_id, criada_em
+            FROM sinalizacao
+            WHERE status = 'PENDENTE'
+            ORDER BY criada_em, id""";
+
+    private static final String PENDENCIAS_SEM_TEXTO = """
+            SELECT id, tipo, criada_em
             FROM sinalizacao
             WHERE status = 'PENDENTE'
             ORDER BY criada_em, id""";
@@ -111,6 +118,14 @@ class SinalizacoesJdbc implements Sinalizacoes {
                 linha.getString("justificativa"),
                 PerfilDaSinalizacao.valueOf(linha.getString("perfil")),
                 linha.getLong("sinalizado_por_id"),
+                linha.getObject("criada_em", OffsetDateTime.class).toInstant()));
+    }
+
+    @Override
+    public List<PendenciaDaTriagem> pendenciasSemTexto() {
+        return jdbc.query(PENDENCIAS_SEM_TEXTO, (linha, n) -> new PendenciaDaTriagem(
+                linha.getLong("id"),
+                TipoDeErro.valueOf(linha.getString("tipo")),
                 linha.getObject("criada_em", OffsetDateTime.class).toInstant()));
     }
 
