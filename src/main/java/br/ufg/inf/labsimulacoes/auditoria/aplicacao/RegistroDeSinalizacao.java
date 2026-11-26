@@ -26,8 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,8 +55,6 @@ public class RegistroDeSinalizacao {
     public static final String METRICA = "lab.auditoria.sinalizacao";
 
     private static final Logger LOG = LoggerFactory.getLogger(RegistroDeSinalizacao.class);
-    private static final String PERFIL_PROFESSOR = "ROLE_PROFESSOR";
-    private static final String PERFIL_CURADOR = "ROLE_CURADOR";
 
     private final TrechosDasSessoes trechos;
     private final OrigemDasRespostas origens;
@@ -129,17 +125,9 @@ public class RegistroDeSinalizacao {
     private static PerfilDaSinalizacao perfil(TrechoParaSinalizar trecho, long quem, Instant agora) {
         boolean dono = trecho.professorId() == quem;
         Instant base = PrazoDaSinalizacao.base(trecho.sessaoIniciadaEm(), trecho.sessaoEncerradaEm());
-        boolean noPrazo = PrazoDaSinalizacao.permite(base, agora);
-        if (dono && noPrazo && tem(PERFIL_PROFESSOR)) {
-            return PerfilDaSinalizacao.PROFESSOR;
-        }
-        if (tem(PERFIL_CURADOR)) {
-            return PerfilDaSinalizacao.CURADOR;
-        }
-        if (!dono) {
-            throw new RespostaNaoEncontrada(trecho.mensagemId());
-        }
-        throw new ForaDoPrazoDeSinalizacao(trecho.sessaoId(), PrazoDaSinalizacao.limite(base));
+        return QuemSinaliza.perfil(dono, base, agora).orElseThrow(() -> dono
+                ? new ForaDoPrazoDeSinalizacao(trecho.sessaoId(), PrazoDaSinalizacao.limite(base))
+                : new RespostaNaoEncontrada(trecho.mensagemId()));
     }
 
     /** O que a sinalização guarda da conversa, com a origem da resposta copiada dos metadados. */
@@ -158,11 +146,5 @@ public class RegistroDeSinalizacao {
                 trecho.pergunta(),
                 trecho.resposta(),
                 trecho.respondidaEm());
-    }
-
-    private static boolean tem(String perfil) {
-        Authentication autenticacao = SecurityContextHolder.getContext().getAuthentication();
-        return autenticacao != null
-                && autenticacao.getAuthorities().stream().anyMatch(dado -> perfil.equals(dado.getAuthority()));
     }
 }

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Revisão da conversa · Laboratório')}"></head>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Revisão da conversa depois da aula (RF-23): a conversa gravada, só para leitura, com o botão de sinalizar
+  em cada resposta do personagem enquanto o prazo do RN-21 vale. A sinalização durante a aula é da #43.
+-->
+<main class="page narrow-page">
+  <a class="back-link" th:href="@{/sessoes/revisao}">Sessões recentes</a>
+  <div class="step-heading">
+    <div>
+      <p class="eyebrow">REVISÃO DA CONVERSA</p>
+      <h1 th:text="${sessao.titulo()}">O voo do 14-bis</h1>
+      <p th:text="|${sessao.turma()} · ${sessao.data()}|">8º A · 20 de novembro de 2026</p>
+    </div>
+  </div>
+
+  <p class="hint-note" th:if="${podeSinalizar}">
+    Sinalize as respostas do personagem com possível erro. A curadoria analisa cada sinalização.
+    <span th:text="|O professor pode sinalizar até ${sessao.limite()}.|">O professor pode sinalizar até 27/11/2026.</span>
+  </p>
+  <p class="hint-note" th:unless="${podeSinalizar}"
+     th:text="|O prazo para sinalizar terminou em ${sessao.limite()}. A conversa fica disponível só para leitura.|">
+    O prazo terminou.
+  </p>
+
+  <section class="card revisao-conversa" aria-label="Conversa da sessão">
+    <p class="test-empty" th:if="${itens.isEmpty()}">Esta sessão não tem mensagens.</p>
+    <th:block th:each="item : ${itens}">
+      <div class="mini-message" th:classappend="${item.mensagem().daTurma()} ? 'tester'">
+        <strong th:text="${item.mensagem().daTurma()} ? 'Turma' : 'Personagem (simulação)'">Turma</strong>
+        <p th:text="${item.mensagem().texto()}">Texto da mensagem</p>
+      </div>
+      <p class="test-notice" th:if="${item.mensagem().respostaBloqueada()}">
+        A resposta a esta pergunta foi bloqueada pelo filtro e não foi exibida.
+      </p>
+      <th:block th:if="${item.mensagem().daIa()}"
+                th:with="sessaoId=${sessao.id()},mensagemId=${item.mensagem().id()},situacao=${item.situacao().name()}">
+        <div th:replace="~{sinalizacoes/formulario :: sinalizar}"></div>
+      </th:block>
+    </th:block>
+  </section>
+</main>
+<script th:replace="~{fragmentos/base :: htmx}"></script>
+</body>
+</html>

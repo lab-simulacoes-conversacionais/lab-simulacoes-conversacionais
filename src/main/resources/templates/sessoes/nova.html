@@ -13,6 +13,8 @@
       <h1>Prepare a conversa</h1>
       <p>Escolha a turma e o cenário aprovado para começar.</p>
     </div>
+    <!-- RF-23: as sessões dos últimos 7 dias, para sinalizar respostas depois da aula. -->
+    <a class="btn btn-secondary" th:href="@{/sessoes/revisao}">Sessões recentes</a>
   </div>
 
   <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>

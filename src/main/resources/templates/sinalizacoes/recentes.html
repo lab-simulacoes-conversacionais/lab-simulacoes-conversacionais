@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Sessões recentes · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  As sessões do professor que ainda estão no prazo para sinalizar (RF-23, RN-21): as encerradas nos últimos
+  7 dias e as abertas que começaram nesse período. Cada uma leva à revisão da conversa.
+-->
+<main class="page narrow-page">
+  <a class="back-link" th:href="@{/}">Voltar ao início</a>
+  <div class="step-heading">
+    <div>
+      <p class="eyebrow">SESSÕES RECENTES</p>
+      <h1>Revise as conversas</h1>
+      <p>Até 7 dias depois da aula, você pode sinalizar respostas do personagem com possível erro.</p>
+    </div>
+  </div>
+
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <p class="hint-note" th:if="${sessoes.isEmpty()}">Nenhuma sessão nos últimos 7 dias.</p>
+  <ul class="sessoes-recentes" th:unless="${sessoes.isEmpty()}">
+    <li class="card" th:each="s : ${sessoes}">
+      <div class="card-top">
+        <div>
+          <strong th:text="${s.titulo()}">O voo do 14-bis</strong>
+          <p class="hint-note" th:text="|${s.turma()} · ${s.data()}|">8º A · 20 de novembro de 2026</p>
+        </div>
+        <span class="badge badge-neutral" th:if="${s.encerrada()}">Encerrada</span>
+        <span class="badge badge-pending" th:unless="${s.encerrada()}">Não encerrada</span>
+      </div>
+      <p class="hint-note" th:text="|Pode sinalizar até ${s.limite()}.|">Pode sinalizar até 27/11/2026 às 10:50.</p>
+      <a class="btn btn-secondary" th:href="@{/sessoes/{id}/revisao(id=${s.id()})}">Revisar a conversa</a>
+    </li>
+  </ul>
+</main>
+</body>
+</html>

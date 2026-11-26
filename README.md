@@ -242,7 +242,13 @@ Professor e curador sinalizam uma resposta da IA com possível erro (RF-23, RN-2
 - **Dados pessoais:** a justificativa passa pelo `BloqueioDeDadosPessoais`, porque fica gravada para sempre (RNF-01). A pergunta e a resposta copiadas não passam: a sinalização não pode ser recusada pelo conteúdo que ela denuncia.
 - **Evento e métrica:** o `SinalizacaoRegistrada` leva só ids e códigos, sem nenhum texto. A métrica `lab.auditoria.sinalizacao` conta por `tipo` e `perfil`. O log registra só o id da sinalização e da sessão.
 - **Relógio:** o prazo usa o `RelogioDaAuditoria`, que os testes trocam por um momento fixo. O de Sessões é interno àquele módulo.
-- **Fora desta issue:** a triagem e a gravidade final (RF-24), a suspensão e a pausa das sessões (RF-25), a taxa de erros (RN-29), o botão de sinalizar durante a aula (#43) e a fila do curador (#44).
+- **Na tela, depois da aula:**
+  - **Sessões recentes** (`/sessoes/revisao`): as sessões do professor ainda no prazo, cada uma com o limite para sinalizar. O link fica na tela de nova sessão.
+  - **Revisão da conversa** (`/sessoes/{id}/revisao`): a conversa gravada, só para leitura, com "Sinalizar possível erro" em cada resposta do personagem enquanto o prazo vale. Depois dele, a conversa continua visível, sem o botão. O link fica na tela de sessão encerrada.
+  - A sessão de outro professor responde 404, como uma que não existe. A regra de quem pode sinalizar é a mesma do caso de uso (`QuemSinaliza`), então a tela só mostra o botão quando a sinalização seria aceita.
+  - O envio vai pelo HTMX e volta com o fragmento do formulário, com status 200 também na recusa, como na curadoria: o aviso aparece no lugar do formulário, sem o ajuste de 4xx do `projecao.js`. Na recusa por dado pessoal, a justificativa não volta à tela.
+  - As rotas de `/sessoes` são só do perfil Professor, então o curador sem esse perfil ainda não tem tela para sinalizar.
+- **Fora desta issue:** a triagem e a gravidade final (RF-24), a suspensão e a pausa das sessões (RF-25), a taxa de erros (RN-29), o botão de sinalizar durante a aula (#43), a fila do curador (#44) e uma tela para o curador sinalizar respostas.
 
 ### Observabilidade e custo da IA
 

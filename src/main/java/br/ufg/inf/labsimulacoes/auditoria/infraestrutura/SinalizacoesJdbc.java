@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -60,6 +61,15 @@ class SinalizacoesJdbc implements Sinalizacoes {
                         momento(sinalizacao.criadaEm()))
                 .stream()
                 .findFirst();
+    }
+
+    @Override
+    public Set<Long> respostasSinalizadasPor(long sessaoId, long sinalizadoPorId) {
+        return Set.copyOf(jdbc.queryForList(
+                """
+                SELECT mensagem_id FROM sinalizacao
+                WHERE sessao_id = ? AND sinalizado_por_id = ? AND mensagem_id IS NOT NULL""",
+                Long.class, sessaoId, sinalizadoPorId));
     }
 
     /** As chaves são os nomes do registro: provedor, modelo e versaoPrompt. */

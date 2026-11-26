@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Sinalização de uma resposta da IA (RF-23, RN-21): tipo, gravidade percebida e justificativa curta. A
+  revisão da conversa insere este fragmento em cada resposta, e o envio volta com ele mesmo, já com o
+  resultado: o aviso de recusa no lugar do formulário, ou a confirmação. Status 200 nos dois casos, como na
+  curadoria.
+
+  Usa do modelo: sessaoId, mensagemId, situacao (PODE_SINALIZAR, SINALIZADA ou FORA_DO_PRAZO), tipos,
+  gravidades e, depois de um envio, aviso, sucesso, tipoEscolhido, gravidadeEscolhida e justificativa.
+-->
+<div th:fragment="sinalizar" class="sinalizacao" th:id="|sinalizar-${mensagemId}|">
+  <p class="sinalizacao-feita" role="status" th:if="${sucesso}" th:text="${sucesso}">Sinalização enviada.</p>
+  <p class="field-error" role="alert" th:if="${aviso}" th:text="${aviso}">Aviso</p>
+  <span class="badge badge-neutral" th:if="${situacao == 'SINALIZADA' and sucesso == null and aviso == null}">
+    Você sinalizou esta resposta
+  </span>
+
+  <details th:if="${situacao == 'PODE_SINALIZAR'}" th:open="${aviso != null}">
+    <summary class="btn btn-secondary">Sinalizar possível erro</summary>
+    <form class="sinalizacao-form" method="post"
+          th:action="@{/sessoes/{s}/revisao/respostas/{m}/sinalizacao(s=${sessaoId},m=${mensagemId})}"
+          th:hx-post="@{/sessoes/{s}/revisao/respostas/{m}/sinalizacao(s=${sessaoId},m=${mensagemId})}"
+          th:hx-target="|#sinalizar-${mensagemId}|" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <fieldset class="sinalizacao-opcoes">
+        <legend>Tipo do erro</legend>
+        <label th:each="t : ${tipos}">
+          <input type="radio" name="tipo" required th:value="${t.name()}" th:checked="${tipoEscolhido == t.name()}">
+          <span th:text="${t.rotulo()}">Erro histórico</span>
+        </label>
+      </fieldset>
+
+      <fieldset class="sinalizacao-opcoes">
+        <legend>Gravidade percebida</legend>
+        <label th:each="g : ${gravidades}">
+          <input type="radio" name="gravidade" required th:value="${g.name()}"
+                 th:checked="${gravidadeEscolhida == g.name()}">
+          <span><strong th:text="${g.rotulo()}">Leve</strong> <small th:text="${g.descricao()}">Critério</small></span>
+        </label>
+      </fieldset>
+
+      <label th:for="|justificativa-${mensagemId}|">Justificativa</label>
+      <textarea th:id="|justificativa-${mensagemId}|" name="justificativa" required maxlength="500" rows="3"
+                th:attr="aria-describedby=|ajuda-${mensagemId}|" th:text="${justificativa}"></textarea>
+      <small th:id="|ajuda-${mensagemId}|">
+        Até 500 caracteres. Não inclua nomes nem dados pessoais de estudantes.
+      </small>
+
+      <button class="btn btn-primary" type="submit">Enviar sinalização</button>
+    </form>
+  </details>
+</div>
+</body>
+</html>
