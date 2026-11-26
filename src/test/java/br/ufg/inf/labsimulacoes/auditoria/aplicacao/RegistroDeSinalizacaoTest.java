@@ -95,7 +95,7 @@ class RegistroDeSinalizacaoTest {
         long resposta = respostaNaSessao(professoraId, ENCERRAMENTO, meta);
         entrar(professora, "ROLE_PROFESSOR");
 
-        long id = registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.MODERADA, JUSTIFICATIVA);
+        long id = registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.MODERADA, JUSTIFICATIVA);
 
         Map<String, Object> linha = jdbc.queryForMap("SELECT * FROM sinalizacao WHERE id = ?", id);
         assertThat(linha)
@@ -135,7 +135,7 @@ class RegistroDeSinalizacaoTest {
         long sessao = jdbc.queryForObject("SELECT sessao_id FROM mensagem WHERE id = ?", Long.class, resposta);
         entrar(professora, "ROLE_PROFESSOR");
 
-        long id = registro.sinalizar(resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.GRAVE, JUSTIFICATIVA);
+        long id = registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.GRAVE, JUSTIFICATIVA);
 
         assertThat(eventos.stream(SinalizacaoRegistrada.class)).containsExactly(new SinalizacaoRegistrada(
                 id, sessao, versao, "ANACRONISMO", "GRAVE", "PROFESSOR", professoraId, relogio.agora()));
@@ -149,7 +149,7 @@ class RegistroDeSinalizacaoTest {
         agora(INICIO.plus(Duration.ofMinutes(10)));
         entrar(professora, "ROLE_PROFESSOR");
 
-        registro.sinalizar(resposta, TipoDeErro.ERRO_CIENTIFICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_CIENTIFICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
 
         assertThat(perfilDe(resposta)).isEqualTo("PROFESSOR");
     }
@@ -160,7 +160,7 @@ class RegistroDeSinalizacaoTest {
         agora(LIMITE);
         entrar(professora, "ROLE_PROFESSOR");
 
-        registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
 
         assertThat(perfilDe(resposta)).isEqualTo("PROFESSOR");
     }
@@ -172,7 +172,7 @@ class RegistroDeSinalizacaoTest {
         entrar(professora, "ROLE_PROFESSOR");
 
         assertThatThrownBy(() -> registro.sinalizar(
-                        resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
+                        sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
                 .isInstanceOfSatisfying(ForaDoPrazoDeSinalizacao.class,
                         erro -> assertThat(erro.limite()).isEqualTo(LIMITE));
         assertNadaGravado();
@@ -186,7 +186,7 @@ class RegistroDeSinalizacaoTest {
         entrar(professora, "ROLE_PROFESSOR");
 
         assertThatThrownBy(() -> registro.sinalizar(
-                        resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
+                        sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
                 .isInstanceOf(ForaDoPrazoDeSinalizacao.class);
     }
 
@@ -197,7 +197,7 @@ class RegistroDeSinalizacaoTest {
         entrar(dados.usuario("PROFESSOR"), "ROLE_PROFESSOR");
 
         assertThatThrownBy(() -> registro.sinalizar(
-                        resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
+                        sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
                 .isInstanceOf(RespostaNaoEncontrada.class);
         assertNadaGravado();
     }
@@ -209,7 +209,7 @@ class RegistroDeSinalizacaoTest {
         String curador = dados.usuario("CURADOR");
         entrar(curador, "ROLE_CURADOR");
 
-        long id = registro.sinalizar(resposta, TipoDeErro.SAIDA_DO_PERSONAGEM, GravidadePercebida.GRAVE, JUSTIFICATIVA);
+        long id = registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.SAIDA_DO_PERSONAGEM, GravidadePercebida.GRAVE, JUSTIFICATIVA);
 
         assertThat(jdbc.queryForMap("SELECT perfil, sinalizado_por_id FROM sinalizacao WHERE id = ?", id))
                 .containsEntry("perfil", "CURADOR")
@@ -226,9 +226,9 @@ class RegistroDeSinalizacaoTest {
         long deOutra = respostaNaSessao(professoraId, ENCERRAMENTO, null);
         entrar(dupla, "ROLE_PROFESSOR", "ROLE_CURADOR");
 
-        registro.sinalizar(propriaNoPrazo, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
-        registro.sinalizar(propriaForaDoPrazo, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
-        registro.sinalizar(deOutra, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(propriaNoPrazo), propriaNoPrazo, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(propriaForaDoPrazo), propriaForaDoPrazo, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(deOutra), deOutra, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
 
         assertThat(perfilDe(propriaNoPrazo)).isEqualTo("PROFESSOR");
         assertThat(perfilDe(propriaForaDoPrazo)).isEqualTo("CURADOR");
@@ -239,14 +239,14 @@ class RegistroDeSinalizacaoTest {
     void mesmaPessoaNaoSinalizaDuasVezesMasOutraPessoaSim() {
         long resposta = respostaNaSessao(professoraId, ENCERRAMENTO, meta);
         entrar(professora, "ROLE_PROFESSOR");
-        registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
 
         assertThatThrownBy(() -> registro.sinalizar(
-                        resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.GRAVE, "Outra justificativa"))
+                        sessaoDe(resposta), resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.GRAVE, "Outra justificativa"))
                 .isInstanceOf(SinalizacaoRepetida.class);
 
         entrar(dados.usuario("CURADOR"), "ROLE_CURADOR");
-        registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sinalizacao WHERE mensagem_id = ?", Long.class, resposta))
                 .isEqualTo(2);
         assertThat(eventos.stream(SinalizacaoRegistrada.class)).hasSize(2);
@@ -258,7 +258,7 @@ class RegistroDeSinalizacaoTest {
         long resposta = respostaNaSessao(professoraId, ENCERRAMENTO, meta);
         entrar(professora, "ROLE_PROFESSOR");
 
-        assertThatThrownBy(() -> registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE,
+        assertThatThrownBy(() -> registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE,
                         "Liguem para a mãe dele no 98765-4321"))
                 .isInstanceOfSatisfying(TextoComDadoPessoal.class,
                         erro -> assertThat(erro.aviso("A justificativa")).startsWith("A justificativa parece ter"));
@@ -273,7 +273,7 @@ class RegistroDeSinalizacaoTest {
         long resposta = mensagem(sessao, "IA", "Escreva para santos@exemplo.com.", 2, meta);
         entrar(professora, "ROLE_PROFESSOR");
 
-        long id = registro.sinalizar(resposta, TipoDeErro.SAIDA_DO_PERSONAGEM, GravidadePercebida.GRAVE, JUSTIFICATIVA);
+        long id = registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.SAIDA_DO_PERSONAGEM, GravidadePercebida.GRAVE, JUSTIFICATIVA);
 
         assertThat(jdbc.queryForObject("SELECT resposta FROM sinalizacao WHERE id = ?", String.class, id))
                 .isEqualTo("Escreva para santos@exemplo.com.");
@@ -285,7 +285,7 @@ class RegistroDeSinalizacaoTest {
         long resposta = respostaNaSessao(professoraId, ENCERRAMENTO, null);
         entrar(professora, "ROLE_PROFESSOR");
 
-        long id = registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        long id = registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA);
 
         assertThat(jdbc.queryForMap(
                         "SELECT resposta_ia_meta_id, metadados_da_resposta FROM sinalizacao WHERE id = ?", id))
@@ -300,10 +300,10 @@ class RegistroDeSinalizacaoTest {
         entrar(professora, "ROLE_PROFESSOR");
 
         assertThatThrownBy(() -> registro.sinalizar(
-                        pergunta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
+                        sessaoDe(pergunta), pergunta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
                 .isInstanceOf(RespostaNaoEncontrada.class);
         assertThatThrownBy(() -> registro.sinalizar(
-                        Long.MAX_VALUE, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
+                        1, Long.MAX_VALUE, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
                 .isInstanceOf(RespostaNaoEncontrada.class);
     }
 
@@ -312,14 +312,14 @@ class RegistroDeSinalizacaoTest {
         long resposta = respostaNaSessao(professoraId, ENCERRAMENTO, meta);
         entrar(professora, "ROLE_PROFESSOR");
 
-        assertThatThrownBy(() -> registro.sinalizar(resposta, null, GravidadePercebida.LEVE, JUSTIFICATIVA))
+        assertThatThrownBy(() -> registro.sinalizar(sessaoDe(resposta), resposta, null, GravidadePercebida.LEVE, JUSTIFICATIVA))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, null, JUSTIFICATIVA))
+        assertThatThrownBy(() -> registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, null, JUSTIFICATIVA))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, " "))
+        assertThatThrownBy(() -> registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, " "))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> registro.sinalizar(
-                        resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, "a".repeat(501)))
+                        sessaoDe(resposta), resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, "a".repeat(501)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertNadaGravado();
     }
@@ -330,7 +330,7 @@ class RegistroDeSinalizacaoTest {
         double antes = sinalizacoes("anacronismo", "professor");
         entrar(professora, "ROLE_PROFESSOR");
 
-        registro.sinalizar(resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.LEVE, JUSTIFICATIVA);
+        registro.sinalizar(sessaoDe(resposta), resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.LEVE, JUSTIFICATIVA);
 
         assertThat(sinalizacoes("anacronismo", "professor")).isEqualTo(antes + 1);
         assertThat(metricas.find(RegistroDeSinalizacao.METRICA).counters())
@@ -343,7 +343,7 @@ class RegistroDeSinalizacaoTest {
     void administradorNaoSinaliza() {
         entrar(dados.usuario("ADMINISTRADOR"), "ROLE_ADMINISTRADOR");
 
-        assertThatThrownBy(() -> registro.sinalizar(1, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
+        assertThatThrownBy(() -> registro.sinalizar(1, 1, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.LEVE, JUSTIFICATIVA))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
@@ -377,6 +377,10 @@ class RegistroDeSinalizacaoTest {
                 INSERT INTO mensagem (sessao_id, autoria, texto, resposta_ia_meta_id, criado_em)
                 VALUES (?, ?, ?, ?, ?) RETURNING id""",
                 Long.class, sessao, autoria, texto, metaId, INICIO.plusSeconds(segundos).atOffset(ZoneOffset.UTC));
+    }
+
+    private long sessaoDe(long mensagem) {
+        return jdbc.queryForObject("SELECT sessao_id FROM mensagem WHERE id = ?", Long.class, mensagem);
     }
 
     private String perfilDe(long resposta) {

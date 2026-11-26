@@ -85,9 +85,10 @@ public class RegistroDeSinalizacao {
     }
 
     /**
+     * @param sessaoId a sessão da tela; a resposta precisa ser dela
      * @return o id da sinalização gravada
-     * @throws RespostaNaoEncontrada se a mensagem não existir, não for uma resposta da IA ou for de uma
-     *     sessão de outro professor, para quem não é curador
+     * @throws RespostaNaoEncontrada se a mensagem não existir, não for uma resposta da IA, não for da sessão
+     *     dada ou for de uma sessão de outro professor, para quem não é curador
      * @throws ForaDoPrazoDeSinalizacao se o professor passou dos 7 dias e não é curador
      * @throws IllegalArgumentException se faltar o tipo, a gravidade ou a justificativa, ou se a
      *     justificativa passar de {@value Sinalizacao#TAMANHO_MAXIMO_DA_JUSTIFICATIVA} caracteres
@@ -96,8 +97,12 @@ public class RegistroDeSinalizacao {
      * @throws SinalizacaoRepetida se a pessoa já sinalizou esta resposta
      */
     @Transactional
-    public long sinalizar(long mensagemId, TipoDeErro tipo, GravidadePercebida gravidade, String justificativa) {
-        TrechoParaSinalizar trecho = trechos.resposta(mensagemId).orElseThrow(() -> new RespostaNaoEncontrada(mensagemId));
+    public long sinalizar(
+            long sessaoId, long mensagemId, TipoDeErro tipo, GravidadePercebida gravidade, String justificativa) {
+        // A resposta de outra sessão tem a mesma resposta de uma que não existe, antes de conferir o perfil.
+        TrechoParaSinalizar trecho = trechos.resposta(mensagemId)
+                .filter(resposta -> resposta.sessaoId() == sessaoId)
+                .orElseThrow(() -> new RespostaNaoEncontrada(mensagemId));
         long quem = usuarioLogado.id();
         Instant agora = relogio.agora();
         PerfilDaSinalizacao perfil = perfil(trecho, quem, agora);

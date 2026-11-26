@@ -95,10 +95,10 @@ class SinalizacaoAposARetencaoTest {
     @Test
     void sinalizacoesContinuamCompletasDepoisDaExclusaoDasConversas() {
         entrar(professora, "ROLE_PROFESSOR");
-        long daProfessora = registro.sinalizar(resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.GRAVE, JUSTIFICATIVA);
+        long daProfessora = registro.sinalizar(sessao, resposta, TipoDeErro.ERRO_HISTORICO, GravidadePercebida.GRAVE, JUSTIFICATIVA);
         String curador = dados.usuario("CURADOR");
         entrar(curador, "ROLE_CURADOR");
-        long doCurador = registro.sinalizar(resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.MODERADA, JUSTIFICATIVA);
+        long doCurador = registro.sinalizar(sessao, resposta, TipoDeErro.ANACRONISMO, GravidadePercebida.MODERADA, JUSTIFICATIVA);
 
         apagarComoARetencao();
 

@@ -222,6 +222,65 @@ class SinalizacaoPelaTelaTest {
         assertThat(navegador.get("/sessoes/" + sessao + "/revisao").statusCode()).isEqualTo(403);
     }
 
+    /**
+     * Quem é professor e curador abre a revisão da sessão de outra professora como curador (RN-37): vê a
+     * conversa e o botão, e a sinalização fica gravada com o perfil Curador.
+     */
+    @Test
+    void professorECuradorSinalizaASessaoDeOutraProfessoraComoCurador() throws Exception {
+        long sessao = sessaoEncerrada(professoraId, Duration.ofHours(2));
+        long resposta = resposta(sessao);
+        String dupla = UUID.randomUUID() + "@escola.test";
+        cadastro.cadastrar("Dupla", dupla, SENHA, Set.of(Perfil.PROFESSOR, Perfil.CURADOR));
+        var navegador = entrar(dupla);
+
+        var pagina = navegador.get("/sessoes/" + sessao + "/revisao");
+        var envio = navegador.postHtmx(
+                caminhoDaSinalizacao(sessao, resposta), formulario("SAIDA_DO_PERSONAGEM", "MODERADA", JUSTIFICATIVA));
+
+        assertThat(pagina.statusCode()).isEqualTo(200);
+        assertThat(pagina.body()).contains(RESPOSTA, "Sinalizar possível erro", caminhoDaSinalizacao(sessao, resposta));
+        assertThat(envio.body()).contains("Sinalização enviada.");
+        assertThat(jdbc.queryForMap("SELECT perfil, sinalizado_por_id FROM sinalizacao WHERE mensagem_id = ?", resposta))
+                .containsEntry("perfil", "CURADOR")
+                .containsEntry("sinalizado_por_id", dados.idDe(dupla));
+    }
+
+    /** A resposta precisa ser da sessão da URL, mesmo que as duas sessões sejam da mesma professora. */
+    @Test
+    void respostaDeOutraSessaoNaUrlNaoEGravada() throws Exception {
+        long sessaoA = sessaoEncerrada(professoraId, Duration.ofHours(3));
+        resposta(sessaoA);
+        long sessaoB = sessaoEncerrada(professoraId, Duration.ofHours(2));
+        long respostaDeB = resposta(sessaoB);
+        var navegador = entrar(professora);
+
+        var envio = navegador.postHtmx(
+                caminhoDaSinalizacao(sessaoA, respostaDeB), formulario("ERRO_HISTORICO", "LEVE", JUSTIFICATIVA));
+
+        assertThat(envio.statusCode()).isEqualTo(200);
+        assertThat(envio.body()).contains("Resposta não encontrada.").doesNotContain("<form");
+        assertThat(sinalizacoesDa(respostaDeB)).isZero();
+    }
+
+    /** O envio troca o bloco, e o HTMX foca a mensagem marcada com autofocus (B2). */
+    @Test
+    void mensagensDoEnvioPedemOFoco() throws Exception {
+        long sessao = sessaoEncerrada(professoraId, Duration.ofHours(2));
+        long resposta = resposta(sessao);
+        var navegador = entrar(professora);
+        String caminho = caminhoDaSinalizacao(sessao, resposta);
+
+        var recusa = navegador.postHtmx(caminho, formulario(null, "LEVE", JUSTIFICATIVA)).body();
+        var sucesso = navegador.postHtmx(caminho, formulario("ERRO_HISTORICO", "LEVE", JUSTIFICATIVA)).body();
+        var pagina = navegador.get("/sessoes/" + sessao + "/revisao").body();
+
+        assertThat(recusa).containsPattern("<p class=\"field-error\" role=\"alert\" tabindex=\"-1\" autofocus[^>]*>");
+        assertThat(sucesso).containsPattern("<p class=\"sinalizacao-feita\" role=\"status\" tabindex=\"-1\" autofocus[^>]*>");
+        // Ao abrir a página, nada pede o foco: o atributo só vem nas mensagens de um envio.
+        assertThat(pagina).doesNotContainPattern("<[a-z]+\\s[^>]*\\bautofocus\\b[^>]*>");
+    }
+
     private String professor() {
         String email = UUID.randomUUID() + "@escola.test";
         cadastro.cadastrar("Profissional", email, SENHA, Set.of(Perfil.PROFESSOR));

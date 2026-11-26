@@ -11,8 +11,12 @@
   gravidades e, depois de um envio, aviso, sucesso, tipoEscolhido, gravidadeEscolhida e justificativa.
 -->
 <div th:fragment="sinalizar" class="sinalizacao" th:id="|sinalizar-${mensagemId}|">
-  <p class="sinalizacao-feita" role="status" th:if="${sucesso}" th:text="${sucesso}">Sinalização enviada.</p>
-  <p class="field-error" role="alert" th:if="${aviso}" th:text="${aviso}">Aviso</p>
+  <!-- O envio troca o bloco inteiro, inclusive o botão que tinha o foco: o HTMX foca o [autofocus] do
+       conteúdo novo, para o teclado e o leitor de tela irem direto à mensagem. -->
+  <p class="sinalizacao-feita" role="status" tabindex="-1" autofocus th:if="${sucesso}" th:text="${sucesso}">
+    Sinalização enviada.
+  </p>
+  <p class="field-error" role="alert" tabindex="-1" autofocus th:if="${aviso}" th:text="${aviso}">Aviso</p>
   <span class="badge badge-neutral" th:if="${situacao == 'SINALIZADA' and sucesso == null and aviso == null}">
     Você sinalizou esta resposta
   </span>
@@ -24,7 +28,7 @@
           th:hx-post="@{/sessoes/{s}/revisao/respostas/{m}/sinalizacao(s=${sessaoId},m=${mensagemId})}"
           th:hx-target="|#sinalizar-${mensagemId}|" hx-swap="outerHTML" hx-disabled-elt="find button">
       <!-- Radio nativo e texto no mesmo label; o tamanho do radio vem do app.css (.sinalizacao-form). -->
-      <fieldset class="sinalizacao-opcoes">
+      <fieldset>
         <legend>Tipo do erro</legend>
         <label th:each="t : ${tipos}">
           <input type="radio" name="tipo" required th:value="${t.name()}" th:checked="${tipoEscolhido == t.name()}">
@@ -32,7 +36,7 @@
         </label>
       </fieldset>
 
-      <fieldset class="sinalizacao-opcoes">
+      <fieldset>
         <legend>Gravidade percebida</legend>
         <label th:each="g : ${gravidades}">
           <input type="radio" name="gravidade" required th:value="${g.name()}"

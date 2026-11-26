@@ -95,8 +95,8 @@ class RevisaoDaConversaController {
         modelo.addAttribute("gravidadeEscolhida", gravidade);
         modelo.addAttribute("justificativa", justificativa);
         try {
-            registro.sinalizar(mensagemId, enumDe(TipoDeErro.class, tipo), enumDe(GravidadePercebida.class, gravidade),
-                    justificativa);
+            registro.sinalizar(id, mensagemId, enumDe(TipoDeErro.class, tipo),
+                    enumDe(GravidadePercebida.class, gravidade), justificativa);
             return fragmento(modelo, Situacao.SINALIZADA, null, SUCESSO);
         } catch (IllegalArgumentException erro) {
             return fragmento(modelo, Situacao.PODE_SINALIZAR, erro.getMessage(), null);

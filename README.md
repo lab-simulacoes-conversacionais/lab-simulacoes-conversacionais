@@ -240,7 +240,7 @@ Professor e curador sinalizam uma resposta da IA com possível erro (RF-23, RN-2
   - Cada pessoa sinaliza uma resposta uma vez só; outra pessoa pode sinalizar a mesma resposta.
 - **O que é copiado:** a pergunta e a resposta inteiras, o início e o professor da sessão, a versão do cenário e o provedor, o modelo e a versão do prompt da resposta, em JSONB (`OrigemDasRespostas`, no `ia`). As referências à sessão, à mensagem e aos metadados ficam nulas quando a retenção os apaga (RN-33), e a sinalização continua completa (`SinalizacaoAposARetencaoTest`). Uma resposta antiga gravada sem metadados é sinalizada sem a cópia deles.
 - **Dados pessoais:** a justificativa passa pelo `BloqueioDeDadosPessoais`, porque fica gravada para sempre (RNF-01). A pergunta e a resposta copiadas não passam: a sinalização não pode ser recusada pelo conteúdo que ela denuncia.
-- **Evento e métrica:** o `SinalizacaoRegistrada` leva só ids e códigos, sem nenhum texto. A métrica `lab.auditoria.sinalizacao` conta por `tipo` e `perfil`. O log registra só o id da sinalização e da sessão.
+- **Evento e métrica:** o `SinalizacaoRegistrada` leva só ids e códigos, sem nenhum texto. A métrica `lab.auditoria.sinalizacao` conta por `tipo` e `perfil`. O log registra os ids da sinalização e da sessão, o tipo e o perfil, sem nenhum texto.
 - **Relógio:** o prazo usa o `RelogioDaAuditoria`, que os testes trocam por um momento fixo. O de Sessões é interno àquele módulo.
 - **Na tela, depois da aula:**
   - **Sessões recentes** (`/sessoes/revisao`): as sessões do professor ainda no prazo, cada uma com o limite para sinalizar. O link fica na tela de nova sessão.
