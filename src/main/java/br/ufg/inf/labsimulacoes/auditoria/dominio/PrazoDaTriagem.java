@@ -12,8 +12,8 @@ import java.util.Objects;
  *
  * <p>Os dias úteis vão de segunda a sexta, no fuso da escola, e o prazo vence no mesmo horário em que a
  * sinalização foi criada, com o limite incluído: a de sexta às 15h vence na terça às 15h. A criada no fim
- * de semana conta a partir do início da segunda: a de sábado vence na quarta à meia-noite, depois de segunda
- * e terça inteiras. A POC não tem calendário de feriados, então um feriado conta como dia útil.
+ * de semana conta a partir do início da segunda: a de sábado vence na quarta às 0h, no fim da terça, depois
+ * de segunda e terça inteiras. A POC não tem calendário de feriados, então um feriado conta como dia útil.
  */
 public final class PrazoDaTriagem {
 

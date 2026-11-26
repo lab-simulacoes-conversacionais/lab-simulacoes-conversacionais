@@ -29,7 +29,7 @@ class PrazoDaTriagemTest {
         "2026-11-26T18:00, 2026-11-30T18:00",
         // Sexta vence na terça.
         "2026-11-27T15:00, 2026-12-01T15:00",
-        // Sábado e domingo contam do início da segunda: vencem na quarta à meia-noite.
+        // Sábado e domingo contam do início da segunda: vencem na quarta às 0h, no fim da terça.
         "2026-11-28T10:00, 2026-12-02T00:00",
         "2026-11-29T23:59, 2026-12-02T00:00",
         // Sexta à noite no fuso da escola, já sábado em UTC: vale o dia da escola.
