@@ -3,9 +3,8 @@ package br.ufg.inf.labsimulacoes.auditoria.aplicacao;
 import br.ufg.inf.labsimulacoes.acesso.UsuarioLogado;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadeFinal;
-import br.ufg.inf.labsimulacoes.auditoria.dominio.OrigemDaSinalizacao;
-import br.ufg.inf.labsimulacoes.auditoria.dominio.PrazoDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoATriar;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoJaTriada;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoNaoEncontrada;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
@@ -87,25 +86,27 @@ public class TriagemDeSinalizacoes {
 
     private void triar(Triagem triagem) {
         long id = triagem.sinalizacaoId();
-        OrigemDaSinalizacao origem = sinalizacoes.triar(triagem).orElseThrow(() -> sinalizacoes.existe(id)
-                ? new SinalizacaoJaTriada(id)
-                : new SinalizacaoNaoEncontrada(id));
-        boolean foraDoPrazo = PrazoDaTriagem.foraDoPrazo(origem.criadaEm(), triagem.triadaEm(), fuso);
+        SinalizacaoATriar sinalizacao = sinalizacoes.paraTriar(id).orElseThrow(() -> new SinalizacaoNaoEncontrada(id));
+        sinalizacao.aceitar(triagem);
+        if (!sinalizacoes.triar(triagem)) {
+            throw new SinalizacaoJaTriada(id);
+        }
+        boolean foraDoPrazo = sinalizacao.foraDoPrazo(triagem.triadaEm(), fuso);
         String gravidadeFinal = triagem.confirmada() ? triagem.gravidade().name() : null;
 
         log.registrar(RegistroDeAuditoria.novo(
                 AcaoCritica.TRIAR_SINALIZACAO,
                 triagem.triadaPorId(),
                 String.valueOf(id),
-                detalhes(triagem, origem, foraDoPrazo),
+                detalhes(triagem, sinalizacao, foraDoPrazo),
                 triagem.triadaEm()));
         eventos.publishEvent(new SinalizacaoTriada(
                 id,
-                origem.versaoId(),
+                sinalizacao.versaoId(),
                 triagem.decisao().name(),
                 gravidadeFinal,
-                origem.gravidadePercebida().name(),
-                origem.perfil().name(),
+                sinalizacao.gravidadePercebida().name(),
+                sinalizacao.perfil().name(),
                 triagem.triadaPorId(),
                 triagem.triadaEm()));
         Counter.builder(METRICA)
@@ -118,15 +119,15 @@ public class TriagemDeSinalizacoes {
     }
 
     /** O log não aceita valor nulo, então a gravidade final só entra na confirmada. */
-    private static Map<String, Object> detalhes(Triagem triagem, OrigemDaSinalizacao origem, boolean foraDoPrazo) {
+    private static Map<String, Object> detalhes(Triagem triagem, SinalizacaoATriar sinalizacao, boolean foraDoPrazo) {
         var detalhes = new LinkedHashMap<String, Object>();
         detalhes.put("decisao", triagem.decisao().name());
         if (triagem.confirmada()) {
             detalhes.put("gravidadeFinal", triagem.gravidade().name());
         }
-        detalhes.put("gravidadePercebida", origem.gravidadePercebida().name());
-        detalhes.put("perfil", origem.perfil().name());
-        detalhes.put("versaoId", origem.versaoId());
+        detalhes.put("gravidadePercebida", sinalizacao.gravidadePercebida().name());
+        detalhes.put("perfil", sinalizacao.perfil().name());
+        detalhes.put("versaoId", sinalizacao.versaoId());
         detalhes.put("foraDoPrazo", foraDoPrazo);
         return detalhes;
     }

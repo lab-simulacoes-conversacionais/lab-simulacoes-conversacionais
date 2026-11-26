@@ -6,9 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadeFinal;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
-import br.ufg.inf.labsimulacoes.auditoria.dominio.OrigemDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoATriar;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoPendente;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
@@ -252,15 +252,34 @@ class SinalizacoesJdbcTest {
                 PerfilDaSinalizacao.PROFESSOR, professor, AGORA.minusSeconds(120)));
     }
 
+    /** A triagem lê a sinalização com o que o log e o evento precisam. */
+    @Test
+    void paraTriarTrazAPendenteComAOrigem() {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        assertThat(sinalizacoes.paraTriar(id)).contains(new SinalizacaoATriar(
+                id, true, versao, GravidadePercebida.MODERADA, PerfilDaSinalizacao.PROFESSOR, AGORA));
+    }
+
+    @Test
+    void paraTriarTrazAJaTriadaComoNaoPendente() {
+        long id = sinalizar(professor, "PROFESSOR");
+        sinalizacoes.triar(Triagem.descartar(id, curador, AGORA));
+
+        assertThat(sinalizacoes.paraTriar(id)).hasValueSatisfying(lida -> assertThat(lida.pendente()).isFalse());
+    }
+
+    @Test
+    void paraTriarNaoEncontraAInexistente() {
+        assertThat(sinalizacoes.paraTriar(-1)).isEmpty();
+    }
+
     @Test
     void confirmarGravaAGravidadeFinalEQuemTriou() {
         long id = sinalizar(professor, "PROFESSOR");
 
-        OrigemDaSinalizacao origem =
-                sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.GRAVE, curador, AGORA)).orElseThrow();
+        assertThat(sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.GRAVE, curador, AGORA))).isTrue();
 
-        assertThat(origem).isEqualTo(new OrigemDaSinalizacao(
-                versao, GravidadePercebida.MODERADA, PerfilDaSinalizacao.PROFESSOR, AGORA));
         assertThat(linha(id))
                 .containsEntry("status", "CONFIRMADA")
                 .containsEntry("gravidade_final", "GRAVE")
@@ -274,27 +293,25 @@ class SinalizacoesJdbcTest {
     void descartarNaoGravaGravidade() {
         long id = sinalizar(professor, "PROFESSOR");
 
-        assertThat(sinalizacoes.triar(Triagem.descartar(id, curador, AGORA))).isPresent();
+        assertThat(sinalizacoes.triar(Triagem.descartar(id, curador, AGORA))).isTrue();
 
         assertThat(linha(id)).containsEntry("status", "DESCARTADA").containsEntry("gravidade_final", null);
     }
 
-    /** A segunda triagem não muda nada, e a transação continua usável. */
+    /** A guarda contra a concorrência: a segunda triagem não muda nada, e a transação continua usável. */
     @Test
     void sinalizacaoTriadaNaoETriadaDeNovo() {
         long id = sinalizar(professor, "PROFESSOR");
         sinalizacoes.triar(Triagem.descartar(id, curador, AGORA));
 
-        assertThat(sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.LEVE, curador, AGORA))).isEmpty();
+        assertThat(sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.LEVE, curador, AGORA))).isFalse();
 
         assertThat(linha(id)).containsEntry("status", "DESCARTADA").containsEntry("gravidade_final", null);
-        assertThat(sinalizacoes.existe(id)).isTrue();
     }
 
     @Test
     void sinalizacaoInexistenteNaoETriada() {
-        assertThat(sinalizacoes.triar(Triagem.descartar(-1, curador, AGORA))).isEmpty();
-        assertThat(sinalizacoes.existe(-1)).isFalse();
+        assertThat(sinalizacoes.triar(Triagem.descartar(-1, curador, AGORA))).isFalse();
     }
 
     private long sinalizarOutraResposta(Instant criadaEm) {

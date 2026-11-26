@@ -1,9 +1,9 @@
 package br.ufg.inf.labsimulacoes.auditoria.infraestrutura;
 
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
-import br.ufg.inf.labsimulacoes.auditoria.dominio.OrigemDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoATriar;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoPendente;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
@@ -37,11 +37,17 @@ class SinalizacoesJdbc implements Sinalizacoes {
             ON CONFLICT ON CONSTRAINT uq_sinalizacao_mensagem_por_pessoa DO NOTHING
             RETURNING id""";
 
-    /** Só a pendente é triada: a segunda triagem, mesmo ao mesmo tempo, não encontra a linha. */
+    /** A trava faz a segunda triagem simultânea esperar a primeira e ler o status já triado. */
+    private static final String PARA_TRIAR = """
+            SELECT id, status, cenario_versao_id, gravidade_percebida, perfil, criada_em
+            FROM sinalizacao
+            WHERE id = ?
+            FOR UPDATE""";
+
+    /** Guarda contra a concorrência: só a pendente é alterada. */
     private static final String TRIAR = """
             UPDATE sinalizacao SET status = ?, gravidade_final = ?, triada_por_id = ?, triada_em = ?
-            WHERE id = ? AND status = 'PENDENTE'
-            RETURNING cenario_versao_id, gravidade_percebida, perfil, criada_em""";
+            WHERE id = ? AND status = 'PENDENTE'""";
 
     private static final String PENDENTES = """
             SELECT id, sessao_id, cenario_versao_id, pergunta, resposta, tipo, gravidade_percebida, justificativa,
@@ -109,25 +115,28 @@ class SinalizacoesJdbc implements Sinalizacoes {
     }
 
     @Override
-    public Optional<OrigemDaSinalizacao> triar(Triagem triagem) {
-        return jdbc.query(TRIAR, (linha, n) -> new OrigemDaSinalizacao(
+    public Optional<SinalizacaoATriar> paraTriar(long id) {
+        return jdbc.query(PARA_TRIAR, (linha, n) -> new SinalizacaoATriar(
+                                linha.getLong("id"),
+                                Sinalizacao.PENDENTE.equals(linha.getString("status")),
                                 linha.getLong("cenario_versao_id"),
                                 GravidadePercebida.valueOf(linha.getString("gravidade_percebida")),
                                 PerfilDaSinalizacao.valueOf(linha.getString("perfil")),
                                 linha.getObject("criada_em", OffsetDateTime.class).toInstant()),
-                        triagem.decisao().name(),
-                        triagem.gravidade() == null ? null : triagem.gravidade().name(),
-                        triagem.triadaPorId(),
-                        momento(triagem.triadaEm()),
-                        triagem.sinalizacaoId())
+                        id)
                 .stream()
                 .findFirst();
     }
 
     @Override
-    public boolean existe(long id) {
-        return Boolean.TRUE.equals(
-                jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM sinalizacao WHERE id = ?)", Boolean.class, id));
+    public boolean triar(Triagem triagem) {
+        return jdbc.update(TRIAR,
+                        triagem.decisao().name(),
+                        triagem.gravidade() == null ? null : triagem.gravidade().name(),
+                        triagem.triadaPorId(),
+                        momento(triagem.triadaEm()),
+                        triagem.sinalizacaoId())
+                == 1;
     }
 
     /** As chaves são os nomes do registro: provedor, modelo e versaoPrompt. */

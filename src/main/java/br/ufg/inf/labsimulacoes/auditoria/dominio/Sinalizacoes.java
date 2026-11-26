@@ -22,14 +22,18 @@ public interface Sinalizacoes {
     List<SinalizacaoPendente> pendentes();
 
     /**
-     * Grava a decisão do curador, se a sinalização ainda estiver pendente. Com dois curadores ao mesmo tempo,
-     * só a primeira triagem vale.
+     * Lê a sinalização para a triagem e a trava até o fim da transação: com dois curadores ao mesmo tempo, o
+     * segundo espera e já a encontra triada.
      *
-     * @return a origem da sinalização triada, ou vazio se ela não existe ou já foi triada; nada é gravado
-     *     nesse caso
+     * @return a sinalização, pendente ou já triada, ou vazio se ela não existe
      */
-    Optional<OrigemDaSinalizacao> triar(Triagem triagem);
+    Optional<SinalizacaoATriar> paraTriar(long id);
 
-    /** Se a sinalização existe, pendente ou já triada. */
-    boolean existe(long id);
+    /**
+     * Grava a decisão do curador, se a sinalização ainda estiver pendente. A regra de triar uma vez só é da
+     * {@link SinalizacaoATriar}; esta condição é só a guarda contra a concorrência.
+     *
+     * @return se a decisão foi gravada
+     */
+    boolean triar(Triagem triagem);
 }
