@@ -69,7 +69,7 @@ A tabela mostra o que cada módulo faz e de quem depende. As setas de dependênc
 | --- | --- | --- | --- |
 | Acesso | Usuários, perfis acumuláveis, turmas, parâmetros (limite de perguntas, custo diário) e autenticação. | — | RF-01 a RF-04 |
 | Cenários | Cenários, versões, vínculo com a BNCC, quiz, curadoria (envio, teste, checklist, decisão), biblioteca e arquivamento. | Acesso, Adaptador de IA | RF-05 a RF-13, RF-27 |
-| Sessões | Sessões em sala, mensagens, controles (pausar, retomar, reiniciar, encerrar), tempo, aplicação do quiz e engajamento. | Acesso, Cenários, Adaptador de IA | RF-14 a RF-22, RF-28 a RF-30 |
+| Sessões | Sessões em sala, mensagens, controles (pausar, retomar, reiniciar, encerrar), tempo, aplicação do quiz e engajamento. | Acesso, Cenários, Adaptador de IA | RF-14 a RF-20, RF-22, RF-28 a RF-30 |
 | Auditoria | Casos de conteúdo bloqueado, sinalizações, triagem, regras de suspensão e log de ações críticas. | Acesso | RF-23 a RF-26 |
 | Métricas | Indicadores por sessão, cenário e turma, comparação com sessões de controle, painel e exportação CSV/PDF; alerta de custo diário da IA ao administrador. | Acesso (lê dados por eventos), Adaptador de IA (lê o consumo) | RF-31, RF-32, RNF-13 |
 | Adaptador de IA | Porta única para o provedor: falas do personagem, sugestão de cenário, moderação, bloqueio de dados pessoais antes do envio, prompts versionados e metadados de cada chamada. | — | RNF-02, RNF-10, RNF-13, RF-21 |
