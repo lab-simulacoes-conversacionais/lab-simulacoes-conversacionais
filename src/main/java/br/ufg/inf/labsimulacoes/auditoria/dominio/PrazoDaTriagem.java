@@ -1,6 +1,5 @@
 package br.ufg.inf.labsimulacoes.auditoria.dominio;
 
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -50,7 +49,9 @@ public final class PrazoDaTriagem {
     }
 
     private static boolean fimDeSemana(ZonedDateTime momento) {
-        DayOfWeek dia = momento.getDayOfWeek();
-        return dia == DayOfWeek.SATURDAY || dia == DayOfWeek.SUNDAY;
+        return switch (momento.getDayOfWeek()) {
+            case SATURDAY, SUNDAY -> true;
+            default -> false;
+        };
     }
 }
