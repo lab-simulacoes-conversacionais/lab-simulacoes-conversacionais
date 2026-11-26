@@ -6,12 +6,14 @@ import br.ufg.inf.labsimulacoes.eventos.ConteudoBloqueado;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
 import br.ufg.inf.labsimulacoes.ia.BloqueioDeDadosPessoais;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
+import br.ufg.inf.labsimulacoes.ia.DadosPessoais;
 import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
+import br.ufg.inf.labsimulacoes.ia.TipoDeDadoPessoal;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.EtapaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadoDaSessao;
@@ -280,10 +282,14 @@ public class ConversaDaSessao {
      *   <li>Se a pergunta foi respondida enquanto a tela estava fora, entrega a resposta gravada inteira,
      *       sem chamar o modelo de novo.
      *   <li>Se a resposta foi bloqueada nesse meio-tempo, só avisa o bloqueio (RN-20).
+     *   <li>Se a pergunta foi descartada por ter um dado pessoal, avisa o dado pessoal, e não o bloqueio
+     *       da moderação (RN-13).
      * </ul>
      *
      * @throws RespostaEmAndamento se a outra resposta não terminar a tempo
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa como em {@link #responderPendente}
+     * @throws TextoComDadoPessoal como em {@link #responderPendente}, e também ao reabrir o canal de uma
+     *     pergunta já descartada por isso; nada vai ao provedor nem conta de novo na métrica
      */
     public void entregarResposta(long sessaoId, TelaDaResposta tela) {
         leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId);
@@ -309,7 +315,12 @@ public class ConversaDaSessao {
         }
     }
 
-    /** A pergunta da tela já teve o seu desfecho: a resposta gravada ou o bloqueio dela. */
+    /**
+     * A pergunta da tela já teve o seu desfecho: a resposta gravada, o bloqueio dela ou o descarte por
+     * dado pessoal. O descarte é marcado como o bloqueio da resposta, então o texto é conferido de novo
+     * para a tela não mostrar o aviso da moderação. A conferência é pelos padrões, sem a métrica, que já
+     * contou o bloqueio no descarte.
+     */
     private static void entregarDesfecho(EstadoDaSessao estado, TelaDaResposta tela) {
         if (estado.ultimasMensagens().isEmpty()) {
             return;
@@ -318,6 +329,10 @@ public class ConversaDaSessao {
         if (ultima.autoria() == MensagemExibida.Autoria.IA) {
             tela.exibir(ultima.texto());
         } else if (ultima.respostaBloqueada()) {
+            Optional<TipoDeDadoPessoal> dadoPessoal = DadosPessoais.procurar(ultima.texto());
+            if (dadoPessoal.isPresent()) {
+                throw new TextoComDadoPessoal(dadoPessoal.get());
+            }
             tela.bloquear();
         }
     }

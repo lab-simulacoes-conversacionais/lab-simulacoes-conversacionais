@@ -183,8 +183,9 @@ class DadosPessoaisNaSalaTest {
     /**
      * Segunda barreira: uma pergunta que ficou pendente com dado pessoal, como uma gravada antes do
      * bloqueio existir, não vai ao provedor. Ela é descartada, o canal avisa com o tipo, sem repetir o
-     * dado, e a sessão volta a aceitar perguntas. Abrir o canal de novo não tenta outra vez, então a
-     * métrica conta um bloqueio só.
+     * dado, e a sessão volta a aceitar perguntas. Abrir o canal de novo, como ao recarregar a página,
+     * repete o aviso do dado pessoal, e não o da moderação, sem tentar outra vez: a métrica conta um
+     * bloqueio só.
      */
     @Test
     void pendenteComDadoPessoalEDescartadaESessaoVoltaAAceitarPerguntas() throws Exception {
@@ -198,8 +199,13 @@ class DadosPessoaisNaSalaTest {
                 .contains("event:dado-pessoal\ndata:A pergunta parece ter um dado pessoal (telefone).")
                 .contains("event:fim")
                 .doesNotContain("98765")
-                .doesNotContain("event:falha");
-        assertThat(reconexao).doesNotContain("event:dado-pessoal").contains("event:fim");
+                .doesNotContain("event:falha")
+                .doesNotContain("event:bloqueio");
+        assertThat(reconexao)
+                .contains("event:dado-pessoal\ndata:A pergunta parece ter um dado pessoal (telefone).")
+                .contains("event:fim")
+                .doesNotContain("98765")
+                .doesNotContain("event:bloqueio");
         assertThat(bloqueios("telefone")).isEqualTo(antes + 1);
         verifyNoInteractions(provedor);
         assertThat(contar("SELECT count(*) FROM mensagem WHERE sessao_id = ? AND resposta_bloqueada")).isEqualTo(1);
