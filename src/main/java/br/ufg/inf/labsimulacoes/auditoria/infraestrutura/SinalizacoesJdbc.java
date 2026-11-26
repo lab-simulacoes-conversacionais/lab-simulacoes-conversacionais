@@ -1,6 +1,8 @@
 package br.ufg.inf.labsimulacoes.auditoria.infraestrutura;
 
+import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDaFila;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDaFila;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PendenciaDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
@@ -12,6 +14,8 @@ import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Triagem;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -50,12 +54,21 @@ class SinalizacoesJdbc implements Sinalizacoes {
             UPDATE sinalizacao SET status = ?, gravidade_final = ?, triada_por_id = ?, triada_em = ?
             WHERE id = ? AND status = 'PENDENTE'""";
 
-    private static final String PENDENTES = """
+    private static final String PRIMEIRA_PAGINA = """
             SELECT id, sessao_id, cenario_versao_id, pergunta, resposta, tipo, gravidade_percebida, justificativa,
                    perfil, sinalizado_por_id, criada_em
             FROM sinalizacao
             WHERE status = 'PENDENTE'
-            ORDER BY criada_em, id""";
+            ORDER BY criada_em, id
+            LIMIT ?""";
+
+    private static final String PAGINA_SEGUINTE = """
+            SELECT id, sessao_id, cenario_versao_id, pergunta, resposta, tipo, gravidade_percebida, justificativa,
+                   perfil, sinalizado_por_id, criada_em
+            FROM sinalizacao
+            WHERE status = 'PENDENTE' AND (criada_em, id) > (?, ?)
+            ORDER BY criada_em, id
+            LIMIT ?""";
 
     private static final String PENDENCIAS_SEM_TEXTO = """
             SELECT id, tipo, criada_em
@@ -106,8 +119,17 @@ class SinalizacoesJdbc implements Sinalizacoes {
     }
 
     @Override
-    public List<SinalizacaoPendente> pendentes() {
-        return jdbc.query(PENDENTES, (linha, n) -> new SinalizacaoPendente(
+    public PaginaDaFila pendentes(CursorDaFila depoisDe, int tamanho) {
+        PaginaDaFila.exigirTamanho(tamanho);
+        List<SinalizacaoPendente> lidas = depoisDe == null
+                ? jdbc.query(PRIMEIRA_PAGINA, SinalizacoesJdbc::paraPendente, tamanho + 1)
+                : jdbc.query(PAGINA_SEGUINTE, SinalizacoesJdbc::paraPendente,
+                        momento(depoisDe.criadaEm()), depoisDe.id(), tamanho + 1);
+        return PaginaDaFila.lidaComUmaAMais(lidas, tamanho);
+    }
+
+    private static SinalizacaoPendente paraPendente(ResultSet linha, int n) throws SQLException {
+        return new SinalizacaoPendente(
                 linha.getLong("id"),
                 linha.getObject("sessao_id", Long.class),
                 linha.getLong("cenario_versao_id"),
@@ -118,7 +140,7 @@ class SinalizacoesJdbc implements Sinalizacoes {
                 linha.getString("justificativa"),
                 PerfilDaSinalizacao.valueOf(linha.getString("perfil")),
                 linha.getLong("sinalizado_por_id"),
-                linha.getObject("criada_em", OffsetDateTime.class).toInstant()));
+                linha.getObject("criada_em", OffsetDateTime.class).toInstant());
     }
 
     @Override

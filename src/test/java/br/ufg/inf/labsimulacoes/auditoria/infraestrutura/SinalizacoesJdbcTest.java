@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDaFila;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadeFinal;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDaFila;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PendenciaDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
@@ -20,6 +22,8 @@ import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -244,13 +248,39 @@ class SinalizacoesJdbcTest {
         long triada = sinalizarOutraResposta(AGORA.minusSeconds(180));
         sinalizacoes.triar(Triagem.descartar(triada, curador, AGORA));
 
-        var daVersao = sinalizacoes.pendentes().stream().filter(pendente -> pendente.versaoId() == versao).toList();
+        var daVersao = todasAsPendentes().stream().filter(pendente -> pendente.versaoId() == versao).toList();
 
         assertThat(daVersao).extracting(SinalizacaoPendente::id).containsExactly(doProfessor, doCurador);
         assertThat(daVersao.getFirst()).isEqualTo(new SinalizacaoPendente(doProfessor, sessao, versao,
                 "Como foi o primeiro voo?", "Voei em 1906, em Paris.", TipoDeErro.ERRO_HISTORICO,
                 GravidadePercebida.MODERADA, "O primeiro voo homologado foi em outubro de 1906.",
                 PerfilDaSinalizacao.PROFESSOR, professor, AGORA.minusSeconds(120)));
+    }
+
+    /** A página seguinte começa depois do cursor, mesmo com duas sinalizações criadas no mesmo momento. */
+    @Test
+    void paginaSeguinteContinuaDepoisDoCursor() {
+        long primeira = sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(60));
+        long segunda = sinalizar(curador, "CURADOR", AGORA.minusSeconds(60));
+        long terceira = sinalizarOutraResposta(AGORA.minusSeconds(30));
+
+        PaginaDaFila depoisDaPrimeira =
+                sinalizacoes.pendentes(new CursorDaFila(AGORA.minusSeconds(60), primeira), PaginaDaFila.TAMANHO_MAXIMO);
+
+        assertThat(depoisDaPrimeira.sinalizacoes()).extracting(SinalizacaoPendente::id)
+                .contains(segunda, terceira)
+                .doesNotContain(primeira);
+    }
+
+    @Test
+    void paginaComUmaAMaisTemProxima() {
+        sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(60));
+        sinalizar(curador, "CURADOR", AGORA.minusSeconds(30));
+
+        PaginaDaFila pagina = sinalizacoes.pendentes(null, 1);
+
+        assertThat(pagina.sinalizacoes()).hasSize(1);
+        assertThat(pagina.cursorDaProxima()).contains(CursorDaFila.apos(pagina.sinalizacoes().getFirst()));
     }
 
     /** O resumo do prazo lê as mesmas pendentes, na mesma ordem, sem os textos (RN-37). */
@@ -329,6 +359,17 @@ class SinalizacoesJdbcTest {
     @Test
     void sinalizacaoInexistenteNaoETriada() {
         assertThat(sinalizacoes.triar(Triagem.descartar(-1, curador, AGORA))).isFalse();
+    }
+
+    private List<SinalizacaoPendente> todasAsPendentes() {
+        var todas = new ArrayList<SinalizacaoPendente>();
+        CursorDaFila cursor = null;
+        do {
+            PaginaDaFila pagina = sinalizacoes.pendentes(cursor, PaginaDaFila.TAMANHO_MAXIMO);
+            todas.addAll(pagina.sinalizacoes());
+            cursor = pagina.proxima();
+        } while (cursor != null);
+        return todas;
     }
 
     private long sinalizarOutraResposta(Instant criadaEm) {

@@ -6,11 +6,14 @@ import static org.mockito.Mockito.when;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
 import br.ufg.inf.labsimulacoes.auditoria.aplicacao.FilaDeTriagem.ItemDaFila;
+import br.ufg.inf.labsimulacoes.auditoria.aplicacao.FilaDeTriagem.PaginaDeItens;
 import br.ufg.inf.labsimulacoes.auditoria.aplicacao.FilaDeTriagem.PendenciaForaDoPrazo;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDaFila;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -80,7 +83,7 @@ class FilaDeTriagemTest {
     void curadorVeAFilaDaMaisAntigaComODestaqueDoPrazo() {
         entrar("ROLE_CURADOR");
 
-        List<ItemDaFila> daVersao = daVersao(fila.pendentes());
+        List<ItemDaFila> daVersao = daVersao(filaInteira(2));
 
         assertThat(daVersao).extracting(item -> item.sinalizacao().id())
                 .containsExactly(atrasada, outraAtrasada, noLimite, noPrazo);
@@ -101,8 +104,33 @@ class FilaDeTriagemTest {
                 banco.professorId, atrasada);
         entrar("ROLE_CURADOR");
 
-        assertThat(daVersao(fila.pendentes())).extracting(item -> item.sinalizacao().id())
+        assertThat(daVersao(filaInteira(2))).extracting(item -> item.sinalizacao().id())
                 .containsExactly(outraAtrasada, noLimite, noPrazo);
+    }
+
+    /** As páginas não passam do tamanho pedido e seguem a fila da mais antiga sem repetir. */
+    @Test
+    void filaVemEmPaginas() {
+        entrar("ROLE_CURADOR");
+
+        PaginaDeItens primeira = fila.pendentes(null, 1);
+        PaginaDeItens segunda = fila.pendentes(primeira.proxima(), 1);
+
+        assertThat(primeira.itens()).hasSize(1);
+        assertThat(primeira.temProxima()).isTrue();
+        assertThat(segunda.itens()).hasSize(1);
+        assertThat(segunda.itens().getFirst().sinalizacao().criadaEm())
+                .isAfterOrEqualTo(primeira.itens().getFirst().sinalizacao().criadaEm());
+        assertThat(segunda.itens().getFirst().sinalizacao().id())
+                .isNotEqualTo(primeira.itens().getFirst().sinalizacao().id());
+    }
+
+    @Test
+    void tamanhoDaPaginaForaDosLimitesERecusado() {
+        entrar("ROLE_CURADOR");
+
+        assertThatThrownBy(() -> fila.pendentes(null, 0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> fila.pendentes(null, 101)).isInstanceOf(IllegalArgumentException.class);
     }
 
     /** RN-24: o administrador vê as pendências atrasadas, sem a pergunta, a resposta e a justificativa. */
@@ -140,15 +168,28 @@ class FilaDeTriagemTest {
     void administradorNaoVeAFilaComOsTextos() {
         entrar("ROLE_ADMINISTRADOR");
 
-        assertThatThrownBy(() -> fila.pendentes()).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> fila.pendentes(null, 20)).isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
     void professorNaoVeAFilaNemOResumo() {
         entrar("ROLE_PROFESSOR");
 
-        assertThatThrownBy(() -> fila.pendentes()).isInstanceOf(AccessDeniedException.class);
+        assertThatThrownBy(() -> fila.pendentes(null, 20)).isInstanceOf(AccessDeniedException.class);
         assertThatThrownBy(() -> fila.resumoDoPrazo()).isInstanceOf(AccessDeniedException.class);
+    }
+
+    /** Percorre a fila inteira, página a página. */
+    private List<ItemDaFila> filaInteira(int tamanho) {
+        var itens = new ArrayList<ItemDaFila>();
+        CursorDaFila cursor = null;
+        do {
+            PaginaDeItens pagina = fila.pendentes(cursor, tamanho);
+            assertThat(pagina.itens()).hasSizeLessThanOrEqualTo(tamanho);
+            itens.addAll(pagina.itens());
+            cursor = pagina.proxima();
+        } while (cursor != null);
+        return itens;
     }
 
     private List<ItemDaFila> daVersao(List<ItemDaFila> itens) {

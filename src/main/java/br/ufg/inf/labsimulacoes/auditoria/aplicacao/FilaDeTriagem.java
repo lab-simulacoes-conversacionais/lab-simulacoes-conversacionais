@@ -1,5 +1,7 @@
 package br.ufg.inf.labsimulacoes.auditoria.aplicacao;
 
+import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDaFila;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDaFila;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PendenciaDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoPendente;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
@@ -37,14 +39,24 @@ public class FilaDeTriagem {
         this.fuso = fuso;
     }
 
-    /** As sinalizações pendentes, da mais antiga, cada uma com o prazo e se está em destaque. */
+    /**
+     * Uma página das sinalizações pendentes, da mais antiga, cada uma com o prazo e se está em destaque.
+     *
+     * @param depoisDe o cursor da página anterior; nulo na primeira
+     * @param tamanho de 1 a {@value PaginaDaFila#TAMANHO_MAXIMO}
+     * @throws IllegalArgumentException se o tamanho estiver fora desses limites
+     */
     @PreAuthorize("hasRole('CURADOR')")
-    public List<ItemDaFila> pendentes() {
+    public PaginaDeItens pendentes(CursorDaFila depoisDe, int tamanho) {
+        PaginaDaFila.exigirTamanho(tamanho);
         Instant agora = relogio.agora();
-        return sinalizacoes.pendentes().stream()
-                .map(pendente -> new ItemDaFila(
-                        pendente, pendente.limiteDaTriagem(fuso), pendente.foraDoPrazo(agora, fuso)))
-                .toList();
+        PaginaDaFila pagina = sinalizacoes.pendentes(depoisDe, tamanho);
+        return new PaginaDeItens(
+                pagina.sinalizacoes().stream()
+                        .map(pendente -> new ItemDaFila(
+                                pendente, pendente.limiteDaTriagem(fuso), pendente.foraDoPrazo(agora, fuso)))
+                        .toList(),
+                pagina.proxima());
     }
 
     /**
@@ -71,6 +83,22 @@ public class FilaDeTriagem {
      * @param foraDoPrazo se passou do limite e fica em destaque
      */
     public record ItemDaFila(SinalizacaoPendente sinalizacao, Instant limite, boolean foraDoPrazo) {}
+
+    /**
+     * Uma página da fila.
+     *
+     * @param proxima cursor da próxima página; nulo quando esta é a última
+     */
+    public record PaginaDeItens(List<ItemDaFila> itens, CursorDaFila proxima) {
+
+        public PaginaDeItens {
+            itens = List.copyOf(itens);
+        }
+
+        public boolean temProxima() {
+            return proxima != null;
+        }
+    }
 
     /**
      * O resumo do prazo, para o destaque do curador e do administrador.

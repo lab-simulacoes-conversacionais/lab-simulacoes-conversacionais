@@ -18,10 +18,15 @@ public interface Sinalizacoes {
     /** Os ids das respostas da sessão que a pessoa já sinalizou, para a tela não oferecer de novo. */
     Set<Long> respostasSinalizadasPor(long sessaoId, long sinalizadoPorId);
 
-    /** As sinalizações que aguardam a triagem, da mais antiga para a mais recente (RF-24). */
-    List<SinalizacaoPendente> pendentes();
+    /**
+     * Uma página das sinalizações que aguardam a triagem, da mais antiga para a mais recente (RF-24).
+     *
+     * @param depoisDe de onde a página continua; nulo na primeira
+     * @param tamanho quantas sinalizações no máximo, de 1 a {@value PaginaDaFila#TAMANHO_MAXIMO}
+     */
+    PaginaDaFila pendentes(CursorDaFila depoisDe, int tamanho);
 
-    /** As mesmas pendentes, só com o id, o tipo e quando foram criadas, para o resumo do prazo (RN-24, RN-37). */
+    /** As pendentes, só com o id, o tipo e quando foram criadas, para o resumo do prazo (RN-24, RN-37). */
     List<PendenciaDaTriagem> pendenciasSemTexto();
 
     /**
