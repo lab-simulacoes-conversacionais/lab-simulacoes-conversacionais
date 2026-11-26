@@ -21,6 +21,8 @@ import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
 import br.ufg.inf.labsimulacoes.ia.SugestaoDeCenario;
+import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
+import br.ufg.inf.labsimulacoes.ia.TipoDeDadoPessoal;
 import br.ufg.inf.labsimulacoes.ia.dominio.Geracao;
 import br.ufg.inf.labsimulacoes.ia.dominio.MetadadosDaResposta;
 import br.ufg.inf.labsimulacoes.ia.dominio.PrecosPorUso;
@@ -194,6 +196,53 @@ class ChamadasAoProvedorTest {
 
         assertThat(chamadas.moderar("texto")).isEqualTo(sinalizado);
         verifyNoInteractions(registro);
+    }
+
+    /** RN-13: a segunda barreira. A pergunta com dado pessoal não chega ao provedor nem gera metadados. */
+    @Test
+    void perguntaComDadoPessoalNaoChegaAoProvedor() {
+        var pedido = new PedidoDeFala(CENARIO, List.of(), "Liguem para (62) 98765-4321");
+
+        assertThatThrownBy(() -> chamadas.responder(pedido, trecho -> {}))
+                .isInstanceOf(TextoComDadoPessoal.class)
+                .hasMessageNotContaining("98765")
+                .extracting(erro -> ((TextoComDadoPessoal) erro).tipo())
+                .isEqualTo(TipoDeDadoPessoal.TELEFONE);
+        verifyNoInteractions(provedor, registro);
+        assertThat(bloqueios("telefone")).isEqualTo(1.0);
+    }
+
+    @Test
+    void temaComDadoPessoalNaoChegaAoProvedor() {
+        var pedido = new PedidoDeSugestao("Voo, escreva para fulano@exemplo.com", null, null, null, null);
+
+        assertThatThrownBy(() -> chamadas.sugerirCenario(pedido))
+                .isInstanceOf(TextoComDadoPessoal.class)
+                .hasMessageNotContaining("fulano");
+        verifyNoInteractions(provedor, registro);
+        assertThat(bloqueios("email")).isEqualTo(1.0);
+    }
+
+    /** A métrica tem só a tag do tipo: nada de usuário, sessão ou texto. */
+    @Test
+    void metricaDoBloqueioTemSoOTipo() {
+        assertThatThrownBy(() -> chamadas.responder(
+                        new PedidoDeFala(CENARIO, List.of(), "CPF 123.456.789-00"), trecho -> {}))
+                .isInstanceOf(TextoComDadoPessoal.class);
+
+        assertThat(metricas.get(BloqueioPorPadroes.METRICA).counter().getId().getTags())
+                .extracting(tag -> tag.getKey() + "=" + tag.getValue())
+                .containsExactly("tipo=cpf");
+    }
+
+    /** A moderação recebe também frases da IA, que ninguém reescreve; ela fica fora do bloqueio. */
+    @Test
+    void moderacaoNaoPassaPeloBloqueio() {
+        when(provedor.moderar(any())).thenReturn(ResultadoDaModeracao.aprovado());
+
+        assertThat(chamadas.moderar("Morei na Rua das Flores, 123.").sinalizado()).isFalse();
+        verify(provedor).moderar("Morei na Rua das Flores, 123.");
+        assertThat(metricas.find(BloqueioPorPadroes.METRICA).counters()).isEmpty();
     }
 
     @Test
@@ -414,6 +463,10 @@ class ChamadasAoProvedorTest {
 
     private double falhas(String motivo) {
         return metricas.get(ChamadasAoProvedor.FALHA).tag(ChamadasAoProvedor.MOTIVO, motivo).counter().count();
+    }
+
+    private double bloqueios(String tipo) {
+        return metricas.get(BloqueioPorPadroes.METRICA).tag(BloqueioPorPadroes.TIPO, tipo).counter().count();
     }
 
     private static RoteiroSugerido roteiro() {

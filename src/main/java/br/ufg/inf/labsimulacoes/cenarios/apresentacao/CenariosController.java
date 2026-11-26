@@ -20,6 +20,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VersaoDoCenario;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
 import br.ufg.inf.labsimulacoes.ia.SugestaoDesligada;
+import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -196,6 +197,11 @@ class CenariosController {
             return "redirect:/cenarios/" + sugerido.id() + "/editar";
         } catch (IllegalArgumentException | HabilidadesForaDoCatalogo | LimiteDeSugestoesAtingido erro) {
             recusa = erro.getMessage();
+        } catch (TextoComDadoPessoal erro) {
+            // RN-13: o tema não volta à tela, para o dado não ser repetido; o resto do pedido continua.
+            recusa = erro.aviso("O tema");
+            modelo.addAttribute("sugestao",
+                    new FormularioDaSugestao(null, pedido.componente(), pedido.ano(), pedido.habilidades()));
         } catch (FalhaNoProvedorDeIa erro) {
             recusa = "A IA não conseguiu montar a sugestão agora. Tente de novo em instantes.";
         } catch (SugestaoDesligada erro) {

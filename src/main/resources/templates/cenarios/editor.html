@@ -205,7 +205,10 @@
 
         <label for="sugestao-tema">Tema *</label>
         <input id="sugestao-tema" name="tema" required maxlength="200" th:value="${sugestao.tema}"
-               placeholder="Ex.: o primeiro voo do 14-bis">
+               placeholder="Ex.: o primeiro voo do 14-bis" aria-describedby="sugestao-tema-ajuda">
+        <small id="sugestao-tema-ajuda" class="field-description">
+          O tema vai para a IA: não inclua e-mail, telefone, CPF, endereço nem nomes de estudantes.
+        </small>
         <div class="form-grid">
           <div>
             <label for="sugestao-componente">Componente curricular *</label>

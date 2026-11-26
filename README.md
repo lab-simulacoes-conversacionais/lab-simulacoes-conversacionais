@@ -117,6 +117,7 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
 | `cenarios` | `BibliotecaDeCenarios` | Listar, em páginas de até 100, os cenários aprovados da escola, com busca por tema e filtros combináveis por componente, ano e habilidade BNCC (RF-12), com perfil Professor ou Curador |
 | `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
+| `ia` | `BloqueioDeDadosPessoais` | Recusar, antes de qualquer chamada ao provedor, um texto digitado com e-mail, telefone, CPF ou endereço (RN-13), com perfil Professor ou Curador |
 | `ia` | `ConsumoDaIa` | Somar o consumo da IA (respostas, tokens, custo e respostas sem custo) num intervalo ou de uma sessão (RNF-13), sem conferir perfil, porque a conferência agendada roda sem login |
 
 ### Catálogo da BNCC
@@ -196,6 +197,32 @@ A sessão fica ligada ao professor, à turma e à versão aprovada vigente no in
 
   Na falha do provedor, o "Tentar de novo" troca só a resposta (`GET /sessoes/{id}/resposta-pendente`), sem recarregar a página. Se a conexão cair no envio de uma pergunta ou de um controle, a tela avisa, e a pergunta digitada continua no campo.
 - **Mensagens:** quem gravar mensagens (RF-16) precisa usar o horário da aplicação em `mensagem.criado_em`, porque o ponto de reinício também usa esse relógio.
+
+### Bloqueio de dados pessoais
+
+Um texto digitado com padrão de dado pessoal não vai ao provedor (RF-21, RN-13, RNF-01).
+
+- **Onde:** a `BloqueioDeDadosPessoais`, na API do `ia`, usa os padrões de `DadosPessoais`, só com expressões regulares em Java. Fica no `ia` porque o teste do curador está em `cenarios`, que não pode depender de `sessoes`.
+- **Caminhos:** a pergunta da sala (`ConversaDaSessao`), o tema da sugestão (`SugestaoDeCenarios`) e a pergunta do teste do curador (`TesteDoCenario`) passam pelo bloqueio antes de qualquer chamada ao provedor, inclusive a moderação. A moderação já envia o texto, e um texto impróprio vira caso na fila do curador com o texto copiado.
+- **Segunda barreira:** a porta `AdaptadorDeIa` confere de novo a pergunta, em `responder`, e o tema, em `sugerirCenario`. A `moderar` fica de fora, porque também recebe as frases geradas pela IA, que ninguém pode reescrever.
+- **Fora do escopo:** o conteúdo do cenário (contexto, fontes, objetivos e o resto), escrito por professores e curadores, ainda não passa pelo bloqueio. Fica para outra issue.
+- **O que bloqueia:**
+  - **E-mail**, também escrito com "arroba", "(arroba)", "(at)" e "ponto". O @ e o ponto valem colados ou com um espaço de cada lado, nunca de um lado só, para "Siga @santosdumont. Ele voou" não bloquear.
+  - **Telefone:** celular de 9 dígitos começando com 9, com ou sem DDD e +55; fixo com o DDD entre parênteses ou depois do +55; 10 ou 11 dígitos seguidos começando com DDD. O fixo sem DDD só bloqueia com uma palavra de telefone por perto ("tel", "whatsapp", "ligar"...). Números públicos também bloqueiam.
+  - **CPF** com e sem pontuação, com espaço, ponto ou hífen entre os blocos, sem conferir os dígitos verificadores.
+  - **Endereço:** CEP, logradouro com número depois da vírgula ou de "nº" ("Rua das Flores, 123"), quadra e lote, e complemento a até uns 40 caracteres do logradouro com nome ("Rua das Flores, apto 12"). "Logradouro, número" bloqueia mesmo num contexto histórico, menos quando o número logo depois da vírgula é um ano de 1500 a 2099 ou uma porcentagem. O nome do logradouro não tem ponto, para a busca não atravessar o fim da frase, exceto em até três títulos abreviados logo no começo dele: dr, dra, prof, profa, pres, cel, gen, eng, sta, sto, des, min, cap, mal, ten, av e r ("Rua Dr. Fulano, 12", "Av. Pres. Vargas, 500").
+- **O que não bloqueia:** códigos da BNCC, datas, anos e intervalos de anos ("1914-1918", também com meia-risca), notas, medidas, valores, URLs, logradouros sem número ("Rua 25 de Março", "moro na rua das Flores") e "logradouro, ano" ("A rua principal, 1920 foi asfaltada"). Por isso "Avenida Paulista, 1578" passa, e "Avenida Paulista, nº 1578" bloqueia.
+- **Limitações conhecidas:**
+  - **Falsos positivos:** números de 10 dígitos que parecem telefone com DDD, como 1234567890 e 2147483647, e um logradouro seguido de vírgula e número que não é endereço ("A questão 3, item 2 da Avenida Brasil, 5 alunos acertaram").
+  - **Falsos negativos:** e-mail por extenso sem parênteses e sem "ponto" ("fulano arroba exemplo com"); "at" e "dot" sem parênteses ou colchetes; e-mail com espaço de um lado só do @ ou do ponto; números por extenso; número sem vírgula nem "nº" ("Rua das Flores 123"); abreviação fora da lista ("Rua Alm. Barroso, 10") ou no meio do nome; "Tv." como travessa; número da casa de 1500 a 2099 logo depois da vírgula, sem "nº"; e dígitos de outros sistemas de escrita, como os árabe-índicos (٩٨٧٦٥-٤٣٢١), que a normalização não troca por 0 a 9.
+- **Traços:** a meia-risca, o travessão, os outros traços e o sinal de menos valem como hífen ("98765–4321").
+- **Normalização:** só para a busca, sem acentos, em minúsculas, sem caracteres invisíveis e com os espaços juntados. Nenhuma regra tem quantificador aninhado, e o tempo cresce em linha com o texto.
+- **Ao bloquear:** nada é gravado, e nada vai para log, evento ou auditoria. A exceção `TextoComDadoPessoal` leva só o tipo. O aviso nomeia o tipo sem repetir o dado: "A pergunta parece ter um dado pessoal (telefone). Reescreva sem e-mail, telefone, CPF ou endereço, e não digite nomes de estudantes."
+  - **Na sala:** volta 422, a sessão continua em andamento, a pergunta não conta no limite (RN-18) e o texto fica no campo. O `projecao.js` faz o HTMX trocar as respostas de erro do formulário que vêm com o `HX-Retarget` para a área de avisos (400, 409, 422 e 503), que por padrão ele não troca.
+  - **Pergunta já pendente com dado pessoal**, como uma gravada antes do bloqueio: a `ConversaDaSessao` confere antes de chamar o adaptador, tira a pergunta da espera como no bloqueio da resposta e o canal manda o evento SSE `dado-pessoal`. Ao reabrir o canal, como ao recarregar a página, o aviso é o mesmo, e não o da moderação. A sessão não pausa, não abre caso e volta a aceitar perguntas, e o bloqueio conta uma vez só na métrica.
+  - **Na sugestão e no teste do curador:** o pedido volta com o aviso, mas sem o texto bloqueado, para a tela não repetir o dado. A sugestão não gasta a cota de pedidos, e o teste não ocupa vaga do teto.
+- **Métrica:** `lab.privacidade.bloqueio`, com a tag `tipo` (`email`, `telefone`, `cpf` ou `endereco`). Nenhum usuário, sessão ou texto vira tag.
+- **Tamanho:** a pergunta da sala e a do teste têm no máximo `PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA` (1000) caracteres, conferidos também no servidor.
 
 ### Observabilidade e custo da IA
 

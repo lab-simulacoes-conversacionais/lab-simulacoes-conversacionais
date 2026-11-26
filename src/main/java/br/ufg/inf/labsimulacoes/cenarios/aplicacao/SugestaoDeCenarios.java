@@ -10,6 +10,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.PedidosDeSugestao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.RoteiroDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.VinculoCurricular;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
+import br.ufg.inf.labsimulacoes.ia.BloqueioDeDadosPessoais;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeSugestao;
 import br.ufg.inf.labsimulacoes.ia.RoteiroSugerido;
 import br.ufg.inf.labsimulacoes.ia.SugestaoDeCenario;
@@ -35,6 +36,7 @@ public class SugestaoDeCenarios {
     private final UsuarioLogado usuarioLogado;
     private final PedidosDeSugestao pedidos;
     private final LimiteDeSugestoes limite;
+    private final BloqueioDeDadosPessoais dadosPessoais;
 
     SugestaoDeCenarios(
             AdaptadorDeIa adaptador,
@@ -42,18 +44,22 @@ public class SugestaoDeCenarios {
             Habilidades habilidades,
             UsuarioLogado usuarioLogado,
             PedidosDeSugestao pedidos,
-            LimiteDeSugestoes limite) {
+            LimiteDeSugestoes limite,
+            BloqueioDeDadosPessoais dadosPessoais) {
         this.adaptador = adaptador;
         this.cenarios = cenarios;
         this.habilidades = habilidades;
         this.usuarioLogado = usuarioLogado;
         this.pedidos = pedidos;
         this.limite = limite;
+        this.dadosPessoais = dadosPessoais;
     }
 
     /**
      * @throws br.ufg.inf.labsimulacoes.cenarios.dominio.HabilidadesForaDoCatalogo antes de chamar o
      *     provedor, para um código errado não gastar tokens
+     * @throws br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal antes de chamar o provedor e de contar o
+     *     pedido no limite, se o tema tiver e-mail, telefone, CPF ou endereço (RN-13)
      * @throws br.ufg.inf.labsimulacoes.cenarios.dominio.LimiteDeSugestoesAtingido antes de chamar o
      *     provedor, se o usuário já pediu todas as sugestões da janela (RNF-13). Um pedido que chega ao
      *     provedor conta mesmo se ele falhar, porque os tokens já foram gastos
@@ -67,6 +73,7 @@ public class SugestaoDeCenarios {
             throw new IllegalArgumentException("O pedido de sugestão é obrigatório");
         }
         habilidades.exigirNoCatalogo(pedido.curriculo().habilidades());
+        dadosPessoais.exigirSemDadoPessoal(pedido.tema());
         long quemPediu = usuarioLogado.id();
         limite.exigirDentro(pedidos.registrar(quemPediu, limite.janela()));
 

@@ -4,12 +4,16 @@ import br.ufg.inf.labsimulacoes.cenarios.CenariosAprovados;
 import br.ufg.inf.labsimulacoes.cenarios.VersaoAprovada;
 import br.ufg.inf.labsimulacoes.eventos.ConteudoBloqueado;
 import br.ufg.inf.labsimulacoes.ia.AdaptadorDeIa;
+import br.ufg.inf.labsimulacoes.ia.BloqueioDeDadosPessoais;
 import br.ufg.inf.labsimulacoes.ia.CenarioDaConversa;
+import br.ufg.inf.labsimulacoes.ia.DadosPessoais;
 import br.ufg.inf.labsimulacoes.ia.FinalidadeDoConsumo;
 import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
+import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
+import br.ufg.inf.labsimulacoes.ia.TipoDeDadoPessoal;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.EtapaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadoDaSessao;
@@ -18,6 +22,7 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MudancaNaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaLongaDemais;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoForaDoEstado;
@@ -76,6 +81,7 @@ public class ConversaDaSessao {
     private final Relogio relogio;
     private final ApplicationEventPublisher eventos;
     private final EtapasDaConversa etapas;
+    private final BloqueioDeDadosPessoais dadosPessoais;
     private final LimiteDeTempo limiteDeTempo;
 
     /**
@@ -95,6 +101,7 @@ public class ConversaDaSessao {
             Relogio relogio,
             ApplicationEventPublisher eventos,
             EtapasDaConversa etapas,
+            BloqueioDeDadosPessoais dadosPessoais,
             LimiteDeTempo limiteDeTempo) {
         this.sessoes = sessoes;
         this.estados = estados;
@@ -105,6 +112,7 @@ public class ConversaDaSessao {
         this.relogio = relogio;
         this.eventos = eventos;
         this.etapas = etapas;
+        this.dadosPessoais = dadosPessoais;
         this.limiteDeTempo = limiteDeTempo;
     }
 
@@ -121,7 +129,15 @@ public class ConversaDaSessao {
      * ao curador mesmo que a sessão tenha sido pausada ou chegado ao limite durante a moderação: o
      * conteúdo sinalizado nunca é descartado como uma recusa comum (RN-20).
      *
+     * <p>Antes da moderação, que já envia o texto ao provedor, a pergunta passa pelo bloqueio de dados
+     * pessoais (RN-13). Uma pergunta bloqueada por isso não é gravada, não conta no limite, não pausa a
+     * sessão e não abre caso: o professor reescreve.
+     *
      * @throws IllegalArgumentException se a pergunta estiver vazia
+     * @throws PerguntaLongaDemais se a pergunta passar de {@value PedidoDeFala#TAMANHO_MAXIMO_DA_PERGUNTA}
+     *     caracteres
+     * @throws br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal se a pergunta tiver e-mail, telefone, CPF ou
+     *     endereço; nada foi enviado ao provedor
      * @throws PerguntaBloqueada se o filtro bloqueou a pergunta; a sessão já foi pausada, se ainda estava
      *     em andamento
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se a moderação falhar; nada é gravado
@@ -137,7 +153,11 @@ public class ConversaDaSessao {
             throw new IllegalArgumentException("Digite a pergunta da turma");
         }
         String pergunta = texto.strip();
+        if (pergunta.length() > PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA) {
+            throw new PerguntaLongaDemais(PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA);
+        }
         etapas.medir(Etapa.CONFERENCIA_DA_SESSAO, () -> conferirAntesDaModeracao(sessaoId));
+        dadosPessoais.exigirSemDadoPessoal(pergunta);
         ResultadoDaModeracao moderacao = adaptador.moderar(pergunta);
         GravacaoDaPergunta gravacao = etapas.medir(Etapa.GRAVACAO_DA_PERGUNTA,
                 () -> transacao.execute(status -> gravarPergunta(sessaoId, pergunta, moderacao)));
@@ -232,6 +252,8 @@ public class ConversaDaSessao {
      *     sido bloqueada
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se o provedor ou a moderação falharem antes
      *     de um bloqueio
+     * @throws TextoComDadoPessoal se a pergunta pendente tiver um dado pessoal (RN-13); ela já foi descartada,
+     *     nada foi enviado ao provedor e a sessão volta a aceitar perguntas
      */
     public Optional<MensagemExibida> responderPendente(long sessaoId, TelaDaResposta tela) {
         EtapaEmAndamento preparo = etapas.iniciar(Etapa.PREPARO_DA_RESPOSTA);
@@ -260,10 +282,14 @@ public class ConversaDaSessao {
      *   <li>Se a pergunta foi respondida enquanto a tela estava fora, entrega a resposta gravada inteira,
      *       sem chamar o modelo de novo.
      *   <li>Se a resposta foi bloqueada nesse meio-tempo, só avisa o bloqueio (RN-20).
+     *   <li>Se a pergunta foi descartada por ter um dado pessoal, avisa o dado pessoal, e não o bloqueio
+     *       da moderação (RN-13).
      * </ul>
      *
      * @throws RespostaEmAndamento se a outra resposta não terminar a tempo
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa como em {@link #responderPendente}
+     * @throws TextoComDadoPessoal como em {@link #responderPendente}, e também ao reabrir o canal de uma
+     *     pergunta já descartada por isso; nada vai ao provedor nem conta de novo na métrica
      */
     public void entregarResposta(long sessaoId, TelaDaResposta tela) {
         leitura.doProfessorLogado(sessoes.buscar(sessaoId), sessaoId);
@@ -289,7 +315,12 @@ public class ConversaDaSessao {
         }
     }
 
-    /** A pergunta da tela já teve o seu desfecho: a resposta gravada ou o bloqueio dela. */
+    /**
+     * A pergunta da tela já teve o seu desfecho: a resposta gravada, o bloqueio dela ou o descarte por
+     * dado pessoal. O descarte é marcado como o bloqueio da resposta, então o texto é conferido de novo
+     * para a tela não mostrar o aviso da moderação. A conferência é pelos padrões, sem a métrica, que já
+     * contou o bloqueio no descarte.
+     */
     private static void entregarDesfecho(EstadoDaSessao estado, TelaDaResposta tela) {
         if (estado.ultimasMensagens().isEmpty()) {
             return;
@@ -298,6 +329,10 @@ public class ConversaDaSessao {
         if (ultima.autoria() == MensagemExibida.Autoria.IA) {
             tela.exibir(ultima.texto());
         } else if (ultima.respostaBloqueada()) {
+            Optional<TipoDeDadoPessoal> dadoPessoal = DadosPessoais.procurar(ultima.texto());
+            if (dadoPessoal.isPresent()) {
+                throw new TextoComDadoPessoal(dadoPessoal.get());
+            }
             tela.bloquear();
         }
     }
@@ -326,6 +361,7 @@ public class ConversaDaSessao {
             }
             sessao.aceitarResposta();
             MensagemExibida pergunta = pendente.get();
+            descartarSeTiverDadoPessoal(sessaoId, pergunta);
             PedidoDeFala pedido = pedido(sessao, estado, pergunta);
             preparo.parar();
             AtomicReference<ConteudoBloqueado> bloqueado = new AtomicReference<>();
@@ -363,6 +399,27 @@ public class ConversaDaSessao {
             return Optional.of(exibida);
         } finally {
             respondendo.remove(sessaoId, vez);
+        }
+    }
+
+    /**
+     * Segunda barreira do RN-13 para uma pergunta que já ficou pendente com dado pessoal, como uma gravada
+     * antes do bloqueio existir: ela deixa de esperar resposta, como no bloqueio da resposta, mas sem
+     * pausar a sessão nem abrir caso. A conferência vem antes do adaptador, e sem a pendente a próxima
+     * abertura do canal só fecha, então o bloqueio conta uma vez na métrica, e não uma por tentativa.
+     *
+     * @throws TextoComDadoPessoal depois de descartar a pendente
+     */
+    private void descartarSeTiverDadoPessoal(long sessaoId, MensagemExibida pergunta) {
+        try {
+            dadosPessoais.exigirSemDadoPessoal(pergunta.texto());
+        } catch (TextoComDadoPessoal erro) {
+            transacao.executeWithoutResult(status -> {
+                sessoes.buscarParaAlterar(sessaoId).orElseThrow(() -> new SessaoNaoEncontrada(sessaoId));
+                sessoes.marcarRespostaBloqueada(sessaoId, pergunta);
+                estados.gravar(leitura.doBanco(sessaoId));
+            });
+            throw erro;
         }
     }
 

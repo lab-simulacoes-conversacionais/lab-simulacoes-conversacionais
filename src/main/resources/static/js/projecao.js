@@ -52,20 +52,32 @@
   // Pergunta: depois de aceita, limpa o campo e os avisos e atualiza a contagem do painel.
   // ---------------------------------------------------------------------------------------------
   formulario.addEventListener("htmx:beforeRequest", () => { avisos.replaceChildren(); });
+  // Uma pergunta recusada (400, 409, 422 e 503) volta com o aviso e o HX-Retarget para a área de avisos.
+  // O HTMX 2 não troca respostas de erro por padrão, então o aviso só aparece com este ajuste. O evento é
+  // disparado no alvo original (#conversa), e detail.elt é esse alvo, não o formulário; quem pediu está em
+  // requestConfig.elt, que o HTMX 2.0.4 preenche ao disparar htmx:configRequest no formulário. Só as recusas
+  // vêm com o HX-Retarget para a área de avisos; um 500 sem ele continua tratado como erro.
+  document.body.addEventListener("htmx:beforeSwap", (evento) => {
+    const { requestConfig, xhr, target } = evento.detail;
+    if (requestConfig?.elt !== formulario || xhr.status < 400 || target !== avisos) return;
+    evento.detail.shouldSwap = true;
+    evento.detail.isError = false;
+  });
+  // Com isError = false o HTMX marca a recusa como "successful"; o status separa, para o texto ficar no campo.
   formulario.addEventListener("htmx:afterRequest", (evento) => {
-    if (!evento.detail.successful) return;
+    if (!evento.detail.successful || evento.detail.xhr.status >= 400) return;
     formulario.reset();
     campo.focus();
     avisarMudanca();
   });
 
   // ---------------------------------------------------------------------------------------------
-  // Resposta pelo SSE. No bloqueio ou na falha, a resposta parcial some e fica só o aviso neutro
-  // (RN-20, RNF-04). Ao fechar o canal, o painel é atualizado: o bloqueio pausa a sessão.
+  // Resposta pelo SSE. No bloqueio, na falha ou no dado pessoal da pendente, a resposta parcial some e
+  // fica só o aviso (RN-20, RNF-04, RN-13). Ao fechar o canal, o painel é atualizado: o bloqueio pausa a sessão.
   // ---------------------------------------------------------------------------------------------
   document.body.addEventListener("htmx:sseBeforeMessage", (evento) => {
     const tipo = evento.detail.type;
-    if (tipo !== "bloqueio" && tipo !== "falha") return;
+    if (tipo !== "bloqueio" && tipo !== "falha" && tipo !== "dado-pessoal") return;
     const resposta = evento.target.closest(".mensagem-ia");
     resposta?.querySelector(".mensagem-texto")?.replaceChildren();
     resposta?.classList.add("mensagem-descartada");

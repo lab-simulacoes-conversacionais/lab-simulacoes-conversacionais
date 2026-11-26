@@ -34,7 +34,7 @@
      th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})},data-reabrir=@{/sessoes/{id}/resposta-pendente(id=${sessaoId})}">
   <span class="mensagem-autoria">Personagem</span>
   <p class="mensagem-texto" sse-swap="trecho" hx-swap="beforeend"></p>
-  <p class="aviso" role="alert" sse-swap="falha,bloqueio"></p>
+  <p class="aviso" role="alert" sse-swap="falha,bloqueio,dado-pessoal"></p>
 </div>
 
 <p th:fragment="aviso" class="aviso" role="alert" th:text="${aviso}">Aviso ao professor</p>

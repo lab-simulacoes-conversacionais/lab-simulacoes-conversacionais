@@ -20,6 +20,12 @@ public record PedidoDeFala(
         FinalidadeDoConsumo finalidade,
         Long referenciaId) {
 
+    /**
+     * Quantos caracteres a pergunta digitada pode ter, na sala e no teste do curador. Quem recebe a
+     * pergunta confere antes de qualquer chamada ao provedor; o campo da tela tem o mesmo limite.
+     */
+    public static final int TAMANHO_MAXIMO_DA_PERGUNTA = 1000;
+
     public PedidoDeFala {
         if (cenario == null) {
             throw new IllegalArgumentException("O cenário da conversa é obrigatório");

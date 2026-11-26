@@ -43,6 +43,10 @@ import org.springframework.stereotype.Service;
  * e {@value #TOKENS}, por finalidade e modelo, e {@value #FALHA} quando o provedor responde sem nada
  * aproveitável. Nenhum id de sessão, usuário ou cenário vira tag. Os contadores somam desde a subida da
  * aplicação; o custo do dia vem do banco ({@link br.ufg.inf.labsimulacoes.ia.ConsumoDaIa}).
+ *
+ * <p>A pergunta da fala e o tema da sugestão passam de novo pelo bloqueio de dados pessoais antes do
+ * prompt (RN-13), como segunda barreira atrás do caso de uso. A moderação fica de fora, porque também
+ * recebe frases geradas pela IA, que ninguém pode reescrever.
  */
 @Service
 @PreAuthorize("hasAnyRole('PROFESSOR', 'CURADOR')")
@@ -96,6 +100,7 @@ public class ChamadasAoProvedor implements AdaptadorDeIa {
         if (pedido == null || aoReceberTrecho == null) {
             throw new IllegalArgumentException("O pedido e quem recebe os trechos são obrigatórios");
         }
+        BloqueioPorPadroes.exigir(pedido.pergunta(), metricas);
         PromptMontado prompt = medir(MONTAGEM_DO_PROMPT, () -> montador.daFala(pedido));
         long inicio = System.nanoTime();
         Geracao<String> geracao = gerar(prompt, aoReceberTrecho);
@@ -112,6 +117,7 @@ public class ChamadasAoProvedor implements AdaptadorDeIa {
         if (pedido == null) {
             throw new IllegalArgumentException("O pedido de sugestão é obrigatório");
         }
+        BloqueioPorPadroes.exigir(pedido.tema(), metricas);
         PromptMontado prompt = montador.daSugestao(pedido);
         long inicio = System.nanoTime();
         Geracao<RoteiroSugerido> geracao = medir(SUGESTAO, () -> provedor.sugerirRoteiro(prompt));

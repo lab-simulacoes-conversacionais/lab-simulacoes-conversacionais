@@ -20,6 +20,7 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.PerguntasDeTeste;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.TesteNaoPermitido;
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
+import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Controller;
@@ -198,6 +199,8 @@ class CuradoriaController {
             return secaoDoTeste(id, modelo, null, null);
         } catch (IllegalArgumentException | LimiteDoTesteAtingido erro) {
             return secaoDoTeste(id, modelo, erro.getMessage(), texto);
+        } catch (TextoComDadoPessoal erro) {
+            return secaoDoTeste(id, modelo, erro.aviso("A pergunta"), null);
         } catch (FalhaNoProvedorDeIa erro) {
             return secaoDoTeste(id, modelo,
                     "O personagem não conseguiu responder agora. Tente de novo em instantes.", texto);

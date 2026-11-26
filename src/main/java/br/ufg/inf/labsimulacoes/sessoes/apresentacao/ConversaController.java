@@ -1,6 +1,8 @@
 package br.ufg.inf.labsimulacoes.sessoes.apresentacao;
 
 import br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa;
+import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
+import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ControlesDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.ConversaDaSessao;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa;
@@ -10,6 +12,7 @@ import br.ufg.inf.labsimulacoes.sessoes.aplicacao.PerguntaRecebida;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.TelaDaResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.LimiteDePerguntasAtingido;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaBloqueada;
+import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaLongaDemais;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.PerguntaSemResposta;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.RespostaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.SessaoEncerrada;
@@ -60,6 +63,9 @@ import org.springframework.web.util.HtmlUtils;
  *   <li>{@code falha}: o provedor ou a moderação falharam. Os dados são o aviso neutro. A tela
  *       <b>descarta a resposta parcial já exibida</b>; a pergunta continua pendente, e abrir o canal de
  *       novo tenta outra vez (RNF-04).
+ *   <li>{@code dado-pessoal}: a pergunta pendente tinha um dado pessoal (RN-13) e foi descartada sem ir ao
+ *       provedor. Os dados são o aviso, que nomeia o tipo sem repetir o dado. A tela descarta a resposta e
+ *       mostra o aviso; a sessão continua em andamento e já aceita outra pergunta.
  *   <li>{@code fim}: sempre o último evento; a tela fecha o canal, o que evita a reconexão automática.
  * </ul>
  *
@@ -163,6 +169,9 @@ class ConversaController {
         var tela = new TelaNoCanal(canal, etapas);
         try {
             conversa.entregarResposta(id, tela);
+        } catch (TextoComDadoPessoal e) {
+            // RN-13: a pendente já foi descartada; nada de log, para o texto não aparecer em lugar nenhum.
+            tela.avisarDadoPessoal(e.aviso("A pergunta"));
         } catch (FalhaNoProvedorDeIa e) {
             LOG.warn("O provedor de IA falhou na sessão {}", id, e);
             tela.falhar();
@@ -206,6 +215,12 @@ class ConversaController {
                         () -> enviarSemFalhar(canal, "bloqueio", escapar(AVISO_DE_BLOQUEIO)));
             }
             fechar();
+        }
+
+        void avisarDadoPessoal(String aviso) {
+            if (!fechado) {
+                etapas.medir(Etapa.ENVIO_SSE_AVISO, () -> enviarSemFalhar(canal, "dado-pessoal", escapar(aviso)));
+            }
         }
 
         void falhar() {
@@ -259,6 +274,21 @@ class ConversaController {
     @ExceptionHandler(PerguntaBloqueada.class)
     ModelAndView perguntaBloqueada(HttpServletResponse resposta) {
         return aviso(resposta, HttpStatus.CONFLICT, AVISO_DE_PERGUNTA_BLOQUEADA);
+    }
+
+    /**
+     * RN-13: nada foi enviado nem gravado e a sessão continua em andamento. O aviso nomeia o tipo sem
+     * repetir o dado, e o texto fica no campo para o professor reescrever.
+     */
+    @ExceptionHandler(TextoComDadoPessoal.class)
+    ModelAndView dadoPessoal(TextoComDadoPessoal erro, HttpServletResponse resposta) {
+        return aviso(resposta, HttpStatus.UNPROCESSABLE_ENTITY, erro.aviso("A pergunta"));
+    }
+
+    @ExceptionHandler(PerguntaLongaDemais.class)
+    ModelAndView perguntaLongaDemais(HttpServletResponse resposta) {
+        return aviso(resposta, HttpStatus.BAD_REQUEST, "A pergunta tem no máximo "
+                + PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA + " caracteres. Resuma e envie de novo.");
     }
 
     /** Só a moderação da pergunta chega aqui; a falha na resposta vai pelo canal SSE. */

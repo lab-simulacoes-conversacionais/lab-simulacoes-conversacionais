@@ -27,6 +27,8 @@ public interface AdaptadorDeIa {
      *
      * @throws IllegalArgumentException se faltar ao cenário um campo que o template do personagem usa;
      *     num cenário aprovado, todos existem (RN-02, RN-03)
+     * @throws TextoComDadoPessoal antes de chamar o provedor, se a pergunta tiver um dado pessoal (RN-13);
+     *     é a segunda barreira, porque quem chama já confere antes da moderação
      * @throws FalhaNoProvedorDeIa se o provedor falhar, ficar fora do ar ou devolver uma resposta vazia
      */
     RespostaDoPersonagem responder(PedidoDeFala pedido, Consumer<String> aoReceberTrecho);
@@ -35,6 +37,7 @@ public interface AdaptadorDeIa {
      * Ponto de partida para um cenário novo (RN-04). Quem chama salva o resultado como Rascunho marcado
      * "Sugerido por IA"; a IA nunca aprova nem altera um cenário.
      *
+     * @throws TextoComDadoPessoal antes de chamar o provedor, se o tema tiver um dado pessoal (RN-13)
      * @throws FalhaNoProvedorDeIa se o provedor falhar ou devolver algo que não vira um roteiro
      * @throws SugestaoDesligada se o ambiente não definiu IA_MODELO_SUGESTAO; o chat continua
      *     funcionando
@@ -43,7 +46,8 @@ public interface AdaptadorDeIa {
 
     /**
      * Confere um texto pelo modelo de moderação do provedor (RN-20). Decidir o que fazer com um texto
-     * sinalizado é de quem chama.
+     * sinalizado é de quem chama. Não confere dados pessoais, porque também recebe frases geradas pela
+     * IA: quem modera um texto digitado chama o {@link BloqueioDeDadosPessoais} antes.
      *
      * @throws IllegalArgumentException se o texto estiver vazio
      * @throws FalhaNoProvedorDeIa se o provedor falhar ou ficar fora do ar
