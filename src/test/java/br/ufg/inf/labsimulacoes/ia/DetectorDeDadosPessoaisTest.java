@@ -26,7 +26,11 @@ class DetectorDeDadosPessoaisTest {
             fulano arroba exemplo ponto com                    | EMAIL
             fulano (at) exemplo (dot) com                      | EMAIL
             fulano @ exemplo . com                             | EMAIL
+            fulano (arroba) exemplo (ponto) com                | EMAIL
+            fulano [arroba] exemplo.com                        | EMAIL
             (62) 98765-4321                                    | TELEFONE
+            9-8765-4321                                        | TELEFONE
+            (62) 9-8765-4321                                   | TELEFONE
             62 98765-4321                                      | TELEFONE
             +55 62 98765-4321                                  | TELEFONE
             +55 (62) 98765-4321                                | TELEFONE
@@ -44,17 +48,29 @@ class DetectorDeDadosPessoaisTest {
             123.456.789-00                                     | CPF
             12345678900                                        | CPF
             123456789-00                                       | CPF
+            123 456 789 00                                     | CPF
+            123.456.789.00                                     | CPF
+            123-456-789-00                                     | CPF
             12345-678                                          | ENDERECO
             CEP: 12.345-678                                    | ENDERECO
             cep 12345678                                       | ENDERECO
             Rua das Flores, 123                                | ENDERECO
             Av. Brasil, nº 1000                                | ENDERECO
             Travessa do Sol n° 45                              | ENDERECO
-            Avenida Paulista, 1578                             | ENDERECO
+            Avenida Paulista, 900                              | ENDERECO
+            Avenida Paulista, nº 1578                          | ENDERECO
             Rua 25 de Março, 120                               | ENDERECO
+            Rua Dr. Fulano, 12                                 | ENDERECO
+            Av. Pres. Vargas, 500                              | ENDERECO
+            Rua Prof. Ana Lima, nº 40                          | ENDERECO
+            Praça Mal. Deodoro, 7                              | ENDERECO
+            Rua Cel. Pedro, apto 3                             | ENDERECO
+            Rua das Flores, 123. Depois eu explico             | ENDERECO
             Rua T-25, Qd. 10, Lt. 5                            | ENDERECO
             Quadra 10 Lote 5                                   | ENDERECO
             ele mora na Rua das Flores, apto 12                | ENDERECO
+            Rua das Flores, casa 3                             | ENDERECO
+            Rua das Flores, Setor Bueno, bloco 2               | ENDERECO
             """)
     void padraoDeDadoPessoalEEncontrado(String texto, TipoDeDadoPessoal tipo) {
         assertThat(DadosPessoais.procurar(texto)).contains(tipo);
@@ -66,6 +82,7 @@ class DetectorDeDadosPessoaisTest {
         "Explique a habilidade EF06MA01",
         "Como trabalhar a EF69LP03?",
         "O que mudou entre 1914-1918?",
+        "O que mudou entre 1914–1918?",
         "Compare os anos 2001-2010 com a década anterior",
         "A prova é em 26/11/2026",
         "O que aconteceu em 1822?",
@@ -95,7 +112,20 @@ class DetectorDeDadosPessoaisTest {
         "Quem inventou o arroba?",
         "Siga @santosdumont",
         "O telefone foi inventado em 1876",
-        "O telefone, entre 1939-1945, mudou a guerra?"
+        "O telefone, entre 1939-1945, mudou a guerra?",
+        // Os blocos com separador não juntam um número maior (item 4).
+        "Os números 123 456 789 0001 estão na tabela",
+        "O código 1234 567 890 12 é do livro",
+        "Ligue os pontos 9-8765-43210",
+        // Falsos positivos da revisão (item 5).
+        "Siga @santosdumont. Ele voou em 1906",
+        "Assisti à TV. Em 1950, 30% das casas tinham rádio",
+        "A rua principal, 1920 foi asfaltada",
+        "Na estrada, a casa 3 pegou fogo",
+        "Segundo R. Silva, 2003, o voo durou pouco",
+        // Abreviação com ponto só no começo do nome: no meio, "min." atravessaria a frase.
+        "A rua fica a 10 min. Em 1950, 30 casas tinham rádio",
+        "A rua fica a 10 min. Depois, 30 casas"
     })
     void textoDeAulaNaoEBloqueado(String texto) {
         assertThat(DadosPessoais.procurar(texto)).isEmpty();
@@ -136,7 +166,12 @@ class DetectorDeDadosPessoaisTest {
                 Arguments.of("FULANO@EXEMPLO.COM", TipoDeDadoPessoal.EMAIL),
                 Arguments.of("Fulano ARROBA exemplo PONTO com", TipoDeDadoPessoal.EMAIL),
                 Arguments.of("PRAÇA DA SÉ, Nº 10", TipoDeDadoPessoal.ENDERECO),
-                Arguments.of("123​.456.789-00", TipoDeDadoPessoal.CPF));
+                Arguments.of("123​.456.789-00", TipoDeDadoPessoal.CPF),
+                // Meia-risca (U+2013) e sinal de menos (U+2212), comuns em texto colado de editores.
+                Arguments.of("98765–4321", TipoDeDadoPessoal.TELEFONE),
+                Arguments.of("(62) 98765–4321", TipoDeDadoPessoal.TELEFONE),
+                Arguments.of("98765−4321", TipoDeDadoPessoal.TELEFONE),
+                Arguments.of("123.456.789–00", TipoDeDadoPessoal.CPF));
     }
 
     /** O tempo cresce em linha com o texto: nenhuma entrada maliciosa trava a verificação (sem ReDoS). */
@@ -154,6 +189,8 @@ class DetectorDeDadosPessoaisTest {
                 "1-".repeat(5_000),
                 "rua ".repeat(2_500),
                 "rua das flores ".repeat(700),
+                "rua dr. ".repeat(1_250),
+                "av. pres. dr. prof. ".repeat(500),
                 "tel ".repeat(2_500),
                 "qd 1 ".repeat(2_000),
                 "arroba ponto ".repeat(800),
