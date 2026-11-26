@@ -23,6 +23,7 @@
           th:action="@{/sessoes/{s}/revisao/respostas/{m}/sinalizacao(s=${sessaoId},m=${mensagemId})}"
           th:hx-post="@{/sessoes/{s}/revisao/respostas/{m}/sinalizacao(s=${sessaoId},m=${mensagemId})}"
           th:hx-target="|#sinalizar-${mensagemId}|" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <!-- Radio nativo e texto no mesmo label; o tamanho do radio vem do app.css (.sinalizacao-form). -->
       <fieldset class="sinalizacao-opcoes">
         <legend>Tipo do erro</legend>
         <label th:each="t : ${tipos}">
@@ -36,7 +37,7 @@
         <label th:each="g : ${gravidades}">
           <input type="radio" name="gravidade" required th:value="${g.name()}"
                  th:checked="${gravidadeEscolhida == g.name()}">
-          <span><strong th:text="${g.rotulo()}">Leve</strong> <small th:text="${g.descricao()}">Critério</small></span>
+          <span><strong th:text="|${g.rotulo()}:|">Leve:</strong> <small th:text="${g.descricao()}">Critério</small></span>
         </label>
       </fieldset>
 
