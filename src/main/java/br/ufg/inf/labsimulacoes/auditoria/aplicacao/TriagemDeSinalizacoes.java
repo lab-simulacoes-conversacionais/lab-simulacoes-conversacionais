@@ -23,6 +23,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * O curador confirma ou descarta uma sinalização pendente (RF-24). A confirmada leva a gravidade final,
@@ -30,7 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>A triagem é gravada no log de ações críticas na mesma transação, com a decisão e se saiu fora do prazo
  * de 2 dias úteis (RN-24, RN-35), e publica {@link SinalizacaoTriada}, sem os textos. Até a RF-25, nada
- * reage ao evento: a triagem ainda não mantém nem retira a suspensão do cenário (RN-23b a d).
+ * reage ao evento: a triagem ainda não mantém nem retira a suspensão do cenário (RN-23b a d). A métrica e
+ * a linha de log da aplicação só saem depois da confirmação da transação, para não contarem uma triagem
+ * desfeita.
  */
 @Service
 @PreAuthorize("hasRole('CURADOR')")
@@ -109,13 +113,32 @@ public class TriagemDeSinalizacoes {
                 sinalizacao.perfil().name(),
                 triagem.triadaPorId(),
                 triagem.triadaEm()));
+        depoisDeConfirmar(() -> contar(triagem, foraDoPrazo));
+    }
+
+    private void contar(Triagem triagem, boolean foraDoPrazo) {
         Counter.builder(METRICA)
                 .description("Sinalizações triadas pelo curador (RF-24)")
                 .tag("decisao", triagem.decisao().name().toLowerCase(Locale.ROOT))
                 .tag("prazo", foraDoPrazo ? "fora" : "dentro")
                 .register(metricas)
                 .increment();
-        LOG.info("Sinalização {} triada: {}{}", id, triagem.decisao(), foraDoPrazo ? " (fora do prazo)" : "");
+        LOG.info("Sinalização {} triada: {}{}",
+                triagem.sinalizacaoId(), triagem.decisao(), foraDoPrazo ? " (fora do prazo)" : "");
+    }
+
+    /** Fora de uma transação, a gravação já está confirmada. */
+    private static void depoisDeConfirmar(Runnable acao) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            acao.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                acao.run();
+            }
+        });
     }
 
     /** O log não aceita valor nulo, então a gravidade final só entra na confirmada. */

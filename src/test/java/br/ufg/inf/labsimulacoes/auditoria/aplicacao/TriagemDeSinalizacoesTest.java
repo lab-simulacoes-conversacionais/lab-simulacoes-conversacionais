@@ -30,6 +30,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
+import org.springframework.test.context.transaction.TestTransaction;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -161,7 +162,6 @@ class TriagemDeSinalizacoesTest {
     void descarteForaDoPrazoFicaNoLogComoAtrasado() {
         long id = banco.pendente(ATRASADA);
         entrar(curadora, "ROLE_CURADOR");
-        double antes = triagens("descartada", "fora");
 
         triagem.descartar(id);
 
@@ -175,7 +175,34 @@ class TriagemDeSinalizacoesTest {
                 .containsEntry("decisao", "DESCARTADA")
                 .containsEntry("com_gravidade", false)
                 .containsEntry("atrasada", true);
+    }
+
+    /** A métrica só conta a triagem confirmada no banco, com a decisão e o prazo. */
+    @Test
+    void metricaContaATriagemDepoisDoCommit() {
+        long id = banco.pendente(ATRASADA);
+        entrar(curadora, "ROLE_CURADOR");
+        double antes = triagens("descartada", "fora");
+
+        triagem.descartar(id);
+        assertThat(triagens("descartada", "fora")).isEqualTo(antes);
+        TestTransaction.flagForCommit();
+        TestTransaction.end();
+
         assertThat(triagens("descartada", "fora")).isEqualTo(antes + 1);
+    }
+
+    @Test
+    void triagemDesfeitaNaoEntraNaMetrica() {
+        long id = banco.pendente(NO_PRAZO);
+        entrar(curadora, "ROLE_CURADOR");
+        double antes = triagens("confirmada", "dentro");
+
+        triagem.confirmar(id, GravidadeFinal.LEVE);
+        TestTransaction.flagForRollback();
+        TestTransaction.end();
+
+        assertThat(triagens("confirmada", "dentro")).isEqualTo(antes);
     }
 
     @Test
