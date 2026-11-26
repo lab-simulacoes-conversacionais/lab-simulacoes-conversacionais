@@ -104,12 +104,49 @@ class SinalizacoesJdbcTest {
         "tipo, ERRO_DE_DIGITACAO",
         "gravidade_percebida, GRAVISSIMA",
         "perfil, ADMINISTRADOR",
-        "justificativa, '   '"
+        "justificativa, '   '",
+        "status, TRIADA",
+        "status, CONFIRMADA",
+        "gravidade_final, LEVE"
     })
     void valorForaDaRegraERecusado(String coluna, String valor) {
         long id = sinalizar(professor, "PROFESSOR");
 
         assertThatThrownBy(() -> jdbc.update("UPDATE sinalizacao SET " + coluna + " = ? WHERE id = ?", valor, id))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /** RN-22: a confirmada leva a gravidade final; a descartada não; as duas guardam quem triou e quando. */
+    @ParameterizedTest(name = "[{index}] {0}, {1}")
+    @CsvSource(nullValues = "-", value = {
+        "CONFIRMADA, MODERADA",
+        "DESCARTADA, -"
+    })
+    void triagemCompletaEAceita(String status, String gravidade) {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        jdbc.update("UPDATE sinalizacao SET status = ?, gravidade_final = ?, triada_por_id = ?, triada_em = now() "
+                + "WHERE id = ?", status, gravidade, curador, id);
+
+        assertThat(linha(id)).containsEntry("status", status).containsEntry("gravidade_final", gravidade);
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}, {1}, curador {2}, momento {3}")
+    @CsvSource(nullValues = "-", value = {
+        "CONFIRMADA, -, true, true",
+        "DESCARTADA, GRAVE, true, true",
+        "CONFIRMADA, LEVE, false, true",
+        "DESCARTADA, -, true, false",
+        "PENDENTE, -, true, true",
+        "CONFIRMADA, GRAVISSIMA, true, true"
+    })
+    void triagemIncompletaOuIncoerenteERecusada(String status, String gravidade, boolean comCurador, boolean comMomento) {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        assertThatThrownBy(() -> jdbc.update(
+                        "UPDATE sinalizacao SET status = ?, gravidade_final = ?, triada_por_id = ?, triada_em = "
+                                + (comMomento ? "now()" : "NULL") + " WHERE id = ?",
+                        status, gravidade, comCurador ? curador : null, id))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
