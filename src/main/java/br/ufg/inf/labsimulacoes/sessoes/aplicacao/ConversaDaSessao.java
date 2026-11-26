@@ -11,6 +11,7 @@ import br.ufg.inf.labsimulacoes.ia.MensagemDaConversa;
 import br.ufg.inf.labsimulacoes.ia.PedidoDeFala;
 import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
+import br.ufg.inf.labsimulacoes.ia.TextoComDadoPessoal;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.Etapa;
 import br.ufg.inf.labsimulacoes.sessoes.aplicacao.EtapasDaConversa.EtapaEmAndamento;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.EstadoDaSessao;
@@ -198,6 +199,8 @@ public class ConversaDaSessao {
      *     sido bloqueada
      * @throws br.ufg.inf.labsimulacoes.ia.FalhaNoProvedorDeIa se o provedor ou a moderação falharem antes
      *     de um bloqueio
+     * @throws TextoComDadoPessoal se a pergunta pendente tiver um dado pessoal (RN-13); ela já foi descartada,
+     *     nada foi enviado ao provedor e a sessão volta a aceitar perguntas
      */
     public Optional<MensagemExibida> responderPendente(long sessaoId, TelaDaResposta tela) {
         EtapaEmAndamento preparo = etapas.iniciar(Etapa.PREPARO_DA_RESPOSTA);
@@ -226,6 +229,7 @@ public class ConversaDaSessao {
             }
             sessao.aceitarResposta();
             MensagemExibida pergunta = pendente.get();
+            descartarSeTiverDadoPessoal(sessaoId, pergunta);
             PedidoDeFala pedido = pedido(sessao, estado, pergunta);
             preparo.parar();
             AtomicReference<ConteudoBloqueado> bloqueado = new AtomicReference<>();
@@ -263,6 +267,27 @@ public class ConversaDaSessao {
             return Optional.of(exibida);
         } finally {
             respondendo.remove(sessaoId, vez);
+        }
+    }
+
+    /**
+     * Segunda barreira do RN-13 para uma pergunta que já ficou pendente com dado pessoal, como uma gravada
+     * antes do bloqueio existir: ela deixa de esperar resposta, como no bloqueio da resposta, mas sem
+     * pausar a sessão nem abrir caso. A conferência vem antes do adaptador, e sem a pendente a próxima
+     * abertura do canal só fecha, então o bloqueio conta uma vez na métrica, e não uma por tentativa.
+     *
+     * @throws TextoComDadoPessoal depois de descartar a pendente
+     */
+    private void descartarSeTiverDadoPessoal(long sessaoId, MensagemExibida pergunta) {
+        try {
+            dadosPessoais.exigirSemDadoPessoal(pergunta.texto());
+        } catch (TextoComDadoPessoal erro) {
+            transacao.executeWithoutResult(status -> {
+                sessoes.buscarParaAlterar(sessaoId).orElseThrow(() -> new SessaoNaoEncontrada(sessaoId));
+                sessoes.marcarRespostaBloqueada(sessaoId, pergunta);
+                estados.gravar(leitura.doBanco(sessaoId));
+            });
+            throw erro;
         }
     }
 

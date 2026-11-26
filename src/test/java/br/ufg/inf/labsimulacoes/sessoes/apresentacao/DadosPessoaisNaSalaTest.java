@@ -1,7 +1,10 @@
 package br.ufg.inf.labsimulacoes.sessoes.apresentacao;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -61,12 +64,13 @@ class DadosPessoaisNaSalaTest {
     @Autowired
     private MeterRegistry metricas;
 
+    private DadosDeSessao dados;
     private long sessao;
     private Navegador navegador;
 
     @BeforeEach
     void entrarEIniciarSessao() throws Exception {
-        var dados = new DadosDeSessao(jdbc);
+        dados = new DadosDeSessao(jdbc);
         String professora = UUID.randomUUID() + "@escola.test";
         cadastro.cadastrar("Profissional", professora, SENHA, Set.of(Perfil.PROFESSOR));
         long cenario = dados.cenarioAprovado(dados.idDe(dados.usuario("PROFESSOR")), dados.idDe(dados.usuario("CURADOR")))
@@ -153,6 +157,60 @@ class DadosPessoaisNaSalaTest {
                 .allSatisfy(contador -> assertThat(contador.getId().getTags())
                         .extracting(tag -> tag.getKey())
                         .containsExactly(BloqueioPorPadroes.TIPO));
+    }
+
+    /**
+     * O HTMX 2 não troca respostas de erro por padrão: sem o ajuste do script da sala, o aviso das recusas
+     * (400, 409, 422, 503) não aparece. O script troca a resposta de erro do formulário que veio com o
+     * HX-Retarget para a área de avisos e não limpa o campo, para o professor reescrever. O formulário é
+     * reconhecido por requestConfig.elt: no beforeSwap, detail.elt é o alvo original (#conversa). Sem
+     * ferramenta de teste de JavaScript no projeto, este teste confere o contrato do script servido.
+     */
+    @Test
+    void scriptDaSalaMostraOAvisoDaRecusaSemLimparOCampo() throws Exception {
+        var script = navegador.get("/js/projecao.js").body();
+
+        assertThat(script)
+                .contains("document.body.addEventListener(\"htmx:beforeSwap\"")
+                .contains("const { requestConfig, xhr, target } = evento.detail;")
+                .contains("requestConfig?.elt !== formulario || xhr.status < 400 || target !== avisos")
+                .doesNotContain("const { elt, xhr, target }")
+                .contains("evento.detail.shouldSwap = true;")
+                .contains("evento.detail.isError = false;")
+                .contains("if (!evento.detail.successful || evento.detail.xhr.status >= 400) return;");
+    }
+
+    /**
+     * Segunda barreira: uma pergunta que ficou pendente com dado pessoal, como uma gravada antes do
+     * bloqueio existir, não vai ao provedor. Ela é descartada, o canal avisa com o tipo, sem repetir o
+     * dado, e a sessão volta a aceitar perguntas. Abrir o canal de novo não tenta outra vez, então a
+     * métrica conta um bloqueio só.
+     */
+    @Test
+    void pendenteComDadoPessoalEDescartadaESessaoVoltaAAceitarPerguntas() throws Exception {
+        dados.mensagem(sessao, "TURMA", "Liguem para a mãe dele no 98765-4321");
+        double antes = bloqueios("telefone");
+
+        var canal = navegador.resposta(sessao).body();
+        var reconexao = navegador.resposta(sessao).body();
+
+        assertThat(canal)
+                .contains("event:dado-pessoal\ndata:A pergunta parece ter um dado pessoal (telefone).")
+                .contains("event:fim")
+                .doesNotContain("98765")
+                .doesNotContain("event:falha");
+        assertThat(reconexao).doesNotContain("event:dado-pessoal").contains("event:fim");
+        assertThat(bloqueios("telefone")).isEqualTo(antes + 1);
+        verifyNoInteractions(provedor);
+        assertThat(contar("SELECT count(*) FROM mensagem WHERE sessao_id = ? AND resposta_bloqueada")).isEqualTo(1);
+        assertThat(contar("SELECT count(*) FROM sessao WHERE id = ? AND status = 'EM_ANDAMENTO'")).isEqualTo(1);
+        assertThat(contar("SELECT count(*) FROM caso_bloqueado WHERE sessao_id = ?")).isZero();
+
+        when(provedor.moderar(anyString())).thenReturn(ResultadoDaModeracao.aprovado());
+        var proxima = navegador.perguntar(sessao, "Como foi o primeiro voo?");
+
+        assertThat(proxima.statusCode()).isEqualTo(200);
+        verify(provedor, never()).conversar(any(), any());
     }
 
     /** D7: o limite do campo vale também no servidor, antes de conferir ou enviar qualquer coisa. */
