@@ -2,7 +2,7 @@ package br.ufg.inf.labsimulacoes.auditoria.dominio;
 
 /**
  * A gravidade que quem sinaliza percebe, nos mesmos níveis que o curador usa na triagem (RN-21, RN-22).
- * A gravidade final é do curador e vem com a triagem (RF-24).
+ * A gravidade final é do curador e vem com a triagem ({@link GravidadeFinal}, RF-24).
  */
 public enum GravidadePercebida {
     LEVE("Leve", "Imprecisão que não afeta o objetivo"),
