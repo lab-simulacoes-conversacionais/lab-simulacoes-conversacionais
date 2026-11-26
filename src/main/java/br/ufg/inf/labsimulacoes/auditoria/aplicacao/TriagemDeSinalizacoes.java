@@ -45,7 +45,7 @@ public class TriagemDeSinalizacoes {
     private static final Logger LOG = LoggerFactory.getLogger(TriagemDeSinalizacoes.class);
 
     private final Sinalizacoes sinalizacoes;
-    private final RegistroNoLog log;
+    private final RegistroNoLog registroNoLog;
     private final UsuarioLogado usuarioLogado;
     private final RelogioDaAuditoria relogio;
     private final ApplicationEventPublisher eventos;
@@ -54,14 +54,14 @@ public class TriagemDeSinalizacoes {
 
     TriagemDeSinalizacoes(
             Sinalizacoes sinalizacoes,
-            RegistroNoLog log,
+            RegistroNoLog registroNoLog,
             UsuarioLogado usuarioLogado,
             RelogioDaAuditoria relogio,
             ApplicationEventPublisher eventos,
             MeterRegistry metricas,
             @Value("${auditoria.triagem.fuso}") ZoneId fuso) {
         this.sinalizacoes = sinalizacoes;
-        this.log = log;
+        this.registroNoLog = registroNoLog;
         this.usuarioLogado = usuarioLogado;
         this.relogio = relogio;
         this.eventos = eventos;
@@ -98,7 +98,7 @@ public class TriagemDeSinalizacoes {
         boolean foraDoPrazo = sinalizacao.foraDoPrazo(triagem.triadaEm(), fuso);
         String gravidadeFinal = triagem.confirmada() ? triagem.gravidade().name() : null;
 
-        log.registrar(RegistroDeAuditoria.novo(
+        registroNoLog.registrar(RegistroDeAuditoria.novo(
                 AcaoCritica.TRIAR_SINALIZACAO,
                 triagem.triadaPorId(),
                 String.valueOf(id),
