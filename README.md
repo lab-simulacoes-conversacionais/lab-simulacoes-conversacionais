@@ -119,6 +119,8 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
 | `ia` | `BloqueioDeDadosPessoais` | Recusar, antes de qualquer chamada ao provedor, um texto digitado com e-mail, telefone, CPF ou endereço (RN-13), com perfil Professor ou Curador |
 | `ia` | `ConsumoDaIa` | Somar o consumo da IA (respostas, tokens, custo e respostas sem custo) num intervalo ou de uma sessão (RNF-13), sem conferir perfil, porque a conferência agendada roda sem login |
+| `ia` | `OrigemDasRespostas` | Ler o provedor, o modelo e a versão do prompt de uma resposta gravada, para a sinalização copiar (RF-23, RNF-10), com perfil Professor ou Curador |
+| `sessoes` | `TrechosDasSessoes` | Ler a conversa gravada, cada resposta com a pergunta que a originou e as sessões recentes de um professor (RF-23), com perfil Professor ou Curador; não confere de quem é a sessão, o que fica com quem chama |
 
 ### Catálogo da BNCC
 
@@ -224,6 +226,24 @@ Um texto digitado com padrão de dado pessoal não vai ao provedor (RF-21, RN-13
 - **Métrica:** `lab.privacidade.bloqueio`, com a tag `tipo` (`email`, `telefone`, `cpf` ou `endereco`). Nenhum usuário, sessão ou texto vira tag.
 - **Tamanho:** a pergunta da sala e a do teste têm no máximo `PedidoDeFala.TAMANHO_MAXIMO_DA_PERGUNTA` (1000) caracteres, conferidos também no servidor.
 
+### Sinalização de erro
+
+Professor e curador sinalizam uma resposta da IA com possível erro (RF-23, RN-21), pelo `RegistroDeSinalizacao`, na Auditoria.
+
+> **Até a RF-25, uma sinalização grave não suspende o cenário.** O RN-23a manda suspender o cenário na hora quando o professor marca a sinalização como grave, mas isso é da RF-25. Por enquanto, o evento `SinalizacaoRegistrada` é publicado sem ninguém escutar, e o cenário continua aprovado e na biblioteca.
+
+- **O que se informa:** o tipo (erro histórico, erro científico, anacronismo, saída do personagem ou conteúdo inadequado), a gravidade percebida (leve, moderada ou grave, com os critérios do RN-22) e uma justificativa de até 500 caracteres. O limite fica na aplicação, e não no banco, para mudar sem migration.
+- **Quem e até quando:**
+  - O professor sinaliza só respostas das próprias sessões, durante a sessão ou até 7 × 24 horas depois do encerramento, com o limite incluído (`PrazoDaSinalizacao`). Uma sessão que nunca foi encerrada conta do início. A sessão de outro professor é tratada como inexistente (RN-37).
+  - O curador sinaliza qualquer resposta, a qualquer momento.
+  - Quem tem os dois perfis sinaliza como professor na própria sessão, dentro do prazo, e como curador nos outros casos. O perfil fica gravado, porque só a sinalização grave do professor vai suspender o cenário (RN-23a).
+  - Cada pessoa sinaliza uma resposta uma vez só; outra pessoa pode sinalizar a mesma resposta.
+- **O que é copiado:** a pergunta e a resposta inteiras, o início e o professor da sessão, a versão do cenário e o provedor, o modelo e a versão do prompt da resposta, em JSONB (`OrigemDasRespostas`, no `ia`). As referências à sessão, à mensagem e aos metadados ficam nulas quando a retenção os apaga (RN-33), e a sinalização continua completa (`SinalizacaoAposARetencaoTest`). Uma resposta antiga gravada sem metadados é sinalizada sem a cópia deles.
+- **Dados pessoais:** a justificativa passa pelo `BloqueioDeDadosPessoais`, porque fica gravada para sempre (RNF-01). A pergunta e a resposta copiadas não passam: a sinalização não pode ser recusada pelo conteúdo que ela denuncia.
+- **Evento e métrica:** o `SinalizacaoRegistrada` leva só ids e códigos, sem nenhum texto. A métrica `lab.auditoria.sinalizacao` conta por `tipo` e `perfil`. O log registra só o id da sinalização e da sessão.
+- **Relógio:** o prazo usa o `RelogioDaAuditoria`, que os testes trocam por um momento fixo. O de Sessões é interno àquele módulo.
+- **Fora desta issue:** a triagem e a gravidade final (RF-24), a suspensão e a pausa das sessões (RF-25), a taxa de erros (RN-29), o botão de sinalizar durante a aula (#43) e a fila do curador (#44).
+
 ### Observabilidade e custo da IA
 
 O RNF-13 pede latência, erros, tokens e custo por sessão, e um alerta ao administrador quando o custo do dia passar do custo diário máximo dos parâmetros.
@@ -258,7 +278,7 @@ O RNF-09 pede testes automáticos de tentativas de tirar o personagem do papel. 
 | `acesso` | `eventos` |
 | `cenarios` | `acesso`, `ia`, `eventos` |
 | `sessoes` | `acesso`, `cenarios`, `ia`, `eventos` |
-| `auditoria` | `acesso`, `eventos` |
+| `auditoria` | `acesso`, `sessoes`, `ia`, `eventos` |
 | `metricas` | `acesso`, `ia`, `eventos` |
 | `ia` | nenhum |
 | `eventos` | nenhum |
