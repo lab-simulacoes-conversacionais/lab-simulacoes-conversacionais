@@ -6,7 +6,6 @@ import br.ufg.inf.labsimulacoes.sessoes.dominio.MensagemExibida;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.MotivoDaPausa;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.Sessao;
 import br.ufg.inf.labsimulacoes.sessoes.dominio.StatusDaSessao;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,7 +49,7 @@ record TelaDaSessao(
                 estado.motivoDaPausa(),
                 estado.perguntasDaTurma(),
                 sessao.limiteDePerguntas(),
-                decorrido(estado, agora).toSeconds(),
+                estado.tempoDeConversaAte(agora).toSeconds(),
                 versao.duracaoPrevistaMin(),
                 estado.ultimasMensagens(),
                 estado.status() != StatusDaSessao.ENCERRADA && estado.perguntaPendente().isPresent(),
@@ -79,7 +78,8 @@ record TelaDaSessao(
             case MANUAL -> null;
             case CONTEUDO_BLOQUEADO -> "A sessão foi pausada porque um conteúdo foi bloqueado pelo filtro. "
                     + "O caso foi encaminhado à curadoria. Retome para continuar.";
-            case LIMITE_50_MINUTOS -> "A sessão chegou a 50 minutos e foi pausada. Retome se quiser continuar.";
+            case LIMITE_50_MINUTOS -> "A sessão chegou a 50 minutos de conversa, uma hora-aula, e foi pausada. "
+                    + "Para continuar, retome e confirme.";
             case CENARIO_SUSPENSO -> "O cenário foi suspenso pela curadoria e a sessão foi pausada. "
                     + "Encerre a sessão e escolha outro cenário.";
         };
@@ -102,10 +102,27 @@ record TelaDaSessao(
         return mensagem.autoria() == MensagemExibida.Autoria.TURMA;
     }
 
-    private static Duration decorrido(EstadoDaSessao estado, Instant agora) {
-        Instant fim = estado.pausadaDesde() != null ? estado.pausadaDesde() : agora;
-        Duration total = Duration.between(estado.iniciadaEm(), fim).minus(estado.tempoEmPausa());
-        return total.isNegative() ? Duration.ZERO : total;
+    /**
+     * RN-17: a conversa chegou à duração prevista do cenário. O painel só avisa, sem pausar nem bloquear
+     * a pergunta: quem decide continuar é o professor.
+     */
+    public boolean previstoAtingido() {
+        return previstoMinutos != null && decorridoSegundos >= previstoSegundos();
+    }
+
+    /** Para o cronômetro da tela mostrar o aviso do previsto na hora, sem esperar o painel voltar. */
+    public long previstoSegundos() {
+        return previstoMinutos == null ? 0 : previstoMinutos * 60L;
+    }
+
+    /** Para o cronômetro da tela pedir o painel de novo na hora em que a sessão completa 50 minutos. */
+    public long limiteSegundos() {
+        return Sessao.LIMITE_DE_TEMPO.toSeconds();
+    }
+
+    /** RN-17: retomar depois dos 50 minutos pede a confirmação do professor. */
+    public boolean pausadaPeloTempo() {
+        return motivoDaPausa == MotivoDaPausa.LIMITE_50_MINUTOS;
     }
 
     /** Como no protótipo: "HISTÓRIA · 8º ANO · EF08HI03". */

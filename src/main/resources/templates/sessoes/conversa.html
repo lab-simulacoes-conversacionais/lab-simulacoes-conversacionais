@@ -27,10 +27,11 @@
 
 <!--
   A resposta do personagem que chega pelo canal SSE. Também é usada pela tela de projeção quando ela
-  abre com uma pergunta ainda sem resposta, para tentar de novo (RNF-04).
+  abre com uma pergunta ainda sem resposta, e pelo "Tentar de novo" depois de uma falha, que troca esta
+  resposta por outra igual, sem recarregar a página (RF-20, RNF-04). O data-reabrir é o endereço dela.
 -->
 <div th:fragment="resposta(sessaoId)" class="mensagem mensagem-ia" hx-ext="sse" sse-close="fim"
-     th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})}">
+     th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})},data-reabrir=@{/sessoes/{id}/resposta-pendente(id=${sessaoId})}">
   <span class="mensagem-autoria">Personagem</span>
   <p class="mensagem-texto" sse-swap="trecho" hx-swap="beforeend"></p>
   <p class="aviso" role="alert" sse-swap="falha,bloqueio,dado-pessoal"></p>
