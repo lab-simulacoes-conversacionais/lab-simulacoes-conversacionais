@@ -68,6 +68,19 @@
         <p>Revise, aprove ou devolva os cenários enviados pelos autores.</p>
         <a class="btn btn-secondary" th:href="@{/curadoria}">Abrir</a>
       </section>
+      <section class="card">
+        <div class="card-top"><span class="subject-tag">Curadoria</span></div>
+        <h3>Sinalizações</h3>
+        <p>Confirme ou descarte os erros sinalizados nas respostas, em até 2 dias úteis.</p>
+        <a class="btn btn-secondary" th:href="@{/curadoria/sinalizacoes}">Abrir</a>
+      </section>
+      <!-- Quem também é administrador já tem o atalho do log logo abaixo. -->
+      <section class="card" th:unless="${administrador}">
+        <div class="card-top"><span class="subject-tag">Auditoria</span></div>
+        <h3>Log de auditoria</h3>
+        <p>Consulte as decisões da curadoria e as demais ações críticas.</p>
+        <a class="btn btn-secondary" th:href="@{/auditoria/log}">Abrir</a>
+      </section>
       <!-- O curador também cria cenários (RF-06); quem tem os dois perfis vê o atalho uma vez só. -->
       <section class="card" th:unless="${professor}">
         <div class="card-top"><span class="subject-tag">Cenários</span></div>
@@ -114,9 +127,10 @@
         <a class="btn btn-secondary" th:href="@{/admin/parametros}">Abrir</a>
       </section>
       <section class="card">
-        <div class="card-top"><span class="subject-tag">Auditoria</span><span class="badge badge-pending">Em breve</span></div>
+        <div class="card-top"><span class="subject-tag">Auditoria</span></div>
         <h3>Log de auditoria</h3>
         <p>Consulte o registro somente leitura das ações críticas.</p>
+        <a class="btn btn-secondary" th:href="@{/auditoria/log}">Abrir</a>
       </section>
     </div>
   </th:block>

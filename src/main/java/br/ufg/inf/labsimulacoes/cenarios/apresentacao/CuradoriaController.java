@@ -110,6 +110,17 @@ class CuradoriaController {
     }
 
     /**
+     * O número da aba "Cenários", para a aba de sinalizações (#44, módulo Auditoria) mostrar sem depender
+     * deste módulo. Com mais cenários que a fila mostra, vem com "+", como no topo da fila.
+     */
+    @GetMapping("/contagem")
+    String contagem(Model modelo) {
+        var trecho = acervo.listar(StatusDoCenario.EM_CURADORIA, 0, TAMANHO_DA_FILA);
+        modelo.addAttribute("quantos", trecho.itens().size() + (trecho.temProxima() ? "+" : ""));
+        return "curadoria/fila :: contagem";
+    }
+
+    /**
      * @param itens os itens do checklist marcados (RF-10); sem nenhum marcado, o navegador não manda o
      *     parâmetro
      */

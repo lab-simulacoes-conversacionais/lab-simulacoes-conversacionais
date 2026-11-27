@@ -48,6 +48,8 @@ class ConfiguracaoDeSeguranca {
                         .requestMatchers("/curadoria/**").hasRole("CURADOR")
                         // Só o professor conduz sessões em sala (RN-10).
                         .requestMatchers("/sessoes/**").hasRole("PROFESSOR")
+                        // O log de ações críticas é consultado pelo curador e pelo administrador (RF-26).
+                        .requestMatchers("/auditoria/**").hasAnyRole("CURADOR", "ADMINISTRADOR")
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage("/login")

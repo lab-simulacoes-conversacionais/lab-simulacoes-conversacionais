@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Sinalizações · Fila do Curador · Laboratório')}"></head>
+<body th:hx-headers='|{"X-CSRF-TOKEN": "${_csrf.token}"}|'>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Aba "Sinalizações" da fila do curador (RF-24, #44), como no protótipo: a tabela com o prazo, o cenário e
+  o tipo, a gravidade percebida, a abertura e as ações. As que passaram do prazo de 2 dias úteis ficam em
+  destaque (RN-24). Confirmar e descartar abrem um modal com o trecho, para o curador decidir lendo a
+  pergunta, a resposta e a justificativa; na confirmação ele escolhe a gravidade final (RN-22).
+
+  Usa do modelo: sinalizacoes (TriagemController.SinalizacaoNaFila), pendentes, atrasadas, gravidades,
+  continuacao e, se houver mais, proximaDepoisDe e proximaDepoisDeId. Depois de uma triagem: sucesso ou erro.
+-->
+<main class="page curator-page">
+  <a class="back-link" th:href="@{/}">Voltar ao início</a>
+  <div class="library-heading">
+    <div>
+      <p class="eyebrow">QUALIDADE PEDAGÓGICA</p>
+      <h1>Fila do Curador</h1>
+      <p>Revise cenários e trate sinalizações dentro do prazo.</p>
+    </div>
+    <div class="queue-heading-actions">
+      <a class="btn btn-secondary" th:href="@{/auditoria/log}">Log de auditoria</a>
+      <div class="queue-stats">
+        <span><strong th:text="${pendentes}">3</strong> <th:block th:text="${pendentes == 1} ? 'sinalização' : 'sinalizações'">sinalizações</th:block></span>
+        <span th:if="${atrasadas > 0}" class="queue-stat-atrasada"><strong th:text="${atrasadas}">1</strong> <th:block th:text="${atrasadas == 1} ? 'atrasada' : 'atrasadas'">atrasadas</th:block></span>
+      </div>
+    </div>
+  </div>
+
+  <nav th:replace="~{fragmentos/base :: abasDaCuradoria('sinalizacoes', ${pendentes})}"></nav>
+
+  <div class="sla-note" role="note">
+    <span aria-hidden="true">i</span>
+    <div>
+      <strong>Prazo de tratamento: 2 dias úteis</strong>
+      <p>Itens atrasados são destacados e devem ser priorizados.</p>
+    </div>
+  </div>
+
+  <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <div class="empty-state" th:if="${sinalizacoes.isEmpty()}">
+    <div class="empty-shapes" aria-hidden="true"><span></span><span></span></div>
+    <h2 th:text="${continuacao} ? 'Não há mais sinalizações nesta fila' : 'Nenhuma sinalização aguardando triagem'">Nenhuma sinalização aguardando triagem</h2>
+    <p>Quando um professor ou curador sinalizar uma resposta do personagem, ela aparece aqui.</p>
+    <a class="btn btn-secondary" th:if="${continuacao}" th:href="@{/curadoria/sinalizacoes}">Voltar ao início da fila</a>
+  </div>
+
+  <section class="card table-card report-table" th:unless="${sinalizacoes.isEmpty()}" aria-label="Sinalizações aguardando triagem">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Prazo</th><th scope="col">Cenário e tipo</th><th scope="col">Gravidade</th><th scope="col">Abertura</th><th scope="col">Ações</th></tr>
+        </thead>
+        <tbody>
+          <tr th:each="s : ${sinalizacoes}" th:classappend="${s.atrasada()} ? 'overdue-row'">
+            <td>
+              <strong th:text="${s.prazo()}">18 jun · 15:00</strong>
+              <span class="overdue-label" th:if="${s.atrasada()}">Atrasada</span>
+            </td>
+            <td>
+              <strong th:text="${s.cenario()}">Santos Dumont e o voo do 14-bis</strong>
+              <small th:text="${s.tipo()}">Anacronismo</small>
+            </td>
+            <td><span class="severity" th:classappend="|severity-${s.classeDaGravidade()}|"
+                      th:text="|! ${s.gravidade()}|">! Moderada</span></td>
+            <td>
+              <span th:text="${s.abertura()}">18 jun · 10:20</span>
+              <small th:text="${s.quemSinalizou()}">pelo professor</small>
+            </td>
+            <td>
+              <div class="table-actions">
+                <button class="btn btn-secondary" type="button" th:attr="data-abrir-dialogo=|descartar-${s.id()}|"
+                        aria-haspopup="dialog">Descartar</button>
+                <button class="btn" type="button" th:classappend="${s.gravidadePercebida() == 'GRAVE'} ? 'btn-danger' : 'btn-primary'"
+                        th:attr="data-abrir-dialogo=|confirmar-${s.id()}|" aria-haspopup="dialog">Confirmar</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="pagination-row" th:if="${proximaDepoisDe != null or continuacao}">
+    <a class="btn btn-ghost" th:if="${continuacao}" th:href="@{/curadoria/sinalizacoes}">Voltar ao início da fila</a>
+    <a class="btn btn-secondary" th:if="${proximaDepoisDe != null}"
+       th:href="@{/curadoria/sinalizacoes(depoisDe=${proximaDepoisDe},depoisDeId=${proximaDepoisDeId})}">Próximas sinalizações</a>
+  </div>
+
+  <!-- Os modais de cada linha. Abrem pelo dialogo.js, como o de arquivar na biblioteca. -->
+  <th:block th:each="s : ${sinalizacoes}">
+    <dialog class="modal modal-triagem" data-dialogo th:id="|confirmar-${s.id()}|"
+            th:attr="aria-labelledby=|confirmar-${s.id()}-titulo|">
+      <form method="post" th:action="@{/curadoria/sinalizacoes/{id}/confirmar(id=${s.id()})}">
+        <div class="modal-head">
+          <h2 th:id="|confirmar-${s.id()}-titulo|">Confirmar sinalização</h2>
+          <button class="icon-button" type="button" data-fechar aria-label="Fechar">×</button>
+        </div>
+        <div class="modal-body">
+          <div th:replace="~{sinalizacoes/fila :: trecho(${s})}"></div>
+          <fieldset class="gravidade-final">
+            <legend>Gravidade final</legend>
+            <p class="modal-ajuda">Começa na gravidade escolhida por quem sinalizou. A confirmada entra na taxa de erros do cenário.</p>
+            <label th:each="g : ${gravidades}" class="gravidade-opcao">
+              <input type="radio" name="gravidade" required th:value="${g.name()}" th:checked="${g.name() == s.gravidadePercebida()}">
+              <span><strong th:text="${g.rotulo()}">Moderada</strong> <small th:text="${g.descricao()}">Critério</small></span>
+            </label>
+          </fieldset>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" type="button" data-fechar>Cancelar</button>
+          <button class="btn btn-primary" type="submit">Confirmar sinalização</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal modal-triagem" data-dialogo th:id="|descartar-${s.id()}|"
+            th:attr="aria-labelledby=|descartar-${s.id()}-titulo|">
+      <form method="post" th:action="@{/curadoria/sinalizacoes/{id}/descartar(id=${s.id()})}">
+        <div class="modal-head">
+          <h2 th:id="|descartar-${s.id()}-titulo|">Descartar sinalização?</h2>
+          <button class="icon-button" type="button" data-fechar aria-label="Fechar">×</button>
+        </div>
+        <div class="modal-body">
+          <div th:replace="~{sinalizacoes/fila :: trecho(${s})}"></div>
+          <p class="modal-intro">A sinalização sai da fila sem gravidade final e não entra na taxa de erros. A decisão fica registrada no log de auditoria.</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" type="button" data-fechar>Cancelar</button>
+          <button class="btn btn-primary" type="submit">Descartar sinalização</button>
+        </div>
+      </form>
+    </dialog>
+  </th:block>
+</main>
+
+<!--
+  O que o curador lê para decidir: o cenário, o tipo e a gravidade percebida, a pergunta e a resposta
+  copiadas na sinalização e a justificativa de quem sinalizou.
+-->
+<div th:fragment="trecho(s)" th:if="${s != null}" class="trecho-da-triagem">
+  <p class="trecho-resumo">
+    <strong th:text="${s.cenario()}">Santos Dumont e o voo do 14-bis</strong>
+    <span th:text="|${s.tipo()} · gravidade percebida ${s.gravidade()} · ${s.quemSinalizou()} em ${s.abertura()}|">Anacronismo · gravidade percebida Moderada</span>
+  </p>
+  <figure>
+    <figcaption>Pergunta da turma</figcaption>
+    <blockquote th:text="${s.pergunta()}">Quando foi o primeiro voo?</blockquote>
+  </figure>
+  <figure class="trecho-resposta">
+    <figcaption>Resposta do personagem</figcaption>
+    <blockquote th:text="${s.resposta()}">Voei em 1901, em Paris.</blockquote>
+  </figure>
+  <figure>
+    <figcaption>Justificativa</figcaption>
+    <blockquote th:text="${s.justificativa()}">O voo homologado foi em 1906.</blockquote>
+  </figure>
+</div>
+
+<!-- O número da aba "Sinalizações" na fila de cenários (TriagemController#contagem). -->
+<span th:fragment="contagem" th:if="${contagem != null}" th:text="${contagem}">3</span>
+
+<script th:replace="~{fragmentos/base :: htmx}"></script>
+<script th:src="@{/js/dialogo.js}" defer></script>
+</body>
+</html>

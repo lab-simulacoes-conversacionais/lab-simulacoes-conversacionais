@@ -337,7 +337,7 @@ form input, .modal-body textarea { width: 100%; }
 .back-link:hover { color: var(--blue-dark); }
 .field-error { color: #b00000; font-weight: 800; font-size: 13px; margin: 0 0 7px; }
 .success-notice { animation: entrar var(--medio) var(--ease); background: #e1f6e9; border: 1px solid #99d9b3; border-radius: 10px; padding: 11px 13px; margin-bottom: 14px; display: flex; align-items: center; gap: 9px; color: #075d33; font-weight: 700; font-size: 13px; }
-.success-notice > span { width: 23px; height: 23px; border-radius: 50%; background: var(--green); color: white; display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; }
+.success-notice > span:first-child { width: 23px; height: 23px; border-radius: 50%; background: var(--green); color: white; display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; }
 .login-aviso { background: #fff8d9; border: 1px solid var(--yellow); border-radius: 10px; padding: 11px 13px; margin-bottom: 14px; display: flex; align-items: center; gap: 9px; color: #574500; font-weight: 700; font-size: 13px; }
 .login-aviso > span { width: 23px; height: 23px; border: 2px solid currentColor; border-radius: 50%; display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; }
 
@@ -352,7 +352,7 @@ a.btn { text-decoration: none; }
 .table-wrap form { margin: 0; }
 .table-wrap form .btn { margin-top: 0; }
 
-.admin-tabs { display: grid; grid-template-columns: repeat(3, 1fr); background: var(--surface); padding: 5px; border-radius: 14px; margin-bottom: 25px; }
+.admin-tabs { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--surface); padding: 5px; border-radius: 14px; margin-bottom: 25px; }
 .admin-tabs a { border-radius: 10px; padding: 12px; color: var(--muted); font-weight: 800; text-align: center; text-decoration: none; transition: background-color var(--rapido) var(--ease), color var(--rapido) var(--ease), box-shadow var(--rapido) var(--ease); }
 .admin-tabs a:hover:not(.active) { color: var(--ink); background: rgba(255, 255, 255, .6); }
 .admin-tabs a.active { background: white; color: var(--blue); box-shadow: 0 2px 10px rgba(14,34,130,.1); }
@@ -909,3 +909,67 @@ kbd { font-family: inherit; font-size: 10px; border-radius: 4px; padding: 2px 5p
 .sessoes-recentes { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
 .sessoes-recentes .card-top { margin-bottom: 8px; }
 .sessoes-recentes .card-top p { margin: 4px 0 0; }
+
+/* #44: fila do curador com as abas Cenários e Sinalizações (RF-08, RF-24), como no protótipo. */
+.queue-heading-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.queue-stats .queue-stat-atrasada { background: #fff2f2; }
+.queue-stats .queue-stat-atrasada strong { color: #a80000; }
+.tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; }
+.tabs a { border-bottom: 4px solid transparent; padding: 13px 17px; font-weight: 800; color: var(--muted); text-decoration: none; white-space: nowrap; transition: color var(--rapido) var(--ease), border-color var(--rapido) var(--ease); }
+.tabs a:hover:not(.active) { color: var(--ink); }
+.tabs a.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tabs a span { margin-left: 6px; background: var(--surface); border-radius: 99px; padding: 3px 7px; font-size: 10px; }
+.tabs a span:empty { display: none; }
+
+/* RF-24, RN-24: prazo de triagem e tabela de sinalizações. */
+.aviso-de-prazo { margin: -10px 0 22px; font-size: 13px; }
+.aviso-de-prazo a { margin-left: 4px; }
+.sla-note { background: var(--surface); border-left: 5px solid var(--blue); border-radius: 0 12px 12px 0; padding: 13px 17px; display: flex; gap: 12px; margin-bottom: 15px; }
+.sla-note > span { width: 23px; height: 23px; border-radius: 50%; background: var(--blue); color: white; display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; }
+.sla-note p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.report-table td > strong, .report-table td > small, .report-table td > span:not(.severity), .log-table td > strong, .log-table td > small { display: block; }
+.report-table td > small, .log-table td > small { color: var(--muted); margin-top: 4px; font-size: 12px; }
+.overdue-row, .overdue-row:hover { background: #fff2f2; box-shadow: inset 5px 0 0 var(--red); }
+.overdue-label { display: block; color: #a80000; font-size: 10px; font-weight: 800; margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.severity { display: inline-block; padding: 5px 8px; border-radius: 99px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.severity-grave { background: #ffdede; color: #990000; }
+.severity-moderada { background: #fff0b8; color: #574500; }
+.severity-leve { background: var(--surface); color: var(--blue-dark); }
+.report-table .table-actions .btn { min-height: 36px; padding: 6px 12px; font-size: 12px; }
+.pagination-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+/* Modal da triagem: o trecho sinalizado e a gravidade final (RN-22). */
+dialog.modal-triagem { width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); }
+.modal-triagem form { display: contents; }
+.trecho-resumo { margin: 0 0 12px; }
+.trecho-resumo strong { display: block; font-size: 16px; }
+.trecho-resumo span { color: var(--muted); font-size: 12px; }
+.trecho-da-triagem figure { margin: 0 0 10px; background: var(--surface); border-left: 4px solid var(--line); border-radius: 0 10px 10px 0; padding: 10px 14px; }
+.trecho-da-triagem .trecho-resposta { border-left-color: var(--blue); }
+.trecho-da-triagem figcaption { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.trecho-da-triagem .trecho-resposta figcaption { color: var(--blue); }
+.trecho-da-triagem blockquote { margin: 0; font-size: 14px; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+.gravidade-final { border: 0; padding: 0; margin: 16px 0 0; }
+.gravidade-final legend { font-size: 13px; font-weight: 800; padding: 0; }
+.gravidade-final .modal-ajuda { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+.gravidade-opcao { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; margin: 8px 0 0; cursor: pointer; font-weight: 400; transition: border-color var(--rapido) var(--ease), background-color var(--rapido) var(--ease); }
+.gravidade-opcao:hover { border-color: #9aa8dc; }
+.gravidade-opcao:has(input:checked) { border-color: var(--blue); background: #f3f5ff; }
+.gravidade-opcao input[type="radio"] { flex: none; box-sizing: border-box; width: 1.1rem; height: 1.1rem; min-height: 0; padding: 0; margin: 2px 0 0; border: 0; border-radius: 50%; box-shadow: none; accent-color: var(--blue); }
+.gravidade-opcao input[type="radio"]:focus { box-shadow: none; outline: none; }
+.gravidade-opcao input[type="radio"]:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.gravidade-opcao strong { display: block; font-size: 14px; }
+.gravidade-opcao small { color: var(--muted); font-size: 12px; }
+
+/* RF-26: consulta do log, só leitura, com filtros de período, usuário e ação. */
+.log-filtros { grid-template-columns: 1fr 1fr 1.3fr 1.3fr auto; margin-bottom: 18px; }
+.log-filtros .filter-actions { display: flex; gap: 8px; }
+.log-destaque td:first-child { box-shadow: inset 5px 0 0 var(--red); }
+.log-table td:nth-child(3) { white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .log-filtros { grid-template-columns: 1fr 1fr; }
+  .log-filtros .filter-actions { grid-column: 1 / -1; }
+  .pagination-row { justify-content: stretch; }
+  .pagination-row .btn { flex: 1; }
+}
