@@ -122,6 +122,19 @@ public record Sessao(
     }
 
     /**
+     * O cenário foi suspenso pelas regras de gravidade durante a aula (RN-25). A sessão em andamento pausa com
+     * o motivo {@link MotivoDaPausa#CENARIO_SUSPENSO}; o professor encerra ou retoma depois de corrigir o erro
+     * com a turma. A pausada e a encerrada ficam como estão.
+     *
+     * @return a pausa, ou vazio se a sessão não estava em andamento
+     */
+    public Optional<MudancaNaSessao> suspenderCenario(Instant em) {
+        return status == StatusDaSessao.EM_ANDAMENTO
+                ? Optional.of(pausar(MotivoDaPausa.CENARIO_SUSPENSO, em))
+                : Optional.empty();
+    }
+
+    /**
      * RN-17: aos 50 minutos de conversa, sem contar as pausas, a sessão pausa sozinha, e só continua se o
      * professor confirmar, retomando. Isso acontece uma vez só: depois da confirmação, ela não pausa de
      * novo pelo tempo.

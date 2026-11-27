@@ -91,9 +91,9 @@ Cada módulo é um subpacote direto de `br.ufg.inf.labsimulacoes`:
 | Pacote | Módulo | Responsabilidade |
 | --- | --- | --- |
 | `acesso` | Acesso | Usuários, perfis, turmas, parâmetros e autenticação |
-| `cenarios` | Cenários | Cenários, versões, catálogo da BNCC, quiz, curadoria e biblioteca |
+| `cenarios` | Cenários | Cenários, versões, catálogo da BNCC, quiz, curadoria, biblioteca e suspensão automática |
 | `sessoes` | Sessões | Sessões em sala, mensagens, controles, aplicação do quiz e engajamento |
-| `auditoria` | Auditoria | Conteúdo bloqueado, sinalizações, triagem, suspensão e log de ações críticas |
+| `auditoria` | Auditoria | Conteúdo bloqueado, sinalizações, triagem e log de ações críticas |
 | `metricas` | Métricas | Indicadores, comparação com sessões de controle, painel, exportação e alerta de custo diário da IA |
 | `ia` | Adaptador de IA | Porta única para o provedor de IA |
 
@@ -231,13 +231,13 @@ Um texto digitado com padrão de dado pessoal não vai ao provedor (RF-21, RN-13
 
 Professor e curador sinalizam uma resposta da IA com possível erro (RF-23, RN-21), pelo `RegistroDeSinalizacao`, na Auditoria.
 
-> **Até a RF-25, uma sinalização grave não suspende o cenário.** O RN-23a manda suspender o cenário na hora quando o professor marca a sinalização como grave, mas isso é da RF-25. Por enquanto, o evento `SinalizacaoRegistrada` é publicado sem ninguém escutar, e o cenário continua aprovado e na biblioteca.
+> **A sinalização grave do professor suspende o cenário na hora (RN-23a).** Quem decide é o módulo Cenários, ao receber o evento `SinalizacaoRegistrada`, e as sessões em andamento do cenário pausam. Veja [Suspensão e reativação de cenários (RF-25)](#suspensão-e-reativação-de-cenários-rf-25).
 
 - **O que se informa:** o tipo (erro histórico, erro científico, anacronismo, saída do personagem ou conteúdo inadequado), a gravidade percebida (leve, moderada ou grave, com os critérios do RN-22) e uma justificativa de até 500 caracteres. O limite fica na aplicação, e não no banco, para mudar sem migration.
 - **Quem e até quando:**
   - O professor sinaliza só respostas das próprias sessões, durante a sessão ou até 7 × 24 horas depois do encerramento, com o limite incluído (`PrazoDaSinalizacao`). Uma sessão que nunca foi encerrada conta do início. A sessão de outro professor é tratada como inexistente (RN-37).
   - O curador sinaliza qualquer resposta, a qualquer momento.
-  - Quem tem os dois perfis sinaliza como professor na própria sessão, dentro do prazo, e como curador nos outros casos. O perfil fica gravado, porque só a sinalização grave do professor vai suspender o cenário (RN-23a).
+  - Quem tem os dois perfis sinaliza como professor na própria sessão, dentro do prazo, e como curador nos outros casos. O perfil fica gravado, porque só a sinalização grave feita como professor suspende o cenário na hora (RN-23a).
   - Cada pessoa sinaliza uma resposta uma vez só; outra pessoa pode sinalizar a mesma resposta.
 - **O que é copiado:** a pergunta e a resposta inteiras, o início e o professor da sessão, a versão do cenário e o provedor, o modelo e a versão do prompt da resposta, em JSONB (`OrigemDasRespostas`, no `ia`). As referências à sessão, à mensagem e aos metadados ficam nulas quando a retenção os apaga (RN-33), e a sinalização continua completa (`SinalizacaoAposARetencaoTest`). Uma resposta antiga gravada sem metadados é sinalizada sem a cópia deles.
 - **Dados pessoais:** a justificativa passa pelo `BloqueioDeDadosPessoais`, porque fica gravada para sempre (RNF-01). A pergunta e a resposta copiadas não passam: a sinalização não pode ser recusada pelo conteúdo que ela denuncia.
@@ -251,7 +251,7 @@ Professor e curador sinalizam uma resposta da IA com possível erro (RF-23, RN-2
   - As rotas de `/sessoes` são só do perfil Professor, então o curador sem esse perfil ainda não tem tela para sinalizar.
 - **Na tela, durante a aula (#43):** o botão "Sinalizar erro" do painel do modo projeção (atalho S) abre um modal com a última resposta do personagem (`/sessoes/{id}/sinalizacao`), o tipo, a gravidade (começa em Moderada) e a justificativa. Vale também com a sessão pausada. O envio volta com o mesmo modal, com a confirmação ou a recusa, e usa o mesmo caso de uso da revisão.
 - **Avisos no modo projeção (#43):** a área projetada mostra só o que a turma pode ver. As recusas da pergunta (dado pessoal, bloqueio, limite), a falha do provedor com o "Tentar de novo", a pausa automática, o tempo previsto e a sugestão do quiz ficam na área de avisos do painel (`#aviso-da-sessao`, com `hx-preserve`). Na conversa ficam só avisos neutros: "Resposta não exibida", "Resposta não recebida" e "Pergunta não enviada". Com o painel oculto, o botão "Mostrar painel" ganha um ponto quando chega um aviso novo.
-- **Fora destas issues:** a triagem e a gravidade final (RF-24), a suspensão e a pausa das sessões (RF-25), a taxa de erros (RN-29), a fila do curador (#44) e uma tela para o curador sinalizar respostas.
+- **Fora destas issues:** a taxa de erros (RN-29) e uma tela para o curador sinalizar respostas. A triagem com a gravidade final (RF-24) e a fila do curador (#44) estão em [Triagem e log de auditoria na tela](#triagem-e-log-de-auditoria-na-tela); a suspensão e a pausa das sessões, em [Suspensão e reativação de cenários (RF-25)](#suspensão-e-reativação-de-cenários-rf-25).
 
 ### Observabilidade e custo da IA
 
@@ -279,6 +279,36 @@ A fila de triagem (RF-24) e a consulta do log (RF-26) ficam na Auditoria, nas te
   - Só leitura, da ação mais recente, com a ação em palavras, o que ela afetou, quem fez e quando. Os filtros de período (dias inteiros no fuso da escola), usuário e ação se combinam, e as páginas seguintes continuam da última linha mostrada.
   - O administrador vê a tela como a aba "Log de auditoria" da administração; o curador chega pela fila.
   - Os nomes vêm de `UsuariosDaEscola`, porque o log guarda só o id de quem fez a ação.
+
+### Suspensão e reativação de cenários (RF-25)
+
+As regras de gravidade suspendem e reativam o cenário sozinhas (RN-23), e as sessões em andamento dele pausam (RN-25). Não há tela nova: o professor vê o aviso no painel da sessão, e o curador vê o resultado no log.
+
+- **Regras (RN-23):**
+  - **(a)** Uma sinalização feita como professor, com gravidade percebida grave, suspende o cenário na hora, por precaução, enquanto não é triada. Feita como curador, espera a triagem.
+  - **(b)** Um erro confirmado com gravidade final grave, de qualquer perfil, mantém o cenário suspenso até uma versão nova ser aprovada.
+  - **(c)** Três sinalizações confirmadas com gravidade final moderada, na mesma versão, também suspendem. A grave confirmada não entra nessa conta, porque já suspende sozinha, e a leve não conta.
+  - **(d)** Se o curador descartar a sinalização que causou a suspensão, o cenário volta a Aprovado. Confirmar a grave do professor com gravidade menor também tira a suspensão de precaução; se a gravidade final for moderada, ela passa a contar para a regra (c).
+- **Como o sistema decide:** a suspensão não é guardada como causa. A cada sinalização ou triagem, a `RegrasDeGravidade` refaz a decisão a partir das sinalizações da **versão vigente** (`sinalizacao_do_cenario`). Assim o cenário só volta a Aprovado quando nenhum motivo restar: descartar uma sinalização que não causou a suspensão não reativa nada. Com mais de um motivo, vale o mais forte, nesta ordem: `ERRO_GRAVE_CONFIRMADO`, `SINALIZACAO_GRAVE` e `TRES_ERROS_MODERADOS`.
+- **Quem decide:** o módulo Cenários, pelos eventos `SinalizacaoRegistrada` e `SinalizacaoTriada` da Auditoria, sem depender dela (`OuvinteDeSinalizacoes` e `SuspensaoAutomatica`).
+  - Em cada evento: acha o cenário pela versão, trava o cenário, guarda a sinalização, refaz as regras e só então muda o status. A trava faz duas triagens do mesmo cenário ao mesmo tempo serem decididas uma depois da outra.
+  - A sinalização é guardada uma vez só, mesmo que o evento chegue de novo, e a triagem pode chegar antes do registro: as duas ordens dão o mesmo resultado.
+  - Versão que não é a vigente e cenário fora de Aprovado ou Suspenso (arquivado, rascunho, em curadoria) ficam só registrados, com um INFO "ignorada" no log da aplicação.
+- **Reativação:** por descarte (`SINALIZACAO_DESCARTADA`), por rebaixamento da gravidade (`GRAVIDADE_REBAIXADA`) ou pela aprovação da versão nova (`NOVA_VERSAO_APROVADA`). Na aprovação, a `AprovacaoDeCenario` publica o `CenarioReativado` na mesma transação, junto com o `CenarioAprovado`. Depois disso, uma triagem tardia de uma sinalização da versão antiga não suspende de novo.
+- **Sessões (RN-25):**
+  - As sessões **em andamento** do cenário, de qualquer versão, pausam com o motivo `CENARIO_SUSPENSO` (`OuvinteDeSuspensao` e `PausaPorSuspensao`, em Sessões, pelo evento `CenarioSuspenso`). Cada sessão é travada e pausa na própria transação, como nos controles; o Redis é gravado depois da confirmação.
+  - O painel avisa: "O cenário foi suspenso pela curadoria e a sessão foi pausada. Corrija o erro com a turma e retome, ou encerre a sessão." Os botões Retomar e Encerrar continuam lá, e retomar vale com o cenário ainda suspenso.
+  - A reativação **não** retoma as sessões sozinha: quem decide continuar é o professor.
+  - Novas sessões com o cenário suspenso ficam bloqueadas, porque ele não tem versão que vá para a sala (RN-01). A preparação avisa: "Este cenário não está aprovado agora (pode ter sido suspenso pela curadoria). Escolha outro da biblioteca." O cenário também sai da biblioteca, e o detalhe dele volta para a lista, sem o botão de iniciar a sessão.
+- **Log de auditoria (RN-35):** os eventos `CenarioSuspenso` e `CenarioReativado` só saem quando o status muda, e o `OuvinteDeAcoesCriticas` grava `SUSPENDER_CENARIO` e `REATIVAR_CENARIO`, com a versão e o motivo. O responsável é quem sinalizou, na regra (a), e o curador que triou ou aprovou, nos outros casos. Uma reentrega não gera outra linha; a aprovação de versão nova de um suspenso gera uma linha de `APROVAR_CENARIO` e uma de `REATIVAR_CENARIO`.
+- **Métricas:** `lab.cenarios.suspensao` e `lab.cenarios.reativacao`, com a tag `motivo` em minúsculas (`sinalizacao_grave`, `erro_grave_confirmado`, `tres_erros_moderados`; `sinalizacao_descartada`, `gravidade_rebaixada`, `nova_versao_aprovada`), contadas só depois da confirmação. O log da aplicação registra em INFO o cenário, a versão, a sinalização e o motivo.
+- **Sem texto pedagógico (RNF-01):** eventos, log e métricas levam só ids e códigos, sem a pergunta, a resposta, a justificativa nem o conteúdo do cenário.
+- **Limitações conhecidas:**
+  - **Mesma resposta, duas sinalizações:** o professor e o curador podem sinalizar a mesma resposta, e as duas contam como sinalizações distintas para os três moderados (RN-23c), porque o evento não traz o id da mensagem.
+  - **50 minutos:** uma sessão que já passou dos 50 minutos de conversa quando o cenário é suspenso pausa pelo limite de tempo, que é aplicado antes, e fica com o motivo `LIMITE_50_MINUTOS`, e não `CENARIO_SUSPENSO`. Ela para do mesmo jeito, mas o aviso no painel é o dos 50 minutos.
+  - **Sessão já pausada:** a sessão pausada pelo professor, ou por outro motivo, continua com o motivo que tinha, e o painel não mostra o aviso da suspensão.
+  - **Falha numa sessão:** se uma sessão não puder ser pausada, as outras do cenário pausam mesmo assim, e o ouvinte termina com erro. As que faltaram pausam quando o evento for reprocessado, o que o Spring Modulith faz ao reiniciar a aplicação.
+  - **Versão que não é a vigente:** a sinalização de uma versão que já foi substituída por outra aprovada não suspende o cenário, nem pausa as sessões que ainda rodam com ela; o curador ainda a vê na fila de triagem.
 
 ### Testes de quebra de personagem
 

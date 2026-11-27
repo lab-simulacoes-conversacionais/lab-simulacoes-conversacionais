@@ -13,6 +13,9 @@ import br.ufg.inf.labsimulacoes.ia.RespostaDoPersonagem;
 import br.ufg.inf.labsimulacoes.ia.ResultadoDaModeracao;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -249,6 +252,63 @@ class ProjecaoPelaTelaTest {
         assertThat(retomada.body()).contains("Em andamento").doesNotContain("hx-confirm=\"A sessão já tem 50");
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Cenário suspenso (RF-25, RN-25)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * RN-25: pausada pela suspensão, o painel avisa o professor e deixa retomar, depois de corrigir o erro com a
+     * turma, ou encerrar. A retomada vale com o cenário ainda suspenso.
+     */
+    @Test
+    void sessaoPausadaPelaSuspensaoMostraOAvisoERetomarEEncerrar() throws Exception {
+        long sessao = iniciar();
+        suspenderDuranteASessao(sessao);
+
+        String painel = professora.get("/sessoes/" + sessao + "/painel").body();
+
+        assertThat(painel).contains("Pausada")
+                .contains("O cenário foi suspenso pela curadoria e a sessão foi pausada. "
+                        + "Corrija o erro com a turma e retome, ou encerre a sessão.")
+                .contains("hx-post=\"/sessoes/" + sessao + "/retomar\"").contains("Retomar")
+                .contains("data-abrir-encerramento").contains("Encerrar")
+                .doesNotContain("hx-confirm=\"A sessão já tem 50")
+                .doesNotContain("Encerre a sessão e escolha outro cenário");
+        var retomada = professora.postHtmx("/sessoes/" + sessao + "/retomar", "");
+        assertThat(retomada.body()).contains("Em andamento").contains("data-pode-perguntar=\"true\"");
+    }
+
+    /** RN-25: com o cenário suspenso, a sessão nova não começa, e a preparação diz o motivo provável. */
+    @Test
+    void cenarioSuspensoNaoComecaSessaoNova() throws Exception {
+        jdbc.update("UPDATE cenario SET status = 'SUSPENSO' WHERE id = ?", cenario);
+
+        var resposta = professora.postHtmx("/sessoes", "turma=" + turma + "&cenario=" + cenario);
+
+        assertThat(local(resposta)).endsWith("/sessoes/nova?cenario=" + cenario);
+        assertThat(professora.get("/sessoes/nova?cenario=" + cenario).body())
+                .contains("Este cenário não está aprovado agora (pode ter sido suspenso pela curadoria). "
+                        + "Escolha outro da biblioteca.")
+                .doesNotContainPattern("value=\"" + cenario + "\"\\s+checked");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM sessao WHERE turma_id = ?", Integer.class, turma)).isZero();
+    }
+
+    /** O suspenso sai da biblioteca: o detalhe, que tinha o botão de iniciar a sessão, volta para a lista. */
+    @Test
+    void cenarioSuspensoSaiDaBibliotecaSemOBotaoDeIniciar() throws Exception {
+        String iniciarSessao = "href=\"/sessoes/nova?cenario=" + cenario + "\"";
+        assertThat(professora.get("/biblioteca/" + cenario).body()).contains(iniciarSessao);
+
+        jdbc.update("UPDATE cenario SET status = 'SUSPENSO' WHERE id = ?", cenario);
+
+        var detalhe = professora.get("/biblioteca/" + cenario);
+        assertThat(detalhe.statusCode()).isEqualTo(302);
+        assertThat(local(detalhe)).endsWith("/biblioteca");
+        assertThat(professora.get("/biblioteca").body())
+                .contains("Este cenário não está disponível na biblioteca.")
+                .doesNotContain(iniciarSessao);
+    }
+
     /** A pergunta que chega depois dos 50 minutos é recusada, e a tela pede o painel de novo. */
     @Test
     void perguntaDepoisDosCinquentaMinutosAtualizaOPainel() throws Exception {
@@ -374,6 +434,22 @@ class ProjecaoPelaTelaTest {
     private void recuarInicio(long sessao, int minutos) {
         jdbc.update("UPDATE sessao SET iniciada_em = iniciada_em - make_interval(mins => ?) WHERE id = ?",
                 minutos, sessao);
+        redis.delete("sessao:" + sessao + ":estado");
+    }
+
+    /**
+     * Como Cenários e Sessões deixam a sala depois da suspensão (RN-25): o cenário Suspenso e a sessão pausada
+     * com o motivo, no banco. A chave do Redis é apagada, e a tela refaz o estado do banco.
+     */
+    private void suspenderDuranteASessao(long sessao) {
+        jdbc.update("UPDATE cenario SET status = 'SUSPENSO' WHERE id = ?", cenario);
+        jdbc.update("UPDATE sessao SET status = 'PAUSADA', motivo_pausa = 'CENARIO_SUSPENSO' WHERE id = ?", sessao);
+        // Pelo relógio da aplicação, como a pausa grava: o do banco pode estar adiantado.
+        jdbc.update("""
+                INSERT INTO evento_sessao (sessao_id, tipo, motivo, ocorrido_em)
+                VALUES (?, 'PAUSA', 'CENARIO_SUSPENSO', ?)""",
+                sessao, Instant.now().truncatedTo(ChronoUnit.MICROS)
+                        .atOffset(ZoneOffset.UTC));
         redis.delete("sessao:" + sessao + ":estado");
     }
 

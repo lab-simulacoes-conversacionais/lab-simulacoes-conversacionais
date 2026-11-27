@@ -99,7 +99,10 @@ class SessaoController {
             mensagens.addFlashAttribute("erro",
                     "Esta turma já tem uma sessão em andamento. Encerre a anterior antes de começar outra.");
         } catch (CenarioSemVersaoAprovada erro) {
-            mensagens.addFlashAttribute("erro", "Este cenário não está mais aprovado. Escolha outro da biblioteca.");
+            // RN-25: o suspenso também cai aqui, com o rascunho e o arquivado.
+            mensagens.addFlashAttribute("erro",
+                    "Este cenário não está aprovado agora (pode ter sido suspenso pela curadoria). "
+                            + "Escolha outro da biblioteca.");
         } catch (TurmaNaoEncontrada erro) {
             mensagens.addFlashAttribute("erro", "Esta turma não existe mais. Escolha outra.");
         }
