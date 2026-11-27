@@ -1,9 +1,12 @@
 package br.ufg.inf.labsimulacoes.cenarios.aplicacao;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.cenarios.TesteDoPersonagemFeito;
+import br.ufg.inf.labsimulacoes.cenarios.dominio.AprovacaoIncompleta;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.Cenarios;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.ConteudosDeTeste;
@@ -21,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +32,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -61,6 +67,9 @@ class SuspensaoAutomaticaTest {
     private Habilidades habilidades;
 
     @Autowired
+    private AprovacaoDeCenario aprovacao;
+
+    @Autowired
     private MeterRegistry metricas;
 
     @Autowired
@@ -69,6 +78,7 @@ class SuspensaoAutomaticaTest {
     private long autora;
     private long professora;
     private long curadora;
+    private String emailDaCuradora;
     private long outraCuradora;
     private long cenario;
     private long versao;
@@ -78,7 +88,8 @@ class SuspensaoAutomaticaTest {
     void prepararCenarioAprovado() {
         autora = inserirUsuario("autora");
         professora = inserirUsuario("professora");
-        curadora = inserirUsuario("curadora");
+        emailDaCuradora = "curadora-" + UUID.randomUUID() + "@escola.test";
+        curadora = inserirUsuarioComEmail(emailDaCuradora);
         outraCuradora = inserirUsuario("outra-curadora");
         momento = Instant.now().truncatedTo(ChronoUnit.MICROS);
         habilidades.gravar(List.of(new HabilidadeBncc("EF08HI03", "Descrição", "EF", List.of(8), "História")));
@@ -87,18 +98,23 @@ class SuspensaoAutomaticaTest {
         versao = aprovado.versao().id();
     }
 
+    @AfterEach
+    void sair() {
+        SecurityContextHolder.clearContext();
+    }
+
     // RN-23a: a sinalização grave do professor suspende o cenário na hora, por precaução.
 
     @Test
     void graveDoProfessorSuspendeNaHora() {
-        double antes = contador(SuspensaoAutomatica.METRICA_DA_SUSPENSAO, "sinalizacao_grave");
+        double antes = contador(ContagemDaSuspensao.METRICA_DA_SUSPENSAO, "sinalizacao_grave");
         long sinalizacao = registrar("PROFESSOR", "GRAVE", professora);
 
         aguardarStatus("SUSPENSO");
         assertThat(linhaDoLog("SUSPENDER_CENARIO", professora)).contains("\"motivo\": \"SINALIZACAO_GRAVE\"")
                 .contains("\"versaoId\": " + versao);
         assertThat(publicados("CenarioSuspenso")).isEqualTo(1);
-        aguardarContador(SuspensaoAutomatica.METRICA_DA_SUSPENSAO, "sinalizacao_grave", antes + 1);
+        aguardarContador(ContagemDaSuspensao.METRICA_DA_SUSPENSAO, "sinalizacao_grave", antes + 1);
     }
 
     /** Quem tem os dois perfis e sinaliza como curador espera a triagem: decide o perfil gravado. */
@@ -129,9 +145,102 @@ class SuspensaoAutomaticaTest {
         aguardarOuvinte(outra, 2);
         assertThat(status()).isEqualTo("SUSPENSO");
 
-        aprovarVersaoNova();
+        aprovarVersaoNovaPelaCuradoria();
         assertThat(status()).isEqualTo("APROVADO");
+        assertThat(publicados("CenarioReativado")).isEqualTo(1);
+        assertThat(linhaDoLog("REATIVAR_CENARIO", curadora)).contains("\"motivo\": \"NOVA_VERSAO_APROVADA\"");
+    }
+
+    // RN-23b: a aprovação da versão nova pela curadoria tira o cenário da suspensão.
+
+    /** Duas ações, dois eventos e uma linha de cada no log (RN-35): a aprovação e a reativação. */
+    @Test
+    void aprovacaoDaVersaoNovaReativaOCenarioSuspenso() {
+        double antes = contador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "nova_versao_aprovada");
+        registrar("PROFESSOR", "GRAVE", professora);
+        aguardarStatus("SUSPENSO");
+
+        long nova = aprovarVersaoNovaPelaCuradoria();
+
+        assertThat(status()).isEqualTo("APROVADO");
+        assertThat(publicados("CenarioReativado")).isEqualTo(1);
+        assertThat(publicados("CenarioAprovado")).isEqualTo(1);
+        assertThat(linhaDoLog("REATIVAR_CENARIO", curadora)).contains("\"motivo\": \"NOVA_VERSAO_APROVADA\"")
+                .contains("\"versaoId\": " + nova);
+        assertThat(linhaDoLog("APROVAR_CENARIO", curadora)).contains("\"versaoId\": " + nova);
+        aguardarContador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "nova_versao_aprovada", antes + 1);
+    }
+
+    @Test
+    void aprovacaoDeCenarioQueNaoEstavaSuspensoNaoReativa() {
+        double antes = contador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "nova_versao_aprovada");
+
+        aprovarVersaoNovaPelaCuradoria();
+
+        assertThat(status()).isEqualTo("APROVADO");
+        linhaDoLog("APROVAR_CENARIO", curadora);
         assertThat(publicados("CenarioReativado")).isZero();
+        assertThat(contador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "nova_versao_aprovada")).isEqualTo(antes);
+    }
+
+    /** RN-06: sem o teste do personagem a aprovação é recusada, e o cenário continua suspenso. */
+    @Test
+    void aprovacaoRecusadaNaoReativa() {
+        registrar("PROFESSOR", "GRAVE", professora);
+        aguardarStatus("SUSPENSO");
+        enviarVersaoNova();
+        logarCuradora();
+
+        assertThatThrownBy(() -> aprovacao.aprovar(cenario, TesteDoPersonagemFeito.CHECKLIST))
+                .isInstanceOf(AprovacaoIncompleta.class);
+
+        assertThat(status()).isEqualTo("SUSPENSO");
+        assertThat(publicados("CenarioAprovado")).isZero();
+        assertThat(publicados("CenarioReativado")).isZero();
+    }
+
+    /**
+     * A reativação sai na mesma transação da aprovação: desfeita a transação depois da aprovação, nada fica,
+     * nem o status, nem o evento, nem a métrica.
+     */
+    @Test
+    void reativacaoDesfeitaComATransacaoDaAprovacao() {
+        double antes = contador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "nova_versao_aprovada");
+        registrar("PROFESSOR", "GRAVE", professora);
+        aguardarStatus("SUSPENSO");
+        enviarVersaoNova();
+        TesteDoPersonagemFeito.pelo(jdbc, emailDaCuradora, cenario);
+        logarCuradora();
+
+        transacao.executeWithoutResult(status -> {
+            assertThat(aprovacao.aprovar(cenario, TesteDoPersonagemFeito.CHECKLIST).status()).hasToString("APROVADO");
+            status.setRollbackOnly();
+        });
+
+        assertThat(status()).isEqualTo("SUSPENSO");
+        assertThat(publicados("CenarioAprovado")).isZero();
+        assertThat(publicados("CenarioReativado")).isZero();
+        assertThat(contador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "nova_versao_aprovada")).isEqualTo(antes);
+    }
+
+    /** Com a versão nova em sala, a triagem tardia de um erro grave da versão antiga não suspende de novo. */
+    @Test
+    void triagemTardiaDaVersaoAntigaNaoSuspendeDeNovo() {
+        long antiga = versao;
+        long sinalizacao = registrar("PROFESSOR", "GRAVE", professora);
+        aguardarStatus("SUSPENSO");
+        aprovarVersaoNovaPelaCuradoria();
+
+        publicar(new SinalizacaoTriada(
+                sinalizacao, antiga, "CONFIRMADA", "GRAVE", "GRAVE", "PROFESSOR", curadora, momento));
+
+        aguardarOuvinte(sinalizacao, 2);
+        assertThat(status()).isEqualTo("APROVADO");
+        assertThat(publicados("CenarioSuspenso")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT gravidade_final FROM sinalizacao_do_cenario WHERE sinalizacao_id = ?", String.class,
+                sinalizacao))
+                .isEqualTo("GRAVE");
     }
 
     // RN-23c: três erros moderados confirmados na mesma versão também suspendem.
@@ -157,7 +266,7 @@ class SuspensaoAutomaticaTest {
 
     @Test
     void descarteDaSinalizacaoQueSuspendeuReativa() {
-        double antes = contador(SuspensaoAutomatica.METRICA_DA_REATIVACAO, "sinalizacao_descartada");
+        double antes = contador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "sinalizacao_descartada");
         long sinalizacao = registrar("PROFESSOR", "GRAVE", professora);
         aguardarStatus("SUSPENSO");
 
@@ -167,7 +276,7 @@ class SuspensaoAutomaticaTest {
         assertThat(linhaDoLog("REATIVAR_CENARIO", curadora)).contains("\"motivo\": \"SINALIZACAO_DESCARTADA\"")
                 .contains("\"versaoId\": " + versao);
         assertThat(publicados("CenarioReativado")).isEqualTo(1);
-        aguardarContador(SuspensaoAutomatica.METRICA_DA_REATIVACAO, "sinalizacao_descartada", antes + 1);
+        aguardarContador(ContagemDaSuspensao.METRICA_DA_REATIVACAO, "sinalizacao_descartada", antes + 1);
     }
 
     /** Confirmada com gravidade menor, a suspensão de precaução cai. */
@@ -320,6 +429,27 @@ class SuspensaoAutomaticaTest {
         versao = aprovar(comNova).versao().id();
     }
 
+    /** A autora cria a versão nova e a envia à curadoria, como o domínio faz. */
+    private void enviarVersaoNova() {
+        Cenario comNova = cenarios.salvar(cenarios.buscar(cenario).orElseThrow().novaVersao(autora));
+        cenarios.salvar(comNova.enviarACuradoria(autora));
+    }
+
+    /** A curadora testa o personagem e aprova pela AprovacaoDeCenario, como na tela. */
+    private long aprovarVersaoNovaPelaCuradoria() {
+        enviarVersaoNova();
+        TesteDoPersonagemFeito.pelo(jdbc, emailDaCuradora, cenario);
+        logarCuradora();
+        versao = aprovacao.aprovar(cenario, TesteDoPersonagemFeito.CHECKLIST).versao().id();
+        SecurityContextHolder.clearContext();
+        return versao;
+    }
+
+    private void logarCuradora() {
+        SecurityContextHolder.getContext()
+                .setAuthentication(new TestingAuthenticationToken(emailDaCuradora, null, "ROLE_CURADOR"));
+    }
+
     private String status() {
         return jdbc.queryForObject("SELECT status FROM cenario WHERE id = ?", String.class, cenario);
     }
@@ -374,9 +504,12 @@ class SuspensaoAutomaticaTest {
     }
 
     private long inserirUsuario(String prefixo) {
+        return inserirUsuarioComEmail(prefixo + "-" + UUID.randomUUID() + "@escola.test");
+    }
+
+    private long inserirUsuarioComEmail(String email) {
         return jdbc.queryForObject(
-                "INSERT INTO usuario (nome, email, senha_hash) VALUES ('Nome', ?, 'hash') RETURNING id",
-                Long.class,
-                prefixo + "-" + UUID.randomUUID() + "@escola.test");
+                "INSERT INTO usuario (nome, email, senha_hash) VALUES ('Nome', ?, 'hash') RETURNING id", Long.class,
+                email);
     }
 }

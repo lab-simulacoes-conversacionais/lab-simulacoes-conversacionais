@@ -152,7 +152,7 @@ class SuspensaoAutomaticaConcorrenciaTest {
 
     /** Chamado fora de transação, o contador sobe na hora; dentro dela, na confirmação. */
     private double contador() {
-        Counter contador = metricas.find(SuspensaoAutomatica.METRICA_DA_SUSPENSAO)
+        Counter contador = metricas.find(ContagemDaSuspensao.METRICA_DA_SUSPENSAO)
                 .tag("motivo", "tres_erros_moderados")
                 .counter();
         return contador == null ? 0 : contador.count();

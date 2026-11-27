@@ -10,18 +10,13 @@ import br.ufg.inf.labsimulacoes.cenarios.dominio.SinalizacaoDaVersao;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.SinalizacoesDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.dominio.StatusDoCenario;
 import br.ufg.inf.labsimulacoes.cenarios.infraestrutura.EventosDeCenarios;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Instant;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Suspensão e reativação automáticas do cenário pelas regras de gravidade (RF-25, RN-23), a cada sinalização
@@ -41,22 +36,22 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 @Component
 class SuspensaoAutomatica {
 
-    static final String METRICA_DA_SUSPENSAO = "lab.cenarios.suspensao";
-    static final String METRICA_DA_REATIVACAO = "lab.cenarios.reativacao";
-
     private static final Logger LOG = LoggerFactory.getLogger(SuspensaoAutomatica.class);
 
     private final Cenarios cenarios;
     private final SinalizacoesDoCenario sinalizacoes;
     private final EventosDeCenarios eventos;
-    private final MeterRegistry metricas;
+    private final ContagemDaSuspensao contagem;
 
     SuspensaoAutomatica(
-            Cenarios cenarios, SinalizacoesDoCenario sinalizacoes, EventosDeCenarios eventos, MeterRegistry metricas) {
+            Cenarios cenarios,
+            SinalizacoesDoCenario sinalizacoes,
+            EventosDeCenarios eventos,
+            ContagemDaSuspensao contagem) {
         this.cenarios = cenarios;
         this.sinalizacoes = sinalizacoes;
         this.eventos = eventos;
-        this.metricas = metricas;
+        this.contagem = contagem;
     }
 
     /**
@@ -116,45 +111,16 @@ class SuspensaoAutomatica {
         if (status == StatusDoCenario.APROVADO && motivo.isPresent()) {
             Cenario suspenso = cenarios.salvar(cenario.suspender());
             eventos.cenarioSuspenso(suspenso, versaoId, responsavelId, motivo.get(), momento);
-            depoisDeConfirmar(() -> contar(
-                    METRICA_DA_SUSPENSAO, "Cenários suspensos pelas regras de gravidade (RN-23)", motivo.get().name(),
-                    "suspenso", cenarioId, versaoId, sinalizacao.sinalizacaoId()));
+            contagem.suspenso(cenarioId, versaoId, sinalizacao.sinalizacaoId(), motivo.get());
         } else if (status == StatusDoCenario.SUSPENSO && motivo.isEmpty() && reativacao.isPresent()) {
             Cenario reativado = cenarios.salvar(cenario.reativar());
             eventos.cenarioReativado(reativado, versaoId, responsavelId, reativacao.get(), momento);
-            depoisDeConfirmar(() -> contar(
-                    METRICA_DA_REATIVACAO, "Cenários suspensos que voltaram a Aprovado (RN-23)",
-                    reativacao.get().name(), "reativado", cenarioId, versaoId, sinalizacao.sinalizacaoId()));
+            contagem.reativado(cenarioId, versaoId, sinalizacao.sinalizacaoId(), reativacao.get());
         }
     }
 
     private static void ignorar(SinalizacaoDaVersao sinalizacao, Long cenarioId, String motivo) {
         LOG.info("Sinalização {} ignorada na suspensão: cenário {}, versão {}, motivo {}",
                 sinalizacao.sinalizacaoId(), cenarioId, sinalizacao.versaoId(), motivo);
-    }
-
-    private void contar(
-            String metrica, String descricao, String motivo, String acao, long cenarioId, long versaoId,
-            long sinalizacaoId) {
-        Counter.builder(metrica)
-                .description(descricao)
-                .tag("motivo", motivo.toLowerCase(Locale.ROOT))
-                .register(metricas)
-                .increment();
-        LOG.info("Cenário {} {}: versão {}, sinalização {}, motivo {}", cenarioId, acao, versaoId, sinalizacaoId, motivo);
-    }
-
-    /** Fora de uma transação, a gravação já está confirmada. */
-    private static void depoisDeConfirmar(Runnable acao) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            acao.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                acao.run();
-            }
-        });
     }
 }
