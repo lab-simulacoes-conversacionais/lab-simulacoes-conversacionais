@@ -68,17 +68,30 @@ public class RevisaoDaConversa {
     }
 
     /**
-     * A resposta mais recente do personagem, para o professor sinalizar durante a aula, no modo projeção
-     * (RF-23). Vem do registro da sessão, então continua a mesma depois de um reinício da tela (RN-19).
+     * O que o professor pode sinalizar durante a aula, no modo projeção (RF-23): a resposta mais recente do
+     * personagem. Vem do registro da sessão, então continua a mesma depois de um reinício da tela (RN-19).
      *
-     * @return vazio se o personagem ainda não respondeu
+     * <p>A resposta só é gravada quando termina de chegar. Enquanto a última pergunta espera a resposta, a
+     * mais recente gravada é a anterior, e não a que está na tela; por isso a leitura diz que há uma
+     * aguardando, para a tela não oferecer a anterior por engano. A pergunta cuja resposta foi bloqueada não
+     * espera resposta (RN-20).
+     *
      * @throws ConversaNaoEncontrada nos mesmos casos de {@link #revisao}
      */
-    public Optional<Item> ultimaResposta(long sessaoId) {
-        return revisao(sessaoId).itens().reversed().stream()
-                .filter(item -> item.mensagem().daIa())
-                .findFirst();
+    public NaAula naAula(long sessaoId) {
+        List<Item> itens = revisao(sessaoId).itens();
+        boolean aguardando = !itens.isEmpty()
+                && itens.getLast().mensagem().daTurma()
+                && !itens.getLast().mensagem().respostaBloqueada();
+        Optional<Item> ultima = itens.reversed().stream().filter(item -> item.mensagem().daIa()).findFirst();
+        return new NaAula(ultima, aguardando);
     }
+
+    /**
+     * @param ultimaResposta vazia se o personagem ainda não respondeu
+     * @param aguardandoResposta se a última pergunta ainda espera a resposta, que chega ou falhou
+     */
+    public record NaAula(Optional<Item> ultimaResposta, boolean aguardandoResposta) {}
 
     /**
      * Uma resposta da sessão, para a tela mostrar de novo o que está sendo sinalizado depois de uma recusa.

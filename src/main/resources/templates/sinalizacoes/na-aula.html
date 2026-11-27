@@ -6,7 +6,8 @@
   projeção, como no protótipo. Sinaliza a última resposta do personagem, que o modal mostra para o professor
   conferir. O envio volta com este mesmo fragmento: a confirmação, ou a recusa com o formulário preenchido.
 
-  Usa do modelo: sessaoId, situacao (SEM_RESPOSTA, PODE_SINALIZAR, SINALIZADA ou FORA_DO_PRAZO), tipos,
+  Usa do modelo: sessaoId, situacao (SEM_RESPOSTA, AGUARDANDO_RESPOSTA, PODE_SINALIZAR, SINALIZADA ou
+  FORA_DO_PRAZO), tipos,
   gravidades e, quando há resposta, mensagemId e resposta. Depois de um envio: aviso, sucesso,
   tipoEscolhido, gravidadeEscolhida e justificativa.
 -->
@@ -23,6 +24,11 @@
 
     <p class="modal-intro" th:if="${situacao == 'SEM_RESPOSTA'}">
       O personagem ainda não respondeu nesta sessão. Sinalize depois da primeira resposta.
+    </p>
+    <!-- A resposta só é gravada quando termina; antes disso, a "última" seria a anterior. -->
+    <p class="modal-intro" th:if="${situacao == 'AGUARDANDO_RESPOSTA'}">
+      A resposta à última pergunta ainda não chegou por inteiro. Espere ela terminar para sinalizar; se o
+      personagem não conseguiu responder, use "Tentar de novo" no painel.
     </p>
     <p class="modal-intro" th:if="${situacao == 'SINALIZADA' and sucesso == null and aviso == null}">
       Você já sinalizou a última resposta do personagem. A curadoria vai analisá-la.

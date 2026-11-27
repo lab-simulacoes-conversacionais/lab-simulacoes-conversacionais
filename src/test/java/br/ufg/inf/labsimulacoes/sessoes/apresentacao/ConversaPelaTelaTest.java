@@ -248,7 +248,7 @@ class ConversaPelaTelaTest {
         respondeEmTrechos("Olá.");
 
         assertThat(navegador.perguntar(curta, "Oi!").body())
-                .containsPattern("<div id=\"aviso-da-sessao\" hx-swap-oob=\"innerHTML\"><p\\s+class=\"aviso aviso-quiz\"")
+                .containsPattern("<div id=\"aviso-da-sessao\" hx-swap-oob=\"afterbegin\"><p\\s+class=\"aviso aviso-quiz\"")
                 .contains("Esta foi a última pergunta da sessão");
         navegador.resposta(curta);
         var bloqueada = navegador.perguntar(curta, "Mais uma?");

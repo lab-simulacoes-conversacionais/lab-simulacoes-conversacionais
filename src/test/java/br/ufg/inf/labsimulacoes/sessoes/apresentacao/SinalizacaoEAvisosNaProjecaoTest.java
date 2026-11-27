@@ -3,6 +3,7 @@ package br.ufg.inf.labsimulacoes.sessoes.apresentacao;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
@@ -134,6 +135,38 @@ class SinalizacaoEAvisosNaProjecaoTest {
                 .contains("maxlength=\"500\"").contains("Descreva brevemente o que precisa ser revisto…")
                 .contains("Cancelar").contains("Enviar sinalização");
         assertThat(mensagemDe(modal)).isEqualTo(ultimaRespostaDa(sessao));
+    }
+
+    /**
+     * A resposta só é gravada quando termina de chegar. Enquanto a última pergunta espera, o modal não
+     * oferece a resposta anterior, que seria sinalizada por engano no lugar da que está na tela.
+     */
+    @Test
+    void enquantoARespostaChegaOModalNaoOfereceAAnterior() throws Exception {
+        long sessao = sessaoComResposta();
+        professora.perguntar(sessao, "E depois, o que aconteceu?");
+
+        var modal = professora.get("/sessoes/" + sessao + "/sinalizacao").body();
+
+        assertThat(modal)
+                .contains("A resposta à última pergunta ainda não chegou por inteiro.")
+                .doesNotContain(RESPOSTA)
+                .doesNotContain("name=\"mensagemId\"")
+                .contains("Fechar");
+    }
+
+    /** A pergunta com a resposta bloqueada não espera resposta: o modal volta a oferecer a anterior (RN-20). */
+    @Test
+    void depoisDoBloqueioOModalOfereceAUltimaRespostaGravada() throws Exception {
+        long sessao = sessaoComResposta();
+        respondeCom("Frase imprópria aqui.");
+        when(adaptador.moderar("Frase imprópria aqui.")).thenReturn(new ResultadoDaModeracao(true, List.of("hate")));
+        professora.perguntar(sessao, "Quem é você?");
+        professora.resposta(sessao);
+
+        var modal = professora.get("/sessoes/" + sessao + "/sinalizacao").body();
+
+        assertThat(modal).contains(RESPOSTA).doesNotContain("imprópria").doesNotContain("ainda não chegou");
     }
 
     @Test
@@ -298,15 +331,16 @@ class SinalizacaoEAvisosNaProjecaoTest {
         return Long.parseLong(id.group(1));
     }
 
+    /** Com doAnswer, dá para trocar a resposta no meio do teste sem chamar a anterior. */
     private void respondeCom(String texto) {
-        when(adaptador.responder(any(), any())).thenAnswer(chamada -> {
+        doAnswer(chamada -> {
             Consumer<String> aoReceber = chamada.getArgument(1);
             aoReceber.accept(texto);
             long metadados = jdbc.queryForObject(
                     "INSERT INTO resposta_ia_meta (provedor, modelo, versao_prompt) VALUES ('openai', 'm', 'v1') RETURNING id",
                     Long.class);
             return new RespostaDoPersonagem(texto, metadados);
-        });
+        }).when(adaptador).responder(any(), any());
     }
 
     private Navegador logado(Perfil perfil) throws Exception {

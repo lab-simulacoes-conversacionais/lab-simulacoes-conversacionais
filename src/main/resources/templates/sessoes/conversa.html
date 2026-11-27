@@ -24,8 +24,11 @@
     <p th:text="${recebida.pergunta().texto()}">Pergunta da turma</p>
   </div>
   <div th:replace="~{sessoes/conversa :: resposta(${sessaoId})}"></div>
-  <!-- RN-18, #43: a sugestão do quiz é ao professor, então vai para o painel, fora da área projetada. -->
-  <div id="aviso-da-sessao" hx-swap-oob="innerHTML" th:if="${recebida.perguntasRestantes() == 0}"><p
+  <!--
+    RN-18, #43: a sugestão do quiz é ao professor, então vai para o painel, fora da área projetada. Entra no
+    começo da área sem apagar o resto, como os outros avisos (projecao.js).
+  -->
+  <div id="aviso-da-sessao" hx-swap-oob="afterbegin" th:if="${recebida.perguntasRestantes() == 0}"><p
       class="aviso aviso-quiz" role="status">Esta foi a última pergunta da sessão. Ao fim da resposta, que tal passar ao quiz?</p></div>
 </th:block>
 

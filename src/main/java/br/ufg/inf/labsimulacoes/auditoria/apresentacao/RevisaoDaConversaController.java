@@ -2,6 +2,7 @@ package br.ufg.inf.labsimulacoes.auditoria.apresentacao;
 
 import br.ufg.inf.labsimulacoes.auditoria.aplicacao.RegistroDeSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.aplicacao.RevisaoDaConversa;
+import br.ufg.inf.labsimulacoes.auditoria.aplicacao.RevisaoDaConversa.NaAula;
 import br.ufg.inf.labsimulacoes.auditoria.aplicacao.RevisaoDaConversa.Revisao;
 import br.ufg.inf.labsimulacoes.auditoria.aplicacao.RevisaoDaConversa.Situacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.ConversaNaoEncontrada;
@@ -48,6 +49,12 @@ class RevisaoDaConversaController {
 
     /** O personagem ainda não respondeu nesta sessão: não há o que sinalizar. */
     private static final String SEM_RESPOSTA = "SEM_RESPOSTA";
+
+    /**
+     * A resposta à última pergunta ainda está chegando ou falhou: ela só é gravada no fim, e a anterior seria
+     * sinalizada por engano no lugar da que está na tela.
+     */
+    private static final String AGUARDANDO_RESPOSTA = "AGUARDANDO_RESPOSTA";
 
     private final RevisaoDaConversa revisoes;
     private final RegistroDeSinalizacao registro;
@@ -109,7 +116,8 @@ class RevisaoDaConversaController {
 
     /**
      * O conteúdo do modal "Sinalizar erro na resposta" do painel do professor: o formulário para a última
-     * resposta do personagem, ou o motivo de não haver o que sinalizar.
+     * resposta do personagem, ou o motivo de não haver o que sinalizar, inclusive enquanto a resposta à
+     * última pergunta não chegou.
      */
     @GetMapping("/{id}/sinalizacao")
     String sinalizacaoNaAula(@PathVariable long id, Model modelo) {
@@ -117,7 +125,12 @@ class RevisaoDaConversaController {
         // Como no protótipo, a gravidade começa em Moderada; o tipo, o professor escolhe.
         modelo.addAttribute("gravidadeEscolhida", GravidadePercebida.MODERADA.name());
         try {
-            revisoes.ultimaResposta(id).ifPresentOrElse(
+            NaAula naAula = revisoes.naAula(id);
+            if (naAula.aguardandoResposta()) {
+                modelo.addAttribute("situacao", AGUARDANDO_RESPOSTA);
+                return NA_AULA;
+            }
+            naAula.ultimaResposta().ifPresentOrElse(
                     item -> {
                         modelo.addAttribute("mensagemId", item.mensagem().id());
                         modelo.addAttribute("resposta", item.mensagem().texto());

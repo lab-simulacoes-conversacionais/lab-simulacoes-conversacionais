@@ -66,7 +66,7 @@
   // Pergunta: depois de aceita, limpa o campo e os avisos e atualiza a contagem do painel.
   // ---------------------------------------------------------------------------------------------
   formulario.addEventListener("htmx:beforeRequest", () => {
-    avisos.replaceChildren();
+    limparAvisos();
     campo.removeAttribute("aria-invalid");
   });
   // O campo fica marcado enquanto o texto recusado (dado pessoal, longo demais ou vazio) não muda; o
@@ -77,11 +77,14 @@
   // disparado no alvo original (#conversa), e detail.elt é esse alvo, não o formulário; quem pediu está em
   // requestConfig.elt, que o HTMX 2.0.4 preenche ao disparar htmx:configRequest no formulário. Só as recusas
   // vêm com o HX-Retarget para a área de avisos; um 500 sem ele continua tratado como erro.
+  // A troca do HTMX apagaria a área inteira, com o "Tentar de novo" de uma falha (#43); por isso o aviso da
+  // recusa entra pelo avisarProfessor, que preserva o da falha.
   document.body.addEventListener("htmx:beforeSwap", (evento) => {
     const { requestConfig, xhr, target } = evento.detail;
     if (requestConfig?.elt !== formulario || xhr.status < 400 || target !== avisos) return;
-    evento.detail.shouldSwap = true;
+    evento.detail.shouldSwap = false;
     evento.detail.isError = false;
+    avisarProfessor(textoDe(xhr.responseText));
   });
   // Com isError = false o HTMX marca a recusa como "successful"; o status separa, para o texto ficar no campo.
   formulario.addEventListener("htmx:afterRequest", (evento) => {
@@ -94,16 +97,32 @@
   });
 
   // ---------------------------------------------------------------------------------------------
-  // Avisos ao professor (#43), na área do painel. Um de cada vez: o mais recente substitui o anterior.
+  // Avisos ao professor (#43), na área do painel. O mais recente substitui o anterior, menos o aviso da
+  // falha da resposta: ele leva o "Tentar de novo" e fica até a resposta chegar, porque a pergunta continua
+  // pendente e é o único jeito de pedi-la de novo sem recarregar a página. Uma pergunta nova enquanto isso é
+  // recusada (409), e a recusa aparece junto com ele.
   // ---------------------------------------------------------------------------------------------
-  const avisarProfessor = (texto) => {
+  const limparAvisos = () => {
+    for (const aviso of [...avisos.children]) {
+      if (!aviso.matches("[data-aviso-da-resposta]")) aviso.remove();
+    }
+  };
+
+  /** @param daResposta o aviso da falha da resposta, que substitui inclusive o da falha anterior */
+  const avisarProfessor = (texto, daResposta = false) => {
     const aviso = document.createElement("div");
     aviso.className = "aviso";
     aviso.setAttribute("role", "alert");
     const paragrafo = document.createElement("p");
     paragrafo.textContent = texto;
     aviso.append(paragrafo);
-    avisos.replaceChildren(aviso);
+    if (daResposta) {
+      aviso.dataset.avisoDaResposta = "";
+      avisos.replaceChildren(aviso);
+    } else {
+      limparAvisos();
+      avisos.prepend(aviso);
+    }
     return aviso;
   };
 
@@ -133,8 +152,7 @@
     resposta.querySelector("[data-aviso-neutro]")?.remove();
     resposta.append(avisoNeutro(tipo));
     if (tipo === "bloqueio") return;
-    const aviso = avisarProfessor(textoDe(evento.detail.data));
-    aviso.dataset.avisoDaResposta = "";
+    const aviso = avisarProfessor(textoDe(evento.detail.data), tipo === "falha");
     if (tipo === "falha") {
       const tentar = document.createElement("button");
       tentar.type = "button";
@@ -188,7 +206,8 @@
           : "Não foi possível tentar de novo agora. Confira a sessão e tente outra vez.");
         return;
       }
-      aviso.remove();
+      // A pergunta voltou a ser respondida: a falha e as recusas de enquanto ela esperava não valem mais.
+      avisos.replaceChildren();
       const modelo = document.createElement("template");
       modelo.innerHTML = corpo.trim();
       const nova = modelo.content.firstElementChild;
@@ -203,7 +222,63 @@
   // Queda de conexão (RF-20): o pedido não chegou ao servidor. Nada foi gravado, a pergunta digitada
   // continua no campo e o professor pode enviar de novo quando a conexão voltar.
   // ---------------------------------------------------------------------------------------------
-  document.body.addEventListener("htmx:sendError", () => avisarProfessor(SEM_CONEXAO));
+  document.body.addEventListener("htmx:sendError", (evento) => {
+    if (!erroNoModal(evento, "Sem conexão com o servidor. Confira a internet e tente de novo.")) {
+      avisarProfessor(SEM_CONEXAO);
+    }
+  });
+
+  // ---------------------------------------------------------------------------------------------
+  // Falhas do modal de sinalizar (#43). O HTMX 2 não troca respostas 4xx e 5xx, então, sem isto, o modal
+  // ficaria em "Carregando…" ou o envio não daria retorno. Se o carregamento falhar, o modal mostra o erro e
+  // o botão de fechar; se o envio falhar, o aviso aparece acima do formulário, que continua preenchido. Com
+  // o login expirado, o servidor redireciona para a entrada: a página recarrega, em vez de mostrar a tela
+  // de login dentro do modal.
+  // ---------------------------------------------------------------------------------------------
+  const doModal = (evento) => evento.detail.elt?.closest?.("[data-abrir-sinalizacao], #sinalizacao");
+
+  const ENVIO_FALHOU = "Não foi possível enviar a sinalização agora. O que você preencheu continua aqui: "
+    + "tente enviar de novo em instantes.";
+
+  /** @param texto o aviso quando o modal nem carregou; no envio, o aviso é o ENVIO_FALHOU */
+  const erroNoModal = (evento, texto) => {
+    if (!doModal(evento)) return false;
+    const erro = document.createElement("p");
+    erro.className = "field-error";
+    erro.setAttribute("role", "alert");
+    erro.dataset.erroDoModal = "";
+    const formulario = conteudoDaSinalizacao.querySelector("form .modal-body");
+    if (formulario && !evento.detail.elt.matches("[data-abrir-sinalizacao]")) {
+      erro.textContent = ENVIO_FALHOU;
+      formulario.querySelector("[data-erro-do-modal]")?.remove();
+      formulario.prepend(erro);
+      return true;
+    }
+    erro.textContent = texto;
+    const corpo = document.createElement("div");
+    corpo.className = "modal-body";
+    corpo.append(erro);
+    const rodape = document.createElement("div");
+    rodape.className = "modal-footer";
+    const fechar = document.createElement("button");
+    fechar.type = "button";
+    fechar.className = "btn btn-primary";
+    fechar.dataset.fechar = "";
+    fechar.textContent = "Fechar";
+    rodape.append(fechar);
+    conteudoDaSinalizacao.replaceChildren(corpo, rodape);
+    return true;
+  };
+
+  document.body.addEventListener("htmx:responseError", (evento) => {
+    erroNoModal(evento, "Não foi possível falar com o servidor agora. Feche e tente de novo em instantes.");
+  });
+  document.body.addEventListener("htmx:beforeSwap", (evento) => {
+    if (doModal(evento) && evento.detail.xhr.responseURL.includes("/login")) {
+      evento.detail.shouldSwap = false;
+      window.location.reload();
+    }
+  });
 
   // ---------------------------------------------------------------------------------------------
   // Painel oculto (#43): ao projetar, o professor pode ocultar o painel, e com ele os avisos. O botão
