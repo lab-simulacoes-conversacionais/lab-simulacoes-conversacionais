@@ -80,8 +80,9 @@ record TelaDaSessao(
                     + "O caso foi encaminhado à curadoria. Retome para continuar.";
             case LIMITE_50_MINUTOS -> "A sessão chegou a 50 minutos de conversa, uma hora-aula, e foi pausada. "
                     + "Para continuar, retome e confirme.";
+            // RN-25: o professor pode retomar depois de corrigir o erro com a turma.
             case CENARIO_SUSPENSO -> "O cenário foi suspenso pela curadoria e a sessão foi pausada. "
-                    + "Encerre a sessão e escolha outro cenário.";
+                    + "Corrija o erro com a turma e retome, ou encerre a sessão.";
         };
     }
 
