@@ -68,9 +68,9 @@ A tabela mostra o que cada módulo faz e de quem depende. As setas de dependênc
 | Módulo | Responsabilidade | Depende de | Requisitos |
 | --- | --- | --- | --- |
 | Acesso | Usuários, perfis acumuláveis, turmas, parâmetros (limite de perguntas, custo diário) e autenticação. | — | RF-01 a RF-04 |
-| Cenários | Cenários, versões, vínculo com a BNCC, quiz, curadoria (envio, teste, checklist, decisão), biblioteca e arquivamento. | Acesso, Adaptador de IA | RF-05 a RF-13, RF-27 |
+| Cenários | Cenários, versões, vínculo com a BNCC, quiz, curadoria (envio, teste, checklist, decisão), biblioteca, arquivamento e as regras de suspensão e reativação, pelos eventos da Auditoria. | Acesso, Adaptador de IA | RF-05 a RF-13, RF-25, RF-27 |
 | Sessões | Sessões em sala, mensagens, controles (pausar, retomar, reiniciar, encerrar), tempo, aplicação do quiz e engajamento. | Acesso, Cenários, Adaptador de IA | RF-14 a RF-20, RF-22, RF-28 a RF-30 |
-| Auditoria | Casos de conteúdo bloqueado, sinalizações, triagem, regras de suspensão e log de ações críticas. | Acesso, Cenários, Sessões, Adaptador de IA | RF-23 a RF-26 |
+| Auditoria | Casos de conteúdo bloqueado, sinalizações, triagem e log de ações críticas. Publica as sinalizações e as triagens que suspendem o cenário. | Acesso, Cenários, Sessões, Adaptador de IA | RF-23, RF-24, RF-26 |
 | Métricas | Indicadores por sessão, cenário e turma, comparação com sessões de controle, painel e exportação CSV/PDF; alerta de custo diário da IA ao administrador. | Acesso (lê dados por eventos), Adaptador de IA (lê o consumo) | RF-31, RF-32, RNF-13 |
 | Adaptador de IA | Porta única para o provedor: falas do personagem, sugestão de cenário, moderação, bloqueio de dados pessoais antes do envio, prompts versionados e metadados de cada chamada. | — | RNF-02, RNF-10, RNF-13, RF-21 |
 
@@ -87,8 +87,10 @@ Cada módulo expõe apenas o pacote raiz (sua API); os subpacotes internos ficam
 | --- | --- | --- | --- |
 | CenarioAprovado, CenarioDevolvido, CenarioArquivado | Cenários | Auditoria | Registra a ação crítica no log (RN-35). |
 | ConteudoBloqueado | Sessões | Auditoria | Abre caso na fila do curador; a sessão já foi pausada (RN-20). |
-| SinalizacaoRegistrada | Auditoria | Cenários, Sessões (a partir da RF-25) | Se marcada como grave pelo professor, suspende o cenário e pausa sessões em andamento (RN-23a, RN-25). Leva só ids e códigos, sem a pergunta, a resposta nem a justificativa. Até a RF-25 é publicado sem consumidor. |
-| SinalizacaoTriada | Auditoria | Cenários, Métricas | Mantém ou retira a suspensão (RN-23b a d) e atualiza a taxa de erros (RN-29). Leva a decisão, a gravidade final e a percebida, sem os textos. Até a RF-25 é publicado sem consumidor. |
+| SinalizacaoRegistrada | Auditoria | Cenários | Cenários guarda a sinalização e refaz as regras de gravidade da versão vigente: a grave do professor suspende o cenário na hora (RN-23a). Leva só ids e códigos, sem a pergunta, a resposta nem a justificativa. |
+| SinalizacaoTriada | Auditoria | Cenários; Métricas, com a RN-29 | Cenários guarda a triagem e refaz as regras: o erro grave confirmado e o terceiro moderado suspendem (RN-23b, RN-23c); o descarte ou o rebaixamento que tira o último motivo reativa (RN-23d). A taxa de erros (RN-29) ainda não a consome. Leva a decisão, a gravidade final e a percebida, sem os textos. |
+| CenarioSuspenso | Cenários | Sessões, Auditoria | Sessões pausa todas as sessões em andamento do cenário, de qualquer versão, com o motivo `CENARIO_SUSPENSO` (RN-25); a Auditoria registra `SUSPENDER_CENARIO` no log (RN-35). Leva a versão, o responsável e o motivo (`SINALIZACAO_GRAVE`, `ERRO_GRAVE_CONFIRMADO` ou `TRES_ERROS_MODERADOS`). Só sai quando o status muda. |
+| CenarioReativado | Cenários | Auditoria | Registra `REATIVAR_CENARIO` no log (RN-35). Sai pela triagem que tira o último motivo (`SINALIZACAO_DESCARTADA`, `GRAVIDADE_REBAIXADA`) ou pela aprovação da versão nova de um suspenso (`NOVA_VERSAO_APROVADA`), na mesma transação do `CenarioAprovado`. As sessões pausadas não são retomadas sozinhas. |
 | SessaoEncerrada | Sessões | Métricas | Grava contadores e indicadores da sessão (RN-28). |
 | PerfilAlterado, RelatorioExportado | Acesso, Métricas | Auditoria | Registra a ação crítica no log (RN-35). |
 
@@ -102,7 +104,7 @@ O status do cenário segue a Figura 3 do documento de requisitos: **Rascunho, Em
 - **Aprovar** exige perfil Curador, autor diferente do curador (RN-05, RN-36) e, a partir da E2, checklist preenchido e pelo menos 5 perguntas de teste (RN-06). A versão aprovada passa a ser a vigente e fica imutável (RN-08).
 - **Devolver** exige comentário e volta a versão para Rascunho (RN-07).
 - **Editar um cenário aprovado** cria uma nova versão em Rascunho; a versão vigente continua valendo em sala até a nova ser aprovada (RN-08).
-- **Suspender e reativar** são acionados pelos eventos da Auditoria (RN-23); **arquivar** retira o cenário da biblioteca sem apagar histórico (RN-09).
+- **Suspender e reativar** são acionados pelos eventos da Auditoria (RN-23): só o Aprovado é suspenso, e só o Suspenso é reativado. A decisão é refeita a cada sinalização ou triagem a partir das sinalizações da versão vigente, então o cenário só volta a Aprovado quando nenhum motivo restar. A aprovação de uma versão nova também tira o cenário da suspensão (RN-23b). **Arquivar** retira o cenário da biblioteca sem apagar histórico (RN-09).
 
 ### Ciclo de vida da sessão
 
@@ -126,6 +128,8 @@ O **montador de prompt** junta o template versionado (arquivo no repositório) c
 6. O Adaptador de IA monta o prompt e chama o provedor em streaming.
 7. Os trechos recebidos são agrupados por frase; cada frase é moderada antes de ir para a tela por SSE (RN-20, RNF-03). Se alguma for bloqueada, a resposta não aparece, a sessão pausa e é publicado o evento ConteudoBloqueado.
 8. A resposta completa é gravada com seus metadados e as métricas de latência, tokens e custo são registradas no Micrometer (RNF-10, RNF-13).
+
+Fora da conversa, o Micrometer também conta as suspensões e as reativações de cenários, em `lab.cenarios.suspensao` e `lab.cenarios.reativacao`, com a tag `motivo` (RF-25). Os contadores só sobem depois da confirmação da transação e não levam ids nem textos.
 
 O passo 7 concilia o RN-20, que exige filtrar antes de exibir, com o RNF-03, que exige o primeiro trecho em até 3 segundos. Fica definido que a resposta é moderada frase a frase e a exibição começa assim que a primeira frase é aprovada. Na E1, um teste com 30 perguntas de referência mede o tempo até a primeira frase aprovada, com critério de 95% em até 3 segundos. Se o critério não for atingido, o sistema passa a moderar a resposta inteira antes de exibir (as respostas têm no máximo cerca de 120 palavras, RN-16), mostra o aviso "personagem pensando" enquanto isso, e o grupo leva ao PO a revisão da meta do RNF-03.
 
@@ -155,9 +159,9 @@ Os dados se dividem pelos seis módulos da arquitetura (RNF-11).
 | Módulo | Dados | Natureza |
 | --- | --- | --- |
 | Acesso | Usuário, perfis (N:N), turma, parâmetros (limite de perguntas, custo diário). | Cadastral, muda pouco; senha só como hash. |
-| Cenários | Cenário, versões, habilidades BNCC vinculadas, fontes, perguntas disparadoras, quiz (questões e alternativas), checklist de curadoria, comentários de devolução, catálogo BNCC. | Versões aprovadas são imutáveis (RN-08); BNCC é de referência, carregada uma vez e mantida em cache no Redis. |
+| Cenários | Cenário, versões, habilidades BNCC vinculadas, fontes, perguntas disparadoras, quiz (questões e alternativas), checklist de curadoria, comentários de devolução, catálogo BNCC, a cópia das sinalizações que decide a suspensão. | Versões aprovadas são imutáveis (RN-08); BNCC é de referência, carregada uma vez e mantida em cache no Redis. |
 | Sessões | Sessão (professor, turma, versão), mensagens (pergunta da "Turma" e resposta da IA), eventos de pausa e retomada, contagem do quiz, nº de presentes, nota de engajamento. | Alto volume, append-only; conversas apagadas 90 dias após a POC (RN-33). Estado da sessão em andamento também no Redis. |
-| Auditoria | Sinalizações, triagem, suspensões, log de ações críticas. | Log imutável, nunca apagado (RN-35). |
+| Auditoria | Sinalizações, triagem, log de ações críticas. | Log imutável, nunca apagado (RN-35). |
 | Métricas | Indicadores por sessão, cenário e turma. | Derivado: pode ser calculado, mas precisa sobreviver à exclusão das conversas. |
 | Adaptador de IA | Prompts e templates; metadados de cada resposta (provedor, modelo, parâmetros, tokens, custo, latência). | Prompts são artefatos versionados (RNF-11); metadados formam a trilha de rastreabilidade (RNF-10). |
 
@@ -194,6 +198,7 @@ Principais tabelas do PostgreSQL. Todas usam chave primária própria e datas de
 | `resposta_ia_meta` | Adaptador de IA | Provedor, modelo, parâmetros, versão do prompt, tokens, custo, latência. | Um registro por resposta da IA (RNF-10). |
 | `resultado_quiz` | Sessões | Contagem por alternativa de cada questão. | Soma ≤ presentes (RN-27). |
 | `sinalizacao` | Auditoria | Pergunta e resposta copiadas, início e professor da sessão, versão, metadados da resposta copiados em JSONB (provedor, modelo, versão do prompt), tipo, gravidade percebida, justificativa, quem sinalizou e com que perfil, status. A gravidade final vem com a triagem (RF-24). | Referências à sessão, à mensagem e aos metadados com `ON DELETE SET NULL`; uma sinalização por pessoa e mensagem. |
+| `sinalizacao_do_cenario` | Cenários | Cópia, só com ids e códigos, de cada sinalização recebida por evento: `sinalizacao_id`, `cenario_id`, `cenario_versao_id`, `perfil`, `gravidade_percebida`, `decisao`, `gravidade_final`, `triada_por_id`, `recebida_em`, `triada_em` (RF-25). | `sinalizacao_id` como chave, sem FK para a Auditoria, para o evento entregue de novo não contar duas vezes; `perfil`, gravidades e `decisao` com CHECK dos códigos; `ck_sinalizacao_do_cenario_triagem`: a pendente não tem triagem, a triada tem quem e quando, e só a confirmada tem gravidade final. |
 | `log_auditoria` | Auditoria | Usuário, ação, entidade, detalhes em JSONB, data, hash encadeado. | Sem UPDATE e DELETE (RN-35). |
 | `execucao_retencao` | Sessões | Data da execução e quantidade de registros apagados. | Registro de cada execução (RNF-15). |
 

@@ -31,8 +31,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  * Leve, Moderada ou Grave (RN-22); a descartada, não. Cada sinalização é triada uma vez só.
  *
  * <p>A triagem é gravada no log de ações críticas na mesma transação, com a decisão e se saiu fora do prazo
- * de 2 dias úteis (RN-24, RN-35), e publica {@link SinalizacaoTriada}, sem os textos. Até a RF-25, nada
- * reage ao evento: a triagem ainda não mantém nem retira a suspensão do cenário (RN-23b a d). A métrica e
+ * de 2 dias úteis (RN-24, RN-35), e publica {@link SinalizacaoTriada}, sem os textos. Cenários escuta o
+ * evento e mantém, aplica ou retira a suspensão do cenário (RN-23b a d, RF-25). A métrica e
  * a linha de log da aplicação só saem depois da confirmação da transação, para não contarem uma triagem
  * desfeita.
  */

@@ -5,8 +5,9 @@ import java.util.Objects;
 
 /**
  * Um professor ou um curador sinalizou uma resposta da IA como possível erro (RF-23, RN-21). Publicado
- * pela Auditoria. Ainda não tem quem escute: com a RF-25, Cenários e Sessões reagem à sinalização grave
- * do professor, que suspende o cenário e pausa as sessões em andamento (RN-23a, RN-25).
+ * pela Auditoria. Cenários escuta (RF-25): guarda a sinalização e refaz as regras de gravidade da versão
+ * vigente, e a grave feita como professor suspende o cenário na hora (RN-23a). Sessões não escuta este
+ * evento: as sessões em andamento pausam pelo {@link CenarioSuspenso} (RN-25).
  *
  * <p>Não leva a pergunta, a resposta nem a justificativa, para nenhum texto digitado ou gerado sair da
  * Auditoria por evento; quem precisar deles lê a sinalização pelo id.

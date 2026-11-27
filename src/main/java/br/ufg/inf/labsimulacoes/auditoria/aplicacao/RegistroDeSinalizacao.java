@@ -45,8 +45,9 @@ import org.springframework.transaction.annotation.Transactional;
  * pelo bloqueio de dados pessoais (RNF-01); a pergunta e a resposta copiadas não, porque a sinalização
  * não pode ser recusada pelo conteúdo que ela denuncia.
  *
- * <p>Publica {@link SinalizacaoRegistrada}, sem os textos. Até a RF-25, nada reage a ela: uma sinalização
- * grave ainda não suspende o cenário (RN-23a).
+ * <p>Publica {@link SinalizacaoRegistrada}, sem os textos. Cenários escuta o evento e, se a sinalização for
+ * grave e feita como professor, suspende o cenário na hora (RN-23a, RF-25); a Auditoria não decide a
+ * suspensão.
  */
 @Service
 @PreAuthorize("hasAnyRole('PROFESSOR', 'CURADOR')")
