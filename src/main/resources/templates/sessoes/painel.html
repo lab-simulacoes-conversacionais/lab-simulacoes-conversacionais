@@ -3,8 +3,9 @@
 <body>
 <!--
   Painel do professor (RF-17). Volta a cada controle e depois de cada resposta, porque o bloqueio pausa
-  a sessão e a pergunta conta no limite (RN-18). As perguntas disparadoras do cenário (RF-18) ficam só
-  aqui, fora da área projetada; o clique leva a pergunta ao campo de envio (projecao.js), sem enviar.
+  a sessão e a pergunta conta no limite (RN-18). As perguntas disparadoras do cenário (RF-18) e os avisos
+  ao professor (#43) ficam só aqui, fora da área projetada; o clique numa disparadora leva a pergunta ao
+  campo de envio (projecao.js), sem enviar.
 -->
 <aside th:fragment="painel" id="painel" class="teacher-panel"
        th:attr="data-status=${tela.status},data-pode-perguntar=${tela.podePerguntar()}"
@@ -20,6 +21,13 @@
   </div>
 
   <p class="aviso" role="alert" th:if="${tela.avisoDaPausa()}" th:text="${tela.avisoDaPausa()}">Aviso da pausa</p>
+
+  <!--
+    #43: os avisos que a turma não deve ver ficam aqui, e não na área projetada: as recusas da pergunta
+    (dado pessoal, conteúdo bloqueado, limite) e, pelo projecao.js, a falha do provedor com o "Tentar de
+    novo". O hx-preserve mantém o aviso quando o painel volta do servidor depois de cada controle.
+  -->
+  <div id="aviso-da-sessao" class="avisos-do-professor" aria-live="assertive" hx-preserve="true"></div>
 
   <!--
     RF-19, RN-17: o cronômetro sabe o previsto e o limite, para avisar do previsto e pedir o painel de novo
@@ -66,6 +74,11 @@
             th:hx-post="@{/sessoes/{id}/reiniciar(id=${tela.id})}" hx-target="#painel" hx-swap="outerHTML"
             hx-confirm="Limpar a conversa da tela? As perguntas e respostas continuam registradas.">
       <svg th:replace="~{fragmentos/base :: iconeReiniciar}"></svg> Reiniciar <kbd>R</kbd>
+    </button>
+    <!-- RF-23, #43: sinaliza a última resposta do personagem; vale com a sessão pausada também. -->
+    <button class="btn btn-yellow" type="button" data-atalho="s" data-abrir-sinalizacao aria-haspopup="dialog"
+            th:hx-get="@{/sessoes/{id}/sinalizacao(id=${tela.id})}" hx-target="#sinalizacao-conteudo" hx-swap="innerHTML">
+      <svg th:replace="~{fragmentos/base :: iconeBandeira}"></svg> Sinalizar erro <kbd>S</kbd>
     </button>
     <button class="btn btn-danger" type="button" data-atalho="e" data-abrir-encerramento>
       <svg th:replace="~{fragmentos/base :: iconeParar}"></svg> Encerrar <kbd>E</kbd>

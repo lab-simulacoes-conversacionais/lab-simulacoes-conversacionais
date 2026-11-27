@@ -12,7 +12,11 @@
   - "falha": o provedor ou a moderação falharam. A tela descarta a resposta parcial já exibida e mostra
     o aviso; a pergunta continua pendente (RNF-04);
   - "fim": sempre o último; fecha o canal e evita a reconexão automática do navegador.
-  O descarte da resposta parcial é da tela de projeção (projecao.js); este fragmento só mostra o aviso.
+  O descarte da resposta parcial é da tela de projeção (projecao.js).
+
+  #43: a área da conversa é projetada para a turma, então ela só mostra avisos neutros (os fragmentos
+  "naoExibida", "naoRecebida" e "naoEnviada"). O aviso detalhado ao professor, que vem no evento, vai para
+  o painel (projecao.js), junto com o "Tentar de novo" da falha.
 -->
 <th:block th:fragment="pergunta">
   <div class="mensagem mensagem-turma">
@@ -20,9 +24,9 @@
     <p th:text="${recebida.pergunta().texto()}">Pergunta da turma</p>
   </div>
   <div th:replace="~{sessoes/conversa :: resposta(${sessaoId})}"></div>
-  <p class="aviso aviso-quiz" th:if="${recebida.perguntasRestantes() == 0}">
-    Esta foi a última pergunta da sessão. Ao fim da resposta, que tal passar ao quiz?
-  </p>
+  <!-- RN-18, #43: a sugestão do quiz é ao professor, então vai para o painel, fora da área projetada. -->
+  <div id="aviso-da-sessao" hx-swap-oob="innerHTML" th:if="${recebida.perguntasRestantes() == 0}"><p
+      class="aviso aviso-quiz" role="status">Esta foi a última pergunta da sessão. Ao fim da resposta, que tal passar ao quiz?</p></div>
 </th:block>
 
 <!--
@@ -34,7 +38,36 @@
      th:attr="sse-connect=@{/sessoes/{id}/resposta(id=${sessaoId})},data-reabrir=@{/sessoes/{id}/resposta-pendente(id=${sessaoId})}">
   <span class="mensagem-autoria">Personagem</span>
   <p class="mensagem-texto" sse-swap="trecho" hx-swap="beforeend"></p>
+  <!-- Sem JavaScript, o aviso do evento aparece aqui; com ele, a tela troca pelo aviso neutro (#43). -->
   <p class="aviso" role="alert" sse-swap="falha,bloqueio,dado-pessoal"></p>
+</div>
+
+<!--
+  Avisos neutros na área projetada (#43): a turma vê que a resposta não veio, sem o motivo técnico nem o
+  que o professor precisa fazer. A tela de projeção copia estes modelos quando o evento chega.
+-->
+<div th:fragment="naoExibida" class="filtered-alert" role="note" data-aviso-neutro>
+  <span aria-hidden="true">!</span>
+  <div>
+    <strong>Resposta não exibida</strong>
+    <p>O conteúdo foi filtrado por segurança. A sessão está pausada para o professor decidir como continuar.</p>
+  </div>
+</div>
+
+<div th:fragment="naoRecebida" class="filtered-alert filtered-alert-calmo" role="note" data-aviso-neutro>
+  <span aria-hidden="true">…</span>
+  <div>
+    <strong>Resposta não recebida</strong>
+    <p>O personagem não conseguiu responder agora. O professor pode tentar de novo.</p>
+  </div>
+</div>
+
+<div th:fragment="naoEnviada" class="filtered-alert filtered-alert-calmo" role="note" data-aviso-neutro>
+  <span aria-hidden="true">!</span>
+  <div>
+    <strong>Pergunta não enviada</strong>
+    <p>O professor vai reescrever a pergunta antes de enviar.</p>
+  </div>
 </div>
 
 <p th:fragment="aviso" class="aviso" role="alert" th:text="${aviso}">Aviso ao professor</p>
