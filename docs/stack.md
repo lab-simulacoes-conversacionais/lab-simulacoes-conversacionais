@@ -88,7 +88,7 @@ Cada módulo expõe apenas o pacote raiz (sua API); os subpacotes internos ficam
 | CenarioAprovado, CenarioDevolvido, CenarioArquivado | Cenários | Auditoria | Registra a ação crítica no log (RN-35). |
 | ConteudoBloqueado | Sessões | Auditoria | Abre caso na fila do curador; a sessão já foi pausada (RN-20). |
 | SinalizacaoRegistrada | Auditoria | Cenários, Sessões (a partir da RF-25) | Se marcada como grave pelo professor, suspende o cenário e pausa sessões em andamento (RN-23a, RN-25). Leva só ids e códigos, sem a pergunta, a resposta nem a justificativa. Até a RF-25 é publicado sem consumidor. |
-| SinalizacaoTriada | Auditoria | Cenários, Métricas | Mantém ou retira a suspensão (RN-23b a d) e atualiza a taxa de erros (RN-29). |
+| SinalizacaoTriada | Auditoria | Cenários, Métricas | Mantém ou retira a suspensão (RN-23b a d) e atualiza a taxa de erros (RN-29). Leva a decisão, a gravidade final e a percebida, sem os textos. Até a RF-25 é publicado sem consumidor. |
 | SessaoEncerrada | Sessões | Métricas | Grava contadores e indicadores da sessão (RN-28). |
 | PerfilAlterado, RelatorioExportado | Acesso, Métricas | Auditoria | Registra a ação crítica no log (RN-35). |
 

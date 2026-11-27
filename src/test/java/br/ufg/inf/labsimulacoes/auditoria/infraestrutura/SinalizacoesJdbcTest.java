@@ -4,17 +4,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.ufg.inf.labsimulacoes.InfraestruturaDeTeste;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDaFila;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadeFinal;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.GravidadePercebida;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDaFila;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.PendenciaDaTriagem;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PerfilDaSinalizacao;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacao;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoATriar;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.SinalizacaoPendente;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.Sinalizacoes;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TipoDeErro;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.TrechoSinalizado.MetadadosCopiados;
+import br.ufg.inf.labsimulacoes.auditoria.dominio.Triagem;
 import br.ufg.inf.labsimulacoes.sessoes.DadosDeSessao;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -104,12 +113,49 @@ class SinalizacoesJdbcTest {
         "tipo, ERRO_DE_DIGITACAO",
         "gravidade_percebida, GRAVISSIMA",
         "perfil, ADMINISTRADOR",
-        "justificativa, '   '"
+        "justificativa, '   '",
+        "status, TRIADA",
+        "status, CONFIRMADA",
+        "gravidade_final, LEVE"
     })
     void valorForaDaRegraERecusado(String coluna, String valor) {
         long id = sinalizar(professor, "PROFESSOR");
 
         assertThatThrownBy(() -> jdbc.update("UPDATE sinalizacao SET " + coluna + " = ? WHERE id = ?", valor, id))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /** RN-22: a confirmada leva a gravidade final; a descartada não; as duas guardam quem triou e quando. */
+    @ParameterizedTest(name = "[{index}] {0}, {1}")
+    @CsvSource(nullValues = "-", value = {
+        "CONFIRMADA, MODERADA",
+        "DESCARTADA, -"
+    })
+    void triagemCompletaEAceita(String status, String gravidade) {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        jdbc.update("UPDATE sinalizacao SET status = ?, gravidade_final = ?, triada_por_id = ?, triada_em = now() "
+                + "WHERE id = ?", status, gravidade, curador, id);
+
+        assertThat(linha(id)).containsEntry("status", status).containsEntry("gravidade_final", gravidade);
+    }
+
+    @ParameterizedTest(name = "[{index}] {0}, {1}, curador {2}, momento {3}")
+    @CsvSource(nullValues = "-", value = {
+        "CONFIRMADA, -, true, true",
+        "DESCARTADA, GRAVE, true, true",
+        "CONFIRMADA, LEVE, false, true",
+        "DESCARTADA, -, true, false",
+        "PENDENTE, -, true, true",
+        "CONFIRMADA, GRAVISSIMA, true, true"
+    })
+    void triagemIncompletaOuIncoerenteERecusada(String status, String gravidade, boolean comCurador, boolean comMomento) {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        assertThatThrownBy(() -> jdbc.update(
+                        "UPDATE sinalizacao SET status = ?, gravidade_final = ?, triada_por_id = ?, triada_em = "
+                                + (comMomento ? "now()" : "NULL") + " WHERE id = ?",
+                        status, gravidade, comCurador ? curador : null, id))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -194,11 +240,169 @@ class SinalizacoesJdbcTest {
         assertThat(contarDaMensagem()).isEqualTo(1);
     }
 
+    /** A fila traz só as pendentes, da mais antiga para a mais recente, com o que o curador precisa ver. */
+    @Test
+    void filaTrazAsPendentesDaMaisAntiga() {
+        long doCurador = sinalizar(curador, "CURADOR", AGORA.minusSeconds(60));
+        long doProfessor = sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(120));
+        long triada = sinalizarOutraResposta(AGORA.minusSeconds(180));
+        sinalizacoes.triar(Triagem.descartar(triada, curador, AGORA));
+
+        var daVersao = todasAsPendentes().stream().filter(pendente -> pendente.versaoId() == versao).toList();
+
+        assertThat(daVersao).extracting(SinalizacaoPendente::id).containsExactly(doProfessor, doCurador);
+        assertThat(daVersao.getFirst()).isEqualTo(new SinalizacaoPendente(doProfessor, sessao, versao,
+                "Como foi o primeiro voo?", "Voei em 1906, em Paris.", TipoDeErro.ERRO_HISTORICO,
+                GravidadePercebida.MODERADA, "O primeiro voo homologado foi em outubro de 1906.",
+                PerfilDaSinalizacao.PROFESSOR, professor, AGORA.minusSeconds(120)));
+    }
+
+    /** A página seguinte começa depois do cursor, mesmo com duas sinalizações criadas no mesmo momento. */
+    @Test
+    void paginaSeguinteContinuaDepoisDoCursor() {
+        long primeira = sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(60));
+        long segunda = sinalizar(curador, "CURADOR", AGORA.minusSeconds(60));
+        long terceira = sinalizarOutraResposta(AGORA.minusSeconds(30));
+
+        PaginaDaFila depoisDaPrimeira =
+                sinalizacoes.pendentes(new CursorDaFila(AGORA.minusSeconds(60), primeira), PaginaDaFila.TAMANHO_MAXIMO);
+
+        assertThat(depoisDaPrimeira.sinalizacoes()).extracting(SinalizacaoPendente::id)
+                .contains(segunda, terceira)
+                .doesNotContain(primeira);
+    }
+
+    @Test
+    void paginaComUmaAMaisTemProxima() {
+        sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(60));
+        sinalizar(curador, "CURADOR", AGORA.minusSeconds(30));
+
+        PaginaDaFila pagina = sinalizacoes.pendentes(null, 1);
+
+        assertThat(pagina.sinalizacoes()).hasSize(1);
+        assertThat(pagina.cursorDaProxima()).contains(CursorDaFila.apos(pagina.sinalizacoes().getFirst()));
+    }
+
+    /** O resumo do prazo lê as mesmas pendentes, na mesma ordem, sem os textos (RN-37). */
+    @Test
+    void pendenciasSemTextoTrazemAsPendentesDaMaisAntiga() {
+        long doCurador = sinalizar(curador, "CURADOR", AGORA.minusSeconds(60));
+        long doProfessor = sinalizar(professor, "PROFESSOR", AGORA.minusSeconds(120));
+        long triada = sinalizarOutraResposta(AGORA.minusSeconds(180));
+        sinalizacoes.triar(Triagem.descartar(triada, curador, AGORA));
+
+        assertThat(sinalizacoes.pendenciasSemTexto())
+                .filteredOn(pendencia -> pendencia.id() == doCurador || pendencia.id() == doProfessor
+                        || pendencia.id() == triada)
+                .containsExactly(
+                        new PendenciaDaTriagem(doProfessor, TipoDeErro.ERRO_HISTORICO, AGORA.minusSeconds(120)),
+                        new PendenciaDaTriagem(doCurador, TipoDeErro.ERRO_HISTORICO, AGORA.minusSeconds(60)));
+    }
+
+    /** A triagem lê a sinalização com o que o log e o evento precisam. */
+    @Test
+    void paraTriarTrazAPendenteComAOrigem() {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        assertThat(sinalizacoes.paraTriar(id)).contains(new SinalizacaoATriar(
+                id, true, versao, GravidadePercebida.MODERADA, PerfilDaSinalizacao.PROFESSOR, AGORA));
+    }
+
+    @Test
+    void paraTriarTrazAJaTriadaComoNaoPendente() {
+        long id = sinalizar(professor, "PROFESSOR");
+        sinalizacoes.triar(Triagem.descartar(id, curador, AGORA));
+
+        assertThat(sinalizacoes.paraTriar(id)).hasValueSatisfying(lida -> assertThat(lida.pendente()).isFalse());
+    }
+
+    @Test
+    void paraTriarNaoEncontraAInexistente() {
+        assertThat(sinalizacoes.paraTriar(-1)).isEmpty();
+    }
+
+    @Test
+    void confirmarGravaAGravidadeFinalEQuemTriou() {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        assertThat(sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.GRAVE, curador, AGORA))).isTrue();
+
+        assertThat(linha(id))
+                .containsEntry("status", "CONFIRMADA")
+                .containsEntry("gravidade_final", "GRAVE")
+                .containsEntry("triada_por_id", curador);
+        assertThat(jdbc.queryForObject("SELECT triada_em = ? FROM sinalizacao WHERE id = ?", Boolean.class,
+                        AGORA.atOffset(ZoneOffset.UTC), id))
+                .isTrue();
+    }
+
+    @Test
+    void descartarNaoGravaGravidade() {
+        long id = sinalizar(professor, "PROFESSOR");
+
+        assertThat(sinalizacoes.triar(Triagem.descartar(id, curador, AGORA))).isTrue();
+
+        assertThat(linha(id)).containsEntry("status", "DESCARTADA").containsEntry("gravidade_final", null);
+    }
+
+    /** A guarda contra a concorrência: a segunda triagem não muda nada, e a transação continua usável. */
+    @Test
+    void sinalizacaoTriadaNaoETriadaDeNovo() {
+        long id = sinalizar(professor, "PROFESSOR");
+        sinalizacoes.triar(Triagem.descartar(id, curador, AGORA));
+
+        assertThat(sinalizacoes.triar(Triagem.confirmar(id, GravidadeFinal.LEVE, curador, AGORA))).isFalse();
+
+        assertThat(linha(id)).containsEntry("status", "DESCARTADA").containsEntry("gravidade_final", null);
+    }
+
+    @Test
+    void sinalizacaoInexistenteNaoETriada() {
+        assertThat(sinalizacoes.triar(Triagem.descartar(-1, curador, AGORA))).isFalse();
+    }
+
+    private List<SinalizacaoPendente> todasAsPendentes() {
+        var todas = new ArrayList<SinalizacaoPendente>();
+        CursorDaFila cursor = null;
+        do {
+            PaginaDaFila pagina = sinalizacoes.pendentes(cursor, PaginaDaFila.TAMANHO_MAXIMO);
+            todas.addAll(pagina.sinalizacoes());
+            cursor = pagina.proxima();
+        } while (cursor != null);
+        return todas;
+    }
+
+    private long sinalizarOutraResposta(Instant criadaEm) {
+        long outra = jdbc.queryForObject(
+                """
+                INSERT INTO mensagem (sessao_id, autoria, texto, criado_em)
+                VALUES (?, 'IA', 'Outra resposta.', ?) RETURNING id""",
+                Long.class, sessao, RESPOSTA.plusSeconds(30).atOffset(ZoneOffset.UTC));
+        return jdbc.queryForObject(
+                """
+                INSERT INTO sinalizacao (sessao_id, sessao_iniciada_em, sessao_professor_id, cenario_versao_id,
+                                         mensagem_id, pergunta, resposta, respondida_em, tipo, gravidade_percebida,
+                                         justificativa, sinalizado_por_id, perfil, criada_em)
+                VALUES (?, ?, ?, ?, ?, 'Pergunta', 'Outra resposta.', ?, 'ANACRONISMO', 'LEVE', 'Inventada.', ?,
+                        'PROFESSOR', ?)
+                RETURNING id""",
+                Long.class, sessao, INICIO.atOffset(ZoneOffset.UTC), professor, versao, outra,
+                RESPOSTA.atOffset(ZoneOffset.UTC), professor, criadaEm.atOffset(ZoneOffset.UTC));
+    }
+
+    private long sinalizar(long quem, String perfil, Instant criadaEm) {
+        return sinalizar(quem, perfil, meta, METADADOS, criadaEm);
+    }
+
     private long sinalizar(long quem, String perfil) {
         return sinalizar(quem, perfil, meta, METADADOS);
     }
 
     private long sinalizar(long quem, String perfil, Long metaId, String metadados) {
+        return sinalizar(quem, perfil, metaId, metadados, AGORA);
+    }
+
+    private long sinalizar(long quem, String perfil, Long metaId, String metadados, Instant criadaEm) {
         return jdbc.queryForObject(
                 """
                 INSERT INTO sinalizacao (sessao_id, sessao_iniciada_em, sessao_professor_id, cenario_versao_id,
@@ -210,7 +414,7 @@ class SinalizacoesJdbcTest {
                 RETURNING id""",
                 Long.class,
                 sessao, INICIO.atOffset(ZoneOffset.UTC), professor, versao, mensagem, metaId, metadados,
-                RESPOSTA.atOffset(ZoneOffset.UTC), quem, perfil, AGORA.atOffset(ZoneOffset.UTC));
+                RESPOSTA.atOffset(ZoneOffset.UTC), quem, perfil, criadaEm.atOffset(ZoneOffset.UTC));
     }
 
     private Map<String, Object> linha(long id) {
