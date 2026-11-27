@@ -114,6 +114,7 @@ O que um módulo oferece aos outros fica em interfaces no pacote raiz, implement
 | --- | --- | --- |
 | `acesso` | `ParametrosDeUso` | Ler o limite de perguntas por sessão e o custo diário máximo |
 | `acesso` | `TurmasDaEscola` | Listar e buscar turmas, só para leitura, com qualquer perfil autenticado |
+| `acesso` | `UsuariosDaEscola` | Listar o id e o nome dos profissionais, inclusive os desativados, para o log mostrar quem fez cada ação (RF-26), com perfil Curador ou Administrador |
 | `cenarios` | `CatalogoBncc` | Buscar habilidades da BNCC, com qualquer perfil autenticado |
 | `cenarios` | `BibliotecaDeCenarios` | Listar, em páginas de até 100, os cenários aprovados da escola, com busca por tema e filtros combináveis por componente, ano e habilidade BNCC (RF-12), com perfil Professor ou Curador |
 | `cenarios` | `CenariosAprovados` | Ler a versão aprovada vigente de um cenário para iniciar sessão (RN-01), com perfil Professor ou Curador |
@@ -262,6 +263,20 @@ O RNF-13 pede latência, erros, tokens e custo por sessão, e um alerta ao admin
 - **Micrometer:** além dos timers do RNF-03, o adaptador registra os contadores `lab.ia.custo` (em dólares) e `lab.ia.tokens` (tag `tipo`, `entrada` ou `saida`), as duas com as tags `finalidade` e `modelo`, e `lab.ia.falha` (tag `motivo`: `resposta-vazia` ou `sem-roteiro`). A sugestão virou a etapa `sugestao` de `lab.ia.chamada`. Nenhum id de sessão, usuário ou cenário vira tag. Os contadores recomeçam a cada subida da aplicação.
 - **Contagem repetida de tokens:** o Spring AI já conta os tokens em `gen_ai.client.token.usage`, por modelo e tipo (`input` e `output`), o que foi confirmado em execução (`TetoDeTokensNaRequisicaoTest`). O `lab.ia.tokens` repete essa contagem para separar por finalidade, que o Spring AI não conhece.
 - **Exposição:** o Actuator continua expondo só o `health`, e o Caddy bloqueia o resto. Os contadores ficam na memória da aplicação até haver um coletor.
+
+### Triagem e log de auditoria na tela
+
+A fila de triagem (RF-24) e a consulta do log (RF-26) ficam na Auditoria, nas telas da #44.
+
+- **Fila de triagem** (`/curadoria/sinalizacoes`, só do curador):
+  - É a aba "Sinalizações" da fila do curador, ao lado de "Cenários", como no protótipo. Cada fila é de um módulo, então o número da outra aba vem pelo HTMX (`/curadoria/contagem` e `/curadoria/sinalizacoes/contagem`).
+  - As pendentes aparecem da mais antiga, com o prazo de 2 dias úteis. As que passaram dele ficam em destaque (RN-24). O título do cenário vem de `CenariosAprovados`, por isso a Auditoria depende de Cenários.
+  - "Confirmar" e "Descartar" abrem um modal com a pergunta, a resposta e a justificativa. Na confirmação, o curador escolhe a gravidade final (RN-22), que começa na percebida. A triagem volta para a fila com a confirmação ou a recusa, como a aprovação de cenários. Se outro curador já triou, a tela avisa e nada muda.
+- **Destaque para o administrador:** as telas de administração e a do log mostram quantas sinalizações passaram do prazo e o dia da mais antiga, sem os textos (RN-24, RN-37; `TriagemAtrasadaNaAdministracao`).
+- **Log de auditoria** (`/auditoria/log`, do curador e do administrador):
+  - Só leitura, da ação mais recente, com a ação em palavras, o que ela afetou, quem fez e quando. Os filtros de período (dias inteiros no fuso da escola), usuário e ação se combinam, e as páginas seguintes continuam da última linha mostrada.
+  - O administrador vê a tela como a aba "Log de auditoria" da administração; o curador chega pela fila.
+  - Os nomes vêm de `UsuariosDaEscola`, porque o log guarda só o id de quem fez a ação.
 
 ### Testes de quebra de personagem
 

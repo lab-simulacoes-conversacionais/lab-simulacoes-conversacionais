@@ -7,8 +7,8 @@
 <!--
   Fila do curador (RF-08), como no protótipo: a lista dos cenários em curadoria à esquerda e o aberto à
   direita, com o modo de teste (RF-09, teste.html), o conteúdo da versão, o checklist de revisão (RF-10),
-  o histórico de versões com a comparação (RF-11), aprovar e devolver. A aba de sinalizações chega com a
-  issue #44.
+  o histórico de versões com a comparação (RF-11), aprovar e devolver. A aba de sinalizações (RF-24) é do
+  módulo de auditoria (sinalizacoes/fila.html).
 -->
 <main class="page curator-page">
   <a class="back-link" th:href="@{/}">Voltar ao início</a>
@@ -18,10 +18,15 @@
       <h1>Fila do Curador</h1>
       <p>Revise os cenários enviados e aprove ou devolva com orientações ao autor.</p>
     </div>
-    <div class="queue-stats">
-      <span><strong th:text="${fila.size()} + (${haMais} ? '+' : '')">2</strong> aguardando revisão</span>
+    <div class="queue-heading-actions">
+      <a class="btn btn-secondary" th:href="@{/auditoria/log}">Log de auditoria</a>
+      <div class="queue-stats">
+        <span><strong th:text="${fila.size()} + (${haMais} ? '+' : '')">2</strong> aguardando revisão</span>
+      </div>
     </div>
   </div>
+
+  <nav th:replace="~{fragmentos/base :: abasDaCuradoria('cenarios', ${fila.size()} + (${haMais} ? '+' : ''))}"></nav>
 
   <p th:if="${sucesso}" class="success-notice" role="status"><span aria-hidden="true">✓</span> <span th:text="${sucesso}">ok</span></p>
   <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
@@ -161,6 +166,9 @@
     </div>
   </div>
 </main>
+<!-- O número da aba "Cenários" na tela de sinalizações (CuradoriaController#contagem). -->
+<span th:fragment="contagem" th:if="${quantos != null}" th:text="${quantos}">2</span>
+
 <script th:replace="~{fragmentos/base :: htmx}"></script>
 <script th:src="@{/js/curadoria.js}" defer></script>
 </body>

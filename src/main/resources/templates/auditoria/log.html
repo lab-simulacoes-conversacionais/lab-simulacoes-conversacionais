@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragmentos/base :: cabeca('Log de auditoria · Laboratório')}"></head>
+<body>
+<div th:replace="~{fragmentos/base :: topo(${email}, ${perfis})}"></div>
+
+<!--
+  Consulta do log de ações críticas (RF-26, RN-35, #44), como a aba "Log de auditoria" do protótipo: só
+  leitura, da ação mais recente, com a ação, o usuário e a data e hora. Os filtros de período, usuário e ação
+  se combinam. O administrador vê a tela entre as abas da administração; o curador, com o título da
+  curadoria e o caminho de volta para a fila.
+
+  Usa do modelo: linhas (LinhaDoLog), usuarios, acoes, de, ate, usuarioEscolhido, acaoEscolhida, filtrado,
+  continuacao, erro e, se houver mais, proximaAntesDe e proximaAntesDeId.
+-->
+<main class="page admin-page">
+  <th:block th:if="${administrador}"><div th:replace="~{fragmentos/base :: painelAdmin('log')}"></div></th:block>
+  <th:block th:unless="${administrador}">
+    <a class="back-link" th:href="@{/curadoria/sinalizacoes}">Voltar à fila do curador</a>
+    <div class="library-heading">
+      <div>
+        <p class="eyebrow">QUALIDADE PEDAGÓGICA</p>
+        <h1>Log de auditoria</h1>
+        <p>Registro somente leitura das ações administrativas e pedagógicas.</p>
+      </div>
+      <span class="badge badge-neutral">Somente leitura</span>
+    </div>
+    <p th:replace="~{fragmentos/base :: triagemAtrasada}"></p>
+  </th:block>
+
+  <!-- No administrador, o título da página é o da administração, e a aba ganha o seu. -->
+  <div class="admin-section-head" th:if="${administrador}">
+    <div>
+      <h2>Log de auditoria</h2>
+      <p>Registro somente leitura das ações administrativas e pedagógicas.</p>
+    </div>
+    <span class="badge badge-neutral">Somente leitura</span>
+  </div>
+
+  <form class="card filter-card log-filtros" method="get" th:action="@{/auditoria/log}" role="search" aria-label="Filtrar o log">
+    <div>
+      <label for="de">De</label>
+      <input id="de" name="de" type="date" th:value="${de}">
+    </div>
+    <div>
+      <label for="ate">Até</label>
+      <input id="ate" name="ate" type="date" th:value="${ate}">
+    </div>
+    <div>
+      <label for="usuario">Usuário</label>
+      <select id="usuario" name="usuario">
+        <option value="">Todos</option>
+        <option th:each="u : ${usuarios}" th:value="${u.id()}" th:selected="${u.id() == usuarioEscolhido}"
+                th:text="${u.ativo()} ? ${u.nome()} : |${u.nome()} (desativado)|">Ana Souza</option>
+      </select>
+    </div>
+    <div>
+      <label for="acao">Ação</label>
+      <select id="acao" name="acao">
+        <option value="">Todas</option>
+        <option th:each="a : ${acoes}" th:value="${a.valor()}" th:selected="${a.valor() == acaoEscolhida}"
+                th:text="${a.rotulo()}">Cenário aprovado</option>
+      </select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-primary" type="submit">Filtrar</button>
+      <a class="btn btn-ghost" th:if="${filtrado}" th:href="@{/auditoria/log}">Limpar</a>
+    </div>
+  </form>
+
+  <p th:if="${erro}" class="field-error" role="alert" th:text="${erro}">erro</p>
+
+  <div class="empty-state" th:if="${erro == null and linhas.isEmpty()}">
+    <div class="empty-shapes" aria-hidden="true"><span></span><span></span></div>
+    <h2 th:text="${filtrado} ? 'Nenhuma ação encontrada com estes filtros' : 'Nenhuma ação registrada ainda'">Nenhuma ação registrada ainda</h2>
+    <p th:text="${filtrado}
+        ? 'Mude o período, o usuário ou a ação para ver outras linhas.'
+        : 'Aprovações, devoluções, triagens e alterações de perfil aparecem aqui assim que acontecem.'">Texto</p>
+  </div>
+
+  <section class="card table-card log-table" th:unless="${linhas.isEmpty()}" aria-label="Ações registradas">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Ação</th><th scope="col">Usuário</th><th scope="col">Data e hora</th></tr>
+        </thead>
+        <tbody>
+          <tr th:each="l : ${linhas}" th:classappend="${l.destaque()} ? 'log-destaque'">
+            <td>
+              <strong th:text="${l.acao()}">Cenário aprovado</strong>
+              <small th:if="${!#strings.isEmpty(l.detalhe())}" th:text="${l.detalhe()}">Cenário nº 12</small>
+            </td>
+            <td th:text="${l.usuario()}">Rafael Nunes</td>
+            <td th:text="${l.quando()}">19 jun 2026 · 10:42</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="pagination-row" th:if="${proximaAntesDe != null or continuacao}">
+    <a class="btn btn-ghost" th:if="${continuacao}"
+       th:href="@{/auditoria/log(de=${de},ate=${ate},usuario=${usuarioEscolhido},acao=${acaoEscolhida})}">Voltar às mais recentes</a>
+    <a class="btn btn-secondary" th:if="${proximaAntesDe != null}"
+       th:href="@{/auditoria/log(de=${de},ate=${ate},usuario=${usuarioEscolhido},acao=${acaoEscolhida},antesDe=${proximaAntesDe},antesDeId=${proximaAntesDeId})}">Ações mais antigas</a>
+  </div>
+</main>
+</body>
+</html>
