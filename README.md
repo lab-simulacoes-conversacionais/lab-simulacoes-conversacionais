@@ -248,7 +248,9 @@ Professor e curador sinalizam uma resposta da IA com possível erro (RF-23, RN-2
   - A sessão de outro professor responde 404, como uma que não existe. A regra de quem pode sinalizar é a mesma do caso de uso (`QuemSinaliza`), então a tela só mostra o botão quando a sinalização seria aceita.
   - O envio vai pelo HTMX e volta com o fragmento do formulário, com status 200 também na recusa, como na curadoria: o aviso aparece no lugar do formulário, sem o ajuste de 4xx do `projecao.js`. Na recusa por dado pessoal, a justificativa não volta à tela.
   - As rotas de `/sessoes` são só do perfil Professor, então o curador sem esse perfil ainda não tem tela para sinalizar.
-- **Fora desta issue:** a triagem e a gravidade final (RF-24), a suspensão e a pausa das sessões (RF-25), a taxa de erros (RN-29), o botão de sinalizar durante a aula (#43), a fila do curador (#44) e uma tela para o curador sinalizar respostas.
+- **Na tela, durante a aula (#43):** o botão "Sinalizar erro" do painel do modo projeção (atalho S) abre um modal com a última resposta do personagem (`/sessoes/{id}/sinalizacao`), o tipo, a gravidade (começa em Moderada) e a justificativa. Vale também com a sessão pausada. O envio volta com o mesmo modal, com a confirmação ou a recusa, e usa o mesmo caso de uso da revisão.
+- **Avisos no modo projeção (#43):** a área projetada mostra só o que a turma pode ver. As recusas da pergunta (dado pessoal, bloqueio, limite), a falha do provedor com o "Tentar de novo", a pausa automática, o tempo previsto e a sugestão do quiz ficam na área de avisos do painel (`#aviso-da-sessao`, com `hx-preserve`). Na conversa ficam só avisos neutros: "Resposta não exibida", "Resposta não recebida" e "Pergunta não enviada". Com o painel oculto, o botão "Mostrar painel" ganha um ponto quando chega um aviso novo.
+- **Fora destas issues:** a triagem e a gravidade final (RF-24), a suspensão e a pausa das sessões (RF-25), a taxa de erros (RN-29), a fila do curador (#44) e uma tela para o curador sinalizar respostas.
 
 ### Observabilidade e custo da IA
 

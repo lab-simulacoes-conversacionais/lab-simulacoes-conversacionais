@@ -9,6 +9,7 @@ import br.ufg.inf.labsimulacoes.sessoes.SessaoParaRevisao;
 import br.ufg.inf.labsimulacoes.sessoes.TrechosDasSessoes;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -64,6 +65,44 @@ public class RevisaoDaConversa {
                 .map(mensagem -> new Item(mensagem, situacao(mensagem, podeSinalizar, jaSinalizadas)))
                 .toList();
         return new Revisao(sessao, itens, PrazoDaSinalizacao.limite(base), podeSinalizar);
+    }
+
+    /**
+     * O que o professor pode sinalizar durante a aula, no modo projeção (RF-23): a resposta mais recente do
+     * personagem. Vem do registro da sessão, então continua a mesma depois de um reinício da tela (RN-19).
+     *
+     * <p>A resposta só é gravada quando termina de chegar. Enquanto a última pergunta espera a resposta, a
+     * mais recente gravada é a anterior, e não a que está na tela; por isso a leitura diz que há uma
+     * aguardando, para a tela não oferecer a anterior por engano. A pergunta cuja resposta foi bloqueada não
+     * espera resposta (RN-20).
+     *
+     * @throws ConversaNaoEncontrada nos mesmos casos de {@link #revisao}
+     */
+    public NaAula naAula(long sessaoId) {
+        List<Item> itens = revisao(sessaoId).itens();
+        boolean aguardando = !itens.isEmpty()
+                && itens.getLast().mensagem().daTurma()
+                && !itens.getLast().mensagem().respostaBloqueada();
+        Optional<Item> ultima = itens.reversed().stream().filter(item -> item.mensagem().daIa()).findFirst();
+        return new NaAula(ultima, aguardando);
+    }
+
+    /**
+     * @param ultimaResposta vazia se o personagem ainda não respondeu
+     * @param aguardandoResposta se a última pergunta ainda espera a resposta, que chega ou falhou
+     */
+    public record NaAula(Optional<Item> ultimaResposta, boolean aguardandoResposta) {}
+
+    /**
+     * Uma resposta da sessão, para a tela mostrar de novo o que está sendo sinalizado depois de uma recusa.
+     *
+     * @return vazio se a mensagem não for uma resposta desta sessão
+     * @throws ConversaNaoEncontrada nos mesmos casos de {@link #revisao}
+     */
+    public Optional<Item> resposta(long sessaoId, long mensagemId) {
+        return revisao(sessaoId).itens().stream()
+                .filter(item -> item.mensagem().daIa() && item.mensagem().id() == mensagemId)
+                .findFirst();
     }
 
     private static Situacao situacao(MensagemDaRevisao mensagem, boolean podeSinalizar, Set<Long> jaSinalizadas) {

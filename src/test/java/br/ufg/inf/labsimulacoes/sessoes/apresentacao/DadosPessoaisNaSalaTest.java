@@ -161,10 +161,12 @@ class DadosPessoaisNaSalaTest {
 
     /**
      * O HTMX 2 não troca respostas de erro por padrão: sem o ajuste do script da sala, o aviso das recusas
-     * (400, 409, 422, 503) não aparece. O script troca a resposta de erro do formulário que veio com o
-     * HX-Retarget para a área de avisos e não limpa o campo, para o professor reescrever. O formulário é
-     * reconhecido por requestConfig.elt: no beforeSwap, detail.elt é o alvo original (#conversa). Sem
-     * ferramenta de teste de JavaScript no projeto, este teste confere o contrato do script servido.
+     * (400, 409, 422, 503) não aparece. O script pega a resposta de erro do formulário que veio com o
+     * HX-Retarget para a área de avisos e põe o texto dela na área pelo avisarProfessor, sem a troca do HTMX,
+     * que apagaria o "Tentar de novo" de uma falha (#43). O campo não é limpo, para o professor reescrever.
+     * O formulário é reconhecido por requestConfig.elt: no beforeSwap, detail.elt é o alvo original
+     * (#conversa). Sem ferramenta de teste de JavaScript no projeto, este teste confere o contrato do script
+     * servido.
      */
     @Test
     void scriptDaSalaMostraOAvisoDaRecusaSemLimparOCampo() throws Exception {
@@ -175,8 +177,9 @@ class DadosPessoaisNaSalaTest {
                 .contains("const { requestConfig, xhr, target } = evento.detail;")
                 .contains("requestConfig?.elt !== formulario || xhr.status < 400 || target !== avisos")
                 .doesNotContain("const { elt, xhr, target }")
-                .contains("evento.detail.shouldSwap = true;")
+                .contains("evento.detail.shouldSwap = false;")
                 .contains("evento.detail.isError = false;")
+                .contains("avisarProfessor(textoDe(xhr.responseText));")
                 .contains("if (!evento.detail.successful || evento.detail.xhr.status >= 400) return;");
     }
 

@@ -203,6 +203,8 @@ class ConversaPelaTelaTest {
 
         assertThat(resposta.statusCode()).isEqualTo(409);
         assertThat(resposta.headers().firstValue("HX-Retarget")).contains("#aviso-da-sessao");
+        // A sessão pausou: o painel é pedido de novo, para mostrar a pausa e bloquear o campo.
+        assertThat(resposta.headers().firstValue("HX-Trigger")).contains("sessao-mudou");
         assertThat(resposta.body())
                 .contains(ConversaController.AVISO_DE_PERGUNTA_BLOQUEADA)
                 .doesNotContain("imprópria")
@@ -235,14 +237,19 @@ class ConversaPelaTelaTest {
                 .doesNotContain("Santos");
     }
 
-    /** RN-18: a última pergunta já sugere o quiz, e a seguinte é bloqueada com o aviso. */
+    /**
+     * RN-18: a última pergunta já sugere o quiz, e a seguinte é bloqueada com o aviso. A sugestão é ao
+     * professor, então vai para a área de avisos do painel, fora da conversa projetada (#43).
+     */
     @Test
     void limiteDePerguntasBloqueiaOEnvioESugereOQuiz() throws Exception {
         jdbc.update("INSERT INTO parametro (chave, valor) VALUES (?, '1')", LIMITE);
         long curta = comoProfessora(() -> inicio.iniciar(dados.turma(), cenario()).id());
         respondeEmTrechos("Olá.");
 
-        assertThat(navegador.perguntar(curta, "Oi!").body()).contains("Esta foi a última pergunta da sessão");
+        assertThat(navegador.perguntar(curta, "Oi!").body())
+                .containsPattern("<div id=\"aviso-da-sessao\" hx-swap-oob=\"afterbegin\"><p\\s+class=\"aviso aviso-quiz\"")
+                .contains("Esta foi a última pergunta da sessão");
         navegador.resposta(curta);
         var bloqueada = navegador.perguntar(curta, "Mais uma?");
 

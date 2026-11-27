@@ -7,8 +7,11 @@
   Modo projeção (RF-15, Figura 2 dos requisitos): a conversa em fonte grande à esquerda, projetada para
   a turma, e o painel do professor à direita. O aviso de IA fica sempre visível (RN-14). A pergunta vai
   pelo HTMX e a resposta chega pelo SSE (ConversaController). Os controles têm atalhos de teclado
-  (RNF-05): P pausa ou retoma, R reinicia, E encerra. A sinalização de erro e o quiz chegam com as
-  issues #43 e #53.
+  (RNF-05): P pausa ou retoma, R reinicia, S sinaliza erro, E encerra. O quiz chega com a issue #53.
+
+  #43: a área projetada mostra só o que a turma pode ver. Os avisos ao professor (dado pessoal, falha do
+  provedor, conteúdo bloqueado, tempo e pausa automática) ficam no painel, que o professor oculta ao
+  projetar; com o painel oculto, o botão "Mostrar painel" indica que chegou um aviso novo.
 -->
 <main class="projection" data-projecao>
   <section class="projected-area">
@@ -33,12 +36,11 @@
         th:each="m : ${tela.mensagens}"><div class="mensagem" th:classappend="${tela.daTurma(m)} ? 'mensagem-turma' : 'mensagem-ia'">
         <span class="mensagem-autoria" th:text="${tela.daTurma(m)} ? 'Turma' : 'Personagem'">Turma</span>
         <p th:class="${tela.daTurma(m)} ? null : 'mensagem-texto'" th:text="${m.texto}">Texto</p>
-      </div><p class="aviso" role="note" th:if="${m.respostaBloqueada}">A resposta a esta pergunta não pôde ser exibida.</p></th:block><th:block
+      </div><th:block th:if="${m.respostaBloqueada}"><div th:replace="~{sessoes/conversa :: naoExibida}"></div></th:block></th:block><th:block
         th:if="${tela.pendente}"><div th:replace="~{sessoes/conversa :: resposta(${tela.id})}"></div></th:block></div>
 
     <form class="composer" data-pergunta
           th:hx-post="@{/sessoes/{id}/perguntas(id=${tela.id})}" hx-target="#conversa" hx-swap="beforeend">
-      <div id="aviso-da-sessao" aria-live="assertive"></div>
       <label for="texto">Pergunta da turma</label>
       <div class="composer-row">
         <input id="texto" name="texto" autocomplete="off" required maxlength="1000"
@@ -52,6 +54,17 @@
   </section>
 
   <aside th:replace="~{sessoes/painel :: painel}"></aside>
+
+  <!-- RF-23, #43: sinalizar a última resposta, como no protótipo. O conteúdo vem do servidor ao abrir. -->
+  <dialog class="modal modal-sinalizacao" id="sinalizacao" aria-labelledby="sinalizacao-titulo" data-sinalizacao>
+    <div class="modal-head">
+      <h2 id="sinalizacao-titulo">Sinalizar erro na resposta</h2>
+      <button class="icon-button" type="button" data-fechar aria-label="Fechar">×</button>
+    </div>
+    <div id="sinalizacao-conteudo">
+      <div class="modal-body"><p class="modal-intro">Carregando a última resposta do personagem…</p></div>
+    </div>
+  </dialog>
 
   <dialog class="modal" id="encerramento" aria-labelledby="encerramento-titulo" data-encerramento>
     <div class="modal-head">
@@ -74,6 +87,11 @@
       </button>
     </div>
   </dialog>
+
+  <!-- Os avisos neutros que a tela põe na conversa quando a resposta não vem (#43). -->
+  <template data-modelo="bloqueio"><div th:replace="~{sessoes/conversa :: naoExibida}"></div></template>
+  <template data-modelo="falha"><div th:replace="~{sessoes/conversa :: naoRecebida}"></div></template>
+  <template data-modelo="dado-pessoal"><div th:replace="~{sessoes/conversa :: naoEnviada}"></div></template>
 </main>
 
 <script th:replace="~{fragmentos/base :: htmx}"></script>

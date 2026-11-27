@@ -756,7 +756,39 @@ dialog.modal-sugestao { width: min(680px, calc(100% - 32px)); max-height: calc(1
 .composer-row input { flex: 1; width: auto; font-size: 19px; margin: 0; }
 .composer-row .btn { min-height: 0; padding-inline: 26px; }
 .composer small { display: block; color: var(--muted); margin-top: 6px; }
-#aviso-da-sessao .aviso { margin-bottom: 10px; }
+.composer-row input[aria-invalid="true"] { border-color: #b00000; box-shadow: 0 0 0 3px rgba(176, 0, 0, .14); }
+
+/* #43: o aviso neutro que a turma vê no lugar da resposta, como o "Resposta não exibida" do protótipo. O
+   detalhe para o professor fica no painel. */
+.filtered-alert { border: 3px solid var(--ink); background: var(--yellow); color: var(--ink); padding: 18px; border-radius: 16px; display: flex; gap: 14px; font-size: 19px; max-width: 100%; animation: entrar var(--medio) var(--ease); }
+.filtered-alert > span { width: 34px; height: 34px; border: 3px solid var(--ink); border-radius: 50%; display: grid; place-items: center; font-weight: 800; flex: 0 0 auto; }
+.filtered-alert strong { display: block; font-size: 22px; }
+.chat .filtered-alert p, .mensagem .filtered-alert p { margin: 6px 0 0; padding: 0; font-size: 19px; line-height: 1.4; background: none; border: 0; border-radius: 0; color: var(--ink); }
+.filtered-alert-calmo { background: #fff8d9; }
+.chat > .filtered-alert { max-width: 82%; margin-bottom: 24px; }
+.mensagem-descartada > .mensagem-autoria { color: var(--muted); }
+
+/* #43: avisos ao professor, só no painel. O mais recente substitui o anterior. */
+.avisos-do-professor:empty { display: none; }
+.avisos-do-professor .aviso p { margin: 0; }
+.avisos-do-professor [data-tentar] { margin-top: 10px; min-height: 36px; padding: 6px 14px; font-size: 13px; }
+
+/* Com o painel oculto, um ponto amarelo no botão indica que chegou um aviso ao professor. */
+.panel-toggle.tem-aviso { position: relative; padding-right: 28px; border-color: var(--yellow); }
+.panel-toggle.tem-aviso::after { content: ""; position: absolute; right: 11px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%; background: var(--yellow); box-shadow: 0 0 0 3px rgba(255, 204, 0, .35); animation: pulsar-aviso 1.6s var(--ease) infinite; }
+@keyframes pulsar-aviso { 50% { box-shadow: 0 0 0 6px rgba(255, 204, 0, 0); } }
+@media (prefers-reduced-motion: reduce) { .panel-toggle.tem-aviso::after { animation: none; } }
+
+/* RF-23, #43: modal de sinalizar a última resposta, como no protótipo. */
+.sinalizacao-na-aula .form-grid label { display: block; font-size: 13px; font-weight: 800; margin: 16px 0 0; }
+.sinalizacao-na-aula .form-grid select { width: 100%; margin-top: 7px; }
+.sinalizacao-na-aula .modal-body > .field-error, .sinalizacao-na-aula .modal-body > .sinalizacao-feita { margin: 0 0 12px; font-size: 14px; }
+.resposta-sinalizada { margin: 14px 0 0; background: var(--surface); border-left: 4px solid var(--blue); border-radius: 0 10px 10px 0; padding: 10px 14px; }
+.resposta-sinalizada figcaption { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); margin-bottom: 4px; }
+.resposta-sinalizada blockquote { margin: 0; font-size: 14px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.gravidade-criterios { list-style: none; margin: 8px 0 0; padding: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.gravidade-criterios strong { color: var(--ink); }
+.modal-ajuda { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
 
 .teacher-panel { border-left: 1px solid var(--line); padding: 22px; background: white; overflow-y: auto; }
 .panel-title > div { display: flex; align-items: center; justify-content: space-between; }

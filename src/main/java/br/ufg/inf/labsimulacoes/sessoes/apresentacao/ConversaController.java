@@ -270,9 +270,13 @@ class ConversaController {
                 "A turma já fez todas as perguntas desta sessão. Que tal passar ao quiz?");
     }
 
-    /** RN-20: o aviso é neutro e não repete a pergunta. */
+    /**
+     * RN-20: o aviso é neutro e não repete a pergunta. A sessão pausou, então o painel é pedido de novo,
+     * para mostrar a pausa automática e bloquear o campo da pergunta.
+     */
     @ExceptionHandler(PerguntaBloqueada.class)
     ModelAndView perguntaBloqueada(HttpServletResponse resposta) {
+        resposta.setHeader("HX-Trigger", "sessao-mudou");
         return aviso(resposta, HttpStatus.CONFLICT, AVISO_DE_PERGUNTA_BLOQUEADA);
     }
 

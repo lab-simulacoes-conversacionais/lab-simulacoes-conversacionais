@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+  Sinalização durante a aula (RF-23, RN-21, #43): o conteúdo do modal "Sinalizar erro na resposta" do modo
+  projeção, como no protótipo. Sinaliza a última resposta do personagem, que o modal mostra para o professor
+  conferir. O envio volta com este mesmo fragmento: a confirmação, ou a recusa com o formulário preenchido.
+
+  Usa do modelo: sessaoId, situacao (SEM_RESPOSTA, AGUARDANDO_RESPOSTA, PODE_SINALIZAR, SINALIZADA ou
+  FORA_DO_PRAZO), tipos,
+  gravidades e, quando há resposta, mensagemId e resposta. Depois de um envio: aviso, sucesso,
+  tipoEscolhido, gravidadeEscolhida e justificativa.
+-->
+<form th:fragment="conteudo" id="sinalizacao-na-aula" class="sinalizacao-na-aula" method="post"
+      th:action="@{/sessoes/{s}/sinalizacao(s=${sessaoId})}"
+      th:hx-post="@{/sessoes/{s}/sinalizacao(s=${sessaoId})}" hx-target="this" hx-swap="outerHTML"
+      hx-disabled-elt="find button[type='submit']">
+  <div class="modal-body">
+    <!-- O envio troca o formulário inteiro: o HTMX foca o [autofocus] do conteúdo novo. -->
+    <p class="sinalizacao-feita" role="status" tabindex="-1" autofocus th:if="${sucesso}" th:text="${sucesso}">
+      Sinalização enviada.
+    </p>
+    <p class="field-error" role="alert" tabindex="-1" autofocus th:if="${aviso}" th:text="${aviso}">Aviso</p>
+
+    <p class="modal-intro" th:if="${situacao == 'SEM_RESPOSTA'}">
+      O personagem ainda não respondeu nesta sessão. Sinalize depois da primeira resposta.
+    </p>
+    <!-- A resposta só é gravada quando termina; antes disso, a "última" seria a anterior. -->
+    <p class="modal-intro" th:if="${situacao == 'AGUARDANDO_RESPOSTA'}">
+      A resposta à última pergunta ainda não chegou por inteiro. Espere ela terminar para sinalizar; se o
+      personagem não conseguiu responder, use "Tentar de novo" no painel.
+    </p>
+    <p class="modal-intro" th:if="${situacao == 'SINALIZADA' and sucesso == null and aviso == null}">
+      Você já sinalizou a última resposta do personagem. A curadoria vai analisá-la.
+    </p>
+
+    <th:block th:if="${situacao == 'PODE_SINALIZAR'}">
+      <p class="modal-intro">Sua sinalização ajuda a equipe pedagógica a revisar o cenário.</p>
+      <figure class="resposta-sinalizada" th:if="${resposta}">
+        <figcaption>Última resposta do personagem</figcaption>
+        <blockquote th:text="${resposta}">Voei em 1901, em Paris.</blockquote>
+      </figure>
+      <input type="hidden" name="mensagemId" th:value="${mensagemId}">
+
+      <div class="form-grid">
+        <label>Tipo
+          <select name="tipo" required>
+            <option value="" disabled th:selected="${tipoEscolhido == null}">Selecione o tipo</option>
+            <option th:each="t : ${tipos}" th:value="${t.name()}" th:text="${t.rotulo()}"
+                    th:selected="${tipoEscolhido == t.name()}">Erro histórico</option>
+          </select>
+        </label>
+        <label>Gravidade
+          <select name="gravidade" required aria-describedby="gravidade-na-aula-criterios">
+            <option th:each="g : ${gravidades}" th:value="${g.name()}" th:text="${g.rotulo()}"
+                    th:selected="${gravidadeEscolhida == g.name()}">Moderada</option>
+          </select>
+        </label>
+      </div>
+      <!-- O critério do RN-22, para o professor escolher o nível sem decorar a regra. -->
+      <ul class="gravidade-criterios" id="gravidade-na-aula-criterios">
+        <li th:each="g : ${gravidades}"><strong th:text="|${g.rotulo()}:|">Leve:</strong> <span th:text="${g.descricao()}">Critério</span></li>
+      </ul>
+
+      <label for="justificativa-na-aula">Justificativa</label>
+      <textarea id="justificativa-na-aula" name="justificativa" required maxlength="500" rows="4"
+                placeholder="Descreva brevemente o que precisa ser revisto…"
+                aria-describedby="justificativa-na-aula-ajuda" th:text="${justificativa}"></textarea>
+      <small class="modal-ajuda" id="justificativa-na-aula-ajuda">
+        Até 500 caracteres. Não inclua nomes nem dados pessoais de estudantes.
+      </small>
+    </th:block>
+  </div>
+  <div class="modal-footer">
+    <th:block th:if="${situacao == 'PODE_SINALIZAR'}">
+      <button class="btn btn-ghost" type="button" data-fechar>Cancelar</button>
+      <button class="btn btn-primary" type="submit">
+        <svg th:replace="~{fragmentos/base :: iconeBandeira}"></svg> Enviar sinalização
+      </button>
+    </th:block>
+    <button th:unless="${situacao == 'PODE_SINALIZAR'}" class="btn btn-primary" type="button" data-fechar>Fechar</button>
+  </div>
+</form>
+</body>
+</html>
