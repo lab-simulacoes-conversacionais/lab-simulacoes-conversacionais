@@ -9,6 +9,7 @@ import br.ufg.inf.labsimulacoes.sessoes.SessaoParaRevisao;
 import br.ufg.inf.labsimulacoes.sessoes.TrechosDasSessoes;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -64,6 +65,31 @@ public class RevisaoDaConversa {
                 .map(mensagem -> new Item(mensagem, situacao(mensagem, podeSinalizar, jaSinalizadas)))
                 .toList();
         return new Revisao(sessao, itens, PrazoDaSinalizacao.limite(base), podeSinalizar);
+    }
+
+    /**
+     * A resposta mais recente do personagem, para o professor sinalizar durante a aula, no modo projeção
+     * (RF-23). Vem do registro da sessão, então continua a mesma depois de um reinício da tela (RN-19).
+     *
+     * @return vazio se o personagem ainda não respondeu
+     * @throws ConversaNaoEncontrada nos mesmos casos de {@link #revisao}
+     */
+    public Optional<Item> ultimaResposta(long sessaoId) {
+        return revisao(sessaoId).itens().reversed().stream()
+                .filter(item -> item.mensagem().daIa())
+                .findFirst();
+    }
+
+    /**
+     * Uma resposta da sessão, para a tela mostrar de novo o que está sendo sinalizado depois de uma recusa.
+     *
+     * @return vazio se a mensagem não for uma resposta desta sessão
+     * @throws ConversaNaoEncontrada nos mesmos casos de {@link #revisao}
+     */
+    public Optional<Item> resposta(long sessaoId, long mensagemId) {
+        return revisao(sessaoId).itens().stream()
+                .filter(item -> item.mensagem().daIa() && item.mensagem().id() == mensagemId)
+                .findFirst();
     }
 
     private static Situacao situacao(MensagemDaRevisao mensagem, boolean podeSinalizar, Set<Long> jaSinalizadas) {

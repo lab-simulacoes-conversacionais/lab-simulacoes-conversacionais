@@ -25,9 +25,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * Revisão da conversa depois da aula (RF-23, RN-21): as sessões recentes do professor e a conversa de uma
- * delas, só para leitura, com o botão de sinalizar em cada resposta ainda no prazo. A sinalização durante
- * a aula, no modo projeção, é da #43.
+ * Sinalização de erro pelo professor (RF-23, RN-21), em dois momentos:
+ *
+ * <ul>
+ *   <li>depois da aula, na revisão: as sessões recentes do professor e a conversa de uma delas, só para
+ *       leitura, com o botão de sinalizar em cada resposta ainda no prazo;
+ *   <li>durante a aula, no modo projeção (#43): o botão "Sinalizar erro" do painel abre um modal para a
+ *       última resposta do personagem.
+ * </ul>
  *
  * <p>A sessão de outro professor responde 404, como uma que não existe (RN-37). A sinalização volta como
  * o fragmento do formulário, com status 200 também na recusa, como na curadoria: o aviso aparece no
@@ -38,6 +43,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 class RevisaoDaConversaController {
 
     static final String SUCESSO = "Sinalização enviada. A curadoria vai analisar a resposta.";
+
+    private static final String NA_AULA = "sinalizacoes/na-aula :: conteudo";
+
+    /** O personagem ainda não respondeu nesta sessão: não há o que sinalizar. */
+    private static final String SEM_RESPOSTA = "SEM_RESPOSTA";
 
     private final RevisaoDaConversa revisoes;
     private final RegistroDeSinalizacao registro;
@@ -89,6 +99,76 @@ class RevisaoDaConversaController {
             @RequestParam(required = false) String gravidade,
             @RequestParam(required = false) String justificativa,
             Model modelo) {
+        registrar(id, mensagemId, tipo, gravidade, justificativa, modelo);
+        return "sinalizacoes/formulario :: sinalizar";
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Durante a aula, no modo projeção (#43)
+    // --------------------------------------------------------------------------------------------
+
+    /**
+     * O conteúdo do modal "Sinalizar erro na resposta" do painel do professor: o formulário para a última
+     * resposta do personagem, ou o motivo de não haver o que sinalizar.
+     */
+    @GetMapping("/{id}/sinalizacao")
+    String sinalizacaoNaAula(@PathVariable long id, Model modelo) {
+        modelo.addAttribute("sessaoId", id);
+        // Como no protótipo, a gravidade começa em Moderada; o tipo, o professor escolhe.
+        modelo.addAttribute("gravidadeEscolhida", GravidadePercebida.MODERADA.name());
+        try {
+            revisoes.ultimaResposta(id).ifPresentOrElse(
+                    item -> {
+                        modelo.addAttribute("mensagemId", item.mensagem().id());
+                        modelo.addAttribute("resposta", item.mensagem().texto());
+                        modelo.addAttribute("situacao", item.situacao().name());
+                    },
+                    () -> modelo.addAttribute("situacao", SEM_RESPOSTA));
+        } catch (ConversaNaoEncontrada erro) {
+            modelo.addAttribute("situacao", Situacao.FORA_DO_PRAZO.name());
+            modelo.addAttribute("aviso", "Sessão não encontrada.");
+        }
+        return NA_AULA;
+    }
+
+    /** O envio do modal volta com ele mesmo, com a confirmação ou a recusa, como na revisão. */
+    @PostMapping("/{id}/sinalizacao")
+    String sinalizarNaAula(
+            @PathVariable long id,
+            @RequestParam(required = false) Long mensagemId,
+            @RequestParam(required = false) String tipo,
+            @RequestParam(required = false) String gravidade,
+            @RequestParam(required = false) String justificativa,
+            Model modelo) {
+        modelo.addAttribute("sessaoId", id);
+        if (mensagemId == null) {
+            modelo.addAttribute("situacao", Situacao.FORA_DO_PRAZO.name());
+            modelo.addAttribute("aviso", "Resposta não encontrada.");
+            return NA_AULA;
+        }
+        registrar(id, mensagemId, tipo, gravidade, justificativa, modelo);
+        // Depois de uma recusa, o formulário volta com a resposta que está sendo sinalizada.
+        if (Situacao.PODE_SINALIZAR.name().equals(modelo.getAttribute("situacao"))) {
+            try {
+                revisoes.resposta(id, mensagemId)
+                        .ifPresent(item -> modelo.addAttribute("resposta", item.mensagem().texto()));
+            } catch (ConversaNaoEncontrada erro) {
+                modelo.addAttribute("situacao", Situacao.FORA_DO_PRAZO.name());
+            }
+        }
+        return NA_AULA;
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Apoio
+    // --------------------------------------------------------------------------------------------
+
+    /**
+     * Grava a sinalização e deixa no modelo o que a tela mostra: a situação da resposta, o aviso da recusa
+     * ou a confirmação, e o que a pessoa escolheu, para o formulário voltar preenchido.
+     */
+    private void registrar(
+            long id, long mensagemId, String tipo, String gravidade, String justificativa, Model modelo) {
         modelo.addAttribute("sessaoId", id);
         modelo.addAttribute("mensagemId", mensagemId);
         modelo.addAttribute("tipoEscolhido", tipo);
@@ -97,28 +177,27 @@ class RevisaoDaConversaController {
         try {
             registro.sinalizar(id, mensagemId, enumDe(TipoDeErro.class, tipo),
                     enumDe(GravidadePercebida.class, gravidade), justificativa);
-            return fragmento(modelo, Situacao.SINALIZADA, null, SUCESSO);
+            resultado(modelo, Situacao.SINALIZADA, null, SUCESSO);
         } catch (IllegalArgumentException erro) {
-            return fragmento(modelo, Situacao.PODE_SINALIZAR, erro.getMessage(), null);
+            resultado(modelo, Situacao.PODE_SINALIZAR, erro.getMessage(), null);
         } catch (TextoComDadoPessoal erro) {
             // RN-13, RNF-01: a justificativa não volta à tela, para o dado não ser repetido.
             modelo.addAttribute("justificativa", null);
-            return fragmento(modelo, Situacao.PODE_SINALIZAR, erro.aviso("A justificativa"), null);
+            resultado(modelo, Situacao.PODE_SINALIZAR, erro.aviso("A justificativa"), null);
         } catch (SinalizacaoRepetida erro) {
-            return fragmento(modelo, Situacao.SINALIZADA, "Você já tinha sinalizado esta resposta.", null);
+            resultado(modelo, Situacao.SINALIZADA, "Você já tinha sinalizado esta resposta.", null);
         } catch (ForaDoPrazoDeSinalizacao erro) {
-            return fragmento(modelo, Situacao.FORA_DO_PRAZO,
+            resultado(modelo, Situacao.FORA_DO_PRAZO,
                     "O prazo para sinalizar terminou em " + SessaoNaTela.momento(erro.limite()) + ".", null);
         } catch (RespostaNaoEncontrada erro) {
-            return fragmento(modelo, Situacao.FORA_DO_PRAZO, "Resposta não encontrada.", null);
+            resultado(modelo, Situacao.FORA_DO_PRAZO, "Resposta não encontrada.", null);
         }
     }
 
-    private static String fragmento(Model modelo, Situacao situacao, String aviso, String sucesso) {
+    private static void resultado(Model modelo, Situacao situacao, String aviso, String sucesso) {
         modelo.addAttribute("situacao", situacao.name());
         modelo.addAttribute("aviso", aviso);
         modelo.addAttribute("sucesso", sucesso);
-        return "sinalizacoes/formulario :: sinalizar";
     }
 
     /** Um valor que não está na lista vira nulo, e o domínio pede a escolha com a mensagem dele. */
