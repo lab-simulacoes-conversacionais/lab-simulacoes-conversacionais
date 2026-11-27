@@ -8,6 +8,7 @@ import br.ufg.inf.labsimulacoes.auditoria.dominio.CursorDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.FiltroDoLog;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.PaginaDoLog;
 import java.time.Instant;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
@@ -49,10 +50,12 @@ class LogDeAuditoriaController {
 
     private final ConsultaDoLog consulta;
     private final UsuariosDaEscola usuarios;
+    private final DatasNaTela datas;
 
-    LogDeAuditoriaController(ConsultaDoLog consulta, UsuariosDaEscola usuarios) {
+    LogDeAuditoriaController(ConsultaDoLog consulta, UsuariosDaEscola usuarios, DatasNaTela datas) {
         this.consulta = consulta;
         this.usuarios = usuarios;
+        this.datas = datas;
     }
 
     /**
@@ -92,12 +95,15 @@ class LogDeAuditoriaController {
             }
             filtro = new FiltroDoLog(inicio, fim, usuario != null && usuario > 0 ? usuario : null,
                     acaoEscolhida, cursor(antesDe, antesDeId), TAMANHO_DA_PAGINA);
-        } catch (DateTimeParseException erro) {
+        } catch (DateTimeException erro) {
+            // Inclui a data que não se lê e a que se lê, mas passa do maior dia possível ao somar um dia.
             return semResultado(modelo, DATA_INVALIDA);
         }
 
         PaginaDoLog pagina = consulta.consultar(filtro);
-        modelo.addAttribute("linhas", pagina.linhas().stream().map(linha -> LinhaDoLog.de(linha, nomes)).toList());
+        modelo.addAttribute("linhas", pagina.linhas().stream()
+                .map(linha -> LinhaDoLog.de(linha, nomes, datas))
+                .toList());
         pagina.cursorDaProxima().ifPresent(proxima -> {
             modelo.addAttribute("proximaAntesDe", proxima.ocorridoEm().toString());
             modelo.addAttribute("proximaAntesDeId", proxima.id());
@@ -118,13 +124,13 @@ class LogDeAuditoriaController {
     }
 
     /** O começo do dia inicial. */
-    private static Instant inicioDe(String dia) {
-        return dia == null || dia.isBlank() ? null : DatasNaTela.inicioDo(LocalDate.parse(dia));
+    private Instant inicioDe(String dia) {
+        return dia == null || dia.isBlank() ? null : datas.inicioDo(LocalDate.parse(dia));
     }
 
     /** O começo do dia seguinte ao final, que fica de fora: assim o dia final entra inteiro. */
-    private static Instant fimDe(String dia) {
-        return dia == null || dia.isBlank() ? null : DatasNaTela.inicioDo(LocalDate.parse(dia).plusDays(1));
+    private Instant fimDe(String dia) {
+        return dia == null || dia.isBlank() ? null : datas.inicioDo(LocalDate.parse(dia).plusDays(1));
     }
 
     /** Um cursor inválido na URL volta para a primeira página, em vez de dar erro. */

@@ -54,11 +54,14 @@ class TriagemController {
     private final FilaDeTriagem fila;
     private final TriagemDeSinalizacoes triagem;
     private final CenariosAprovados cenarios;
+    private final DatasNaTela datas;
 
-    TriagemController(FilaDeTriagem fila, TriagemDeSinalizacoes triagem, CenariosAprovados cenarios) {
+    TriagemController(
+            FilaDeTriagem fila, TriagemDeSinalizacoes triagem, CenariosAprovados cenarios, DatasNaTela datas) {
         this.fila = fila;
         this.triagem = triagem;
         this.cenarios = cenarios;
+        this.datas = datas;
     }
 
     /**
@@ -72,7 +75,7 @@ class TriagemController {
         PaginaDeItens pagina = fila.pendentes(cursor(depoisDe, depoisDeId), TAMANHO_DA_PAGINA);
         var titulos = new HashMap<Long, String>();
         modelo.addAttribute("sinalizacoes", pagina.itens().stream()
-                .map(item -> SinalizacaoNaFila.de(item, titulo(item.sinalizacao().versaoId(), titulos)))
+                .map(item -> SinalizacaoNaFila.de(item, titulo(item.sinalizacao().versaoId(), titulos), datas))
                 .toList());
         ResumoDoPrazo resumo = fila.resumoDoPrazo();
         modelo.addAttribute("pendentes", resumo.pendentes());
@@ -175,7 +178,7 @@ class TriagemController {
             String resposta,
             String justificativa) {
 
-        static SinalizacaoNaFila de(ItemDaFila item, String cenario) {
+        static SinalizacaoNaFila de(ItemDaFila item, String cenario, DatasNaTela datas) {
             SinalizacaoPendente sinalizacao = item.sinalizacao();
             return new SinalizacaoNaFila(
                     sinalizacao.id(),
@@ -184,9 +187,9 @@ class TriagemController {
                     sinalizacao.gravidadePercebida().rotulo(),
                     sinalizacao.gravidadePercebida().name(),
                     sinalizacao.gravidadePercebida().name().toLowerCase(Locale.ROOT),
-                    DatasNaTela.diaEHora(sinalizacao.criadaEm()),
+                    datas.diaEHora(sinalizacao.criadaEm()),
                     sinalizacao.perfil() == PerfilDaSinalizacao.PROFESSOR ? "pelo professor" : "pelo curador",
-                    DatasNaTela.limite(item.limite()),
+                    datas.limite(item.limite()),
                     item.foraDoPrazo(),
                     sinalizacao.pergunta(),
                     sinalizacao.resposta(),

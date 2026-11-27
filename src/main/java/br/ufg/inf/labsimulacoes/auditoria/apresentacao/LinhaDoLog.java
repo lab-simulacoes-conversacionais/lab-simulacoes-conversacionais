@@ -19,10 +19,10 @@ import java.util.stream.Collectors;
  */
 record LinhaDoLog(String acao, String detalhe, String usuario, String quando, boolean destaque) {
 
-    static LinhaDoLog de(RegistroDeAuditoria registro, Map<Long, String> nomes) {
+    static LinhaDoLog de(RegistroDeAuditoria registro, Map<Long, String> nomes, DatasNaTela datas) {
         Map<String, Object> detalhes = registro.detalhes();
         String usuario = nomes.getOrDefault(registro.usuarioId(), "Usuário nº " + registro.usuarioId());
-        String quando = DatasNaTela.completo(registro.ocorridoEm());
+        String quando = datas.completo(registro.ocorridoEm());
         String entidade = registro.entidadeId();
         AcaoCritica acao = registro.acao();
         String rotulo = rotuloDoFiltro(acao);

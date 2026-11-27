@@ -84,7 +84,8 @@ class LogDeAuditoriaPelaTelaTest {
 
         assertThat(corpo)
                 .contains("Seções da administração")
-                .containsPattern("<a href=\"/auditoria/log\" aria-current=\"page\" class=\"active\">Log de auditoria</a>")
+                .containsPattern(
+                        "<a href=\"/auditoria/log\" aria-current=\"page\" class=\"active\">Log de auditoria</a>")
                 .contains("Sinalização descartada")
                 .contains("Curadora do Log");
         assertThat(administrador.get("/admin/usuarios").body()).contains("href=\"/auditoria/log\"");
@@ -114,6 +115,10 @@ class LogDeAuditoriaPelaTelaTest {
                 .contains(LogDeAuditoriaController.PERIODO_INVERTIDO)
                 .doesNotContain("<table");
         assertThat(curadora.get("/auditoria/log?de=ontem").body()).contains(LogDeAuditoriaController.DATA_INVALIDA);
+        // Uma data que se lê, mas que passa do maior dia possível ao somar um dia, também é recusada, sem erro 500.
+        var extrema = curadora.get("/auditoria/log?ate=%2B999999999-12-31");
+        assertThat(extrema.statusCode()).isEqualTo(200);
+        assertThat(extrema.body()).contains(LogDeAuditoriaController.DATA_INVALIDA);
         // Um valor fora da lista vale como "todas as ações", e um cursor inválido volta à primeira página.
         assertThat(curadora.get("/auditoria/log?usuario=" + curadoraId + "&acao=APAGAR&antesDe=x&antesDeId=1").body())
                 .contains("Sinalização nº " + sinalizacao);
@@ -141,7 +146,9 @@ class LogDeAuditoriaPelaTelaTest {
                 Long.class, professor, dados.turma(), versao, inicio.atOffset(ZoneOffset.UTC),
                 inicio.plusSeconds(3000).atOffset(ZoneOffset.UTC));
         long mensagem = jdbc.queryForObject(
-                "INSERT INTO mensagem (sessao_id, autoria, texto, criado_em) VALUES (?, 'IA', 'Voei em 1901.', ?) RETURNING id",
+                """
+                INSERT INTO mensagem (sessao_id, autoria, texto, criado_em)
+                VALUES (?, 'IA', 'Voei em 1901.', ?) RETURNING id""",
                 Long.class, sessao, inicio.plusSeconds(60).atOffset(ZoneOffset.UTC));
         return jdbc.queryForObject(
                 """

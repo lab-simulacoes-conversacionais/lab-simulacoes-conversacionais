@@ -27,9 +27,11 @@ class TriagemAtrasadaNaAdministracao {
     private static final Logger LOG = LoggerFactory.getLogger(TriagemAtrasadaNaAdministracao.class);
 
     private final FilaDeTriagem fila;
+    private final DatasNaTela datas;
 
-    TriagemAtrasadaNaAdministracao(FilaDeTriagem fila) {
+    TriagemAtrasadaNaAdministracao(FilaDeTriagem fila, DatasNaTela datas) {
         this.fila = fila;
+        this.datas = datas;
     }
 
     @ModelAttribute
@@ -42,7 +44,7 @@ class TriagemAtrasadaNaAdministracao {
             if (resumo.temAtrasadas()) {
                 modelo.addAttribute(ATRIBUTO, new Atraso(
                         resumo.foraDoPrazo().size(),
-                        DatasNaTela.dia(resumo.foraDoPrazo().getFirst().criadaEm())));
+                        datas.dia(resumo.foraDoPrazo().getFirst().criadaEm())));
             }
         } catch (RuntimeException e) {
             LOG.warn("Não deu para conferir as sinalizações fora do prazo para a tela de administração", e);

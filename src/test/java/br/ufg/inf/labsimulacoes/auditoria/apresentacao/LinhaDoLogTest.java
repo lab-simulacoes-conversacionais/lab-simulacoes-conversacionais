@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.AcaoCritica;
 import br.ufg.inf.labsimulacoes.auditoria.dominio.RegistroDeAuditoria;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ class LinhaDoLogTest {
     /** 14h42 em Brasília. */
     private static final Instant QUANDO = Instant.parse("2026-06-19T13:42:00Z");
     private static final Map<Long, String> NOMES = Map.of(1L, "Rafael Nunes", 2L, "Clara Souza");
+    private static final DatasNaTela DATAS = new DatasNaTela(ZoneId.of("America/Sao_Paulo"));
 
     @Test
     void cenarioAprovadoMostraQuemEQuando() {
@@ -83,6 +85,6 @@ class LinhaDoLogTest {
     }
 
     private static LinhaDoLog linha(AcaoCritica acao, long usuarioId, String entidade, Map<String, ?> detalhes) {
-        return LinhaDoLog.de(RegistroDeAuditoria.novo(acao, usuarioId, entidade, detalhes, QUANDO), NOMES);
+        return LinhaDoLog.de(RegistroDeAuditoria.novo(acao, usuarioId, entidade, detalhes, QUANDO), NOMES, DATAS);
     }
 }
