@@ -11,7 +11,8 @@ import java.util.Objects;
  * <p>Na E1 o ciclo é Rascunho, Em curadoria e Aprovado; a devolução volta a Rascunho (Figura 3 dos
  * requisitos). Na E2 a aprovação passa a exigir o checklist de curadoria e o teste do personagem
  * (RF-10, RN-06). O curador arquiva o aprovado ou o suspenso, que sai da biblioteca sem perder o
- * histórico (RF-13, RN-09).
+ * histórico (RF-13, RN-09). Na E3 as regras de gravidade suspendem e reativam o aprovado sozinhas, pelos
+ * eventos da Auditoria (RF-25, RN-23).
  *
  * <p>Editar um cenário que já tem versão vigente gera uma versão nova em rascunho (RF-11, RN-08). Ela
  * passa pela mesma curadoria, mas o cenário continua Aprovado (ou Suspenso) enquanto isso, porque a
@@ -230,6 +231,37 @@ public record Cenario(
         }
         return new Cenario(
                 id, autorId, StatusDoCenario.ARQUIVADO, versao, ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
+    }
+
+    /**
+     * RN-23: as regras de gravidade tiram o cenário da sala. A versão vigente continua a mesma, para a sessão
+     * em andamento pausar e o professor poder retomá-la (RN-25), e a versão nova, se houver, continua na
+     * curadoria. Não há usuário nem perfil: a suspensão é automática, por evento da Auditoria.
+     *
+     * @throws SuspensaoNaoPermitida se o cenário não estiver Aprovado
+     */
+    public Cenario suspender() {
+        if (status != StatusDoCenario.APROVADO) {
+            throw new SuspensaoNaoPermitida(id, status);
+        }
+        return comStatus(StatusDoCenario.SUSPENSO);
+    }
+
+    /**
+     * RN-23d: o cenário volta à sala quando nenhuma regra de gravidade o mantém suspenso. A aprovação de uma
+     * versão nova também tira o cenário da suspensão, mas por {@link #aprovar} (RN-23b).
+     *
+     * @throws ReativacaoNaoPermitida se o cenário não estiver Suspenso
+     */
+    public Cenario reativar() {
+        if (status != StatusDoCenario.SUSPENSO) {
+            throw new ReativacaoNaoPermitida(id, status);
+        }
+        return comStatus(StatusDoCenario.APROVADO);
+    }
+
+    private Cenario comStatus(StatusDoCenario novo) {
+        return new Cenario(id, autorId, novo, versao, ultimaDevolucao, sugeridoPorIa, sugestaoDaIa);
     }
 
     /** Olha a versão, e não o cenário, porque a edição de um aprovado gera versão nova em rascunho (RN-08). */
