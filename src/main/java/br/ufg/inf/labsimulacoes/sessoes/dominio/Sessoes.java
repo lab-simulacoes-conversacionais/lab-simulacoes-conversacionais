@@ -1,5 +1,6 @@
 package br.ufg.inf.labsimulacoes.sessoes.dominio;
 
+import java.util.List;
 import java.util.Optional;
 
 /** Porta de persistência das sessões no PostgreSQL, a fonte da verdade (Stack, seção 5). */
@@ -12,6 +13,12 @@ public interface Sessoes {
 
     /** RN-10: só conta a sessão com status Em andamento; pausada e encerrada não contam. */
     boolean temSessaoEmAndamento(long turmaId);
+
+    /**
+     * RN-25: as sessões em andamento de um cenário, em qualquer versão: a sessão fica ligada à versão com que
+     * começou (RN-08), e a suspensão é do cenário. Em ordem de id.
+     */
+    List<Long> emAndamentoDoCenario(long cenarioId);
 
     /**
      * Grava a sessão nova ou a mudança de estado.

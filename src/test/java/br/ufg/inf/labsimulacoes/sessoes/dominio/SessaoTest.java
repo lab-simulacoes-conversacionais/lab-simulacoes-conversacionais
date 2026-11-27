@@ -75,6 +75,37 @@ class SessaoTest {
         assertThat(encerrada.bloquearConteudo(DEPOIS)).isEmpty();
     }
 
+    /** RN-25: a suspensão do cenário pausa a sessão em andamento. */
+    @Test
+    void suspensaoDoCenarioPausaASessaoEmAndamento() {
+        MudancaNaSessao mudanca = emAndamento().suspenderCenario(DEPOIS).orElseThrow();
+
+        assertThat(mudanca.sessao().status()).isEqualTo(StatusDaSessao.PAUSADA);
+        assertThat(mudanca.sessao().motivoDaPausa()).isEqualTo(MotivoDaPausa.CENARIO_SUSPENSO);
+        assertThat(mudanca.evento()).isEqualTo(EventoDaSessao.pausa(MotivoDaPausa.CENARIO_SUSPENSO, DEPOIS));
+    }
+
+    /** A pausada continua com o motivo que tinha, e a encerrada não muda mais (RN-19). */
+    @Test
+    void suspensaoDoCenarioNaoMudaASessaoPausadaNemAEncerrada() {
+        Sessao pausada = emAndamento().pausar(MotivoDaPausa.MANUAL, INICIO).sessao();
+        Sessao encerrada = emAndamento().encerrar(INICIO);
+
+        assertThat(pausada.suspenderCenario(DEPOIS)).isEmpty();
+        assertThat(encerrada.suspenderCenario(DEPOIS)).isEmpty();
+    }
+
+    /** RN-25: depois de corrigir o erro com a turma, o professor retoma a sessão pausada pela suspensão. */
+    @Test
+    void professorRetomaASessaoPausadaPelaSuspensao() {
+        Sessao pausada = emAndamento().suspenderCenario(INICIO).orElseThrow().sessao();
+
+        MudancaNaSessao retomada = pausada.retomar(DEPOIS);
+
+        assertThat(retomada.sessao().status()).isEqualTo(StatusDaSessao.EM_ANDAMENTO);
+        assertThat(retomada.sessao().motivoDaPausa()).isNull();
+    }
+
     /** RN-25: até depois de uma suspensão, quem decide continuar é o professor. */
     @ParameterizedTest
     @EnumSource(MotivoDaPausa.class)

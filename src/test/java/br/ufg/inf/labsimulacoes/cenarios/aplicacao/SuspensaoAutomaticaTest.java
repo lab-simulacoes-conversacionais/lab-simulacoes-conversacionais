@@ -42,10 +42,11 @@ import org.springframework.transaction.support.TransactionTemplate;
  * reativação vai para o log de auditoria (RN-35) pelo ouvinte da Auditoria.
  *
  * <p>Sem {@code @Transactional}, porque os ouvintes só recebem o evento depois da confirmação; por isso cada
- * teste cria os usuários e o cenário. O evento publicado é conferido no registro de publicação do Spring
+ * teste cria os usuários e o cenário, num contexto só dos testes da RF-25, porque grava versões aprovadas
+ * (RN-08). O evento publicado é conferido no registro de publicação do Spring
  * Modulith, que guarda cada evento com o ouvinte que o recebe.
  */
-@SpringBootTest
+@SpringBootTest(properties = "lab.teste.contexto=suspensao")
 @Import(InfraestruturaDeTeste.class)
 class SuspensaoAutomaticaTest {
 
@@ -306,12 +307,18 @@ class SuspensaoAutomaticaTest {
 
     // Reentrega e ordem dos eventos.
 
-    /** O Spring Modulith pode entregar o mesmo evento de novo: a sinalização conta uma vez só. */
+    /**
+     * O Spring Modulith pode entregar o mesmo evento de novo, depois da primeira entrega, quando reprocessa os
+     * pendentes: a sinalização conta uma vez só. As duas entregas saem uma depois da outra, como na reentrega;
+     * duas publicações idênticas ao mesmo tempo confundem a marcação de concluída do registro de publicação, que
+     * procura pelo evento serializado.
+     */
     @Test
     void reentregaDoMesmoEventoGeraUmEventoEUmaLinhaNoLog() {
         var evento = registrada(SINALIZACAO.incrementAndGet(), "PROFESSOR", "GRAVE", professora);
 
         publicar(evento);
+        aguardarOuvinte(evento.sinalizacaoId(), 1);
         publicar(evento);
 
         aguardarOuvinte(evento.sinalizacaoId(), 2);

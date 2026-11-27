@@ -42,7 +42,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * PostgreSQL mostrar a segunda parada na trava. Sem {@code @Transactional}, para cada triagem confirmar a
  * própria transação como em produção.
  */
-@SpringBootTest
+@SpringBootTest(properties = "lab.teste.contexto=suspensao")
 @Import(InfraestruturaDeTeste.class)
 class SuspensaoAutomaticaConcorrenciaTest {
 

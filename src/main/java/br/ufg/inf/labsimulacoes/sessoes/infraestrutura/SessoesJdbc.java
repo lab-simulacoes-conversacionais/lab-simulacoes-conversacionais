@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -73,6 +74,15 @@ class SessoesJdbc implements Sessoes {
                 "SELECT EXISTS (SELECT 1 FROM sessao WHERE turma_id = ? AND status = 'EM_ANDAMENTO')",
                 Boolean.class,
                 turmaId));
+    }
+
+    /** A versão leva ao cenário; a tabela cenario_versao é só lida, como na chave estrangeira da sessão. */
+    @Override
+    public List<Long> emAndamentoDoCenario(long cenarioId) {
+        return jdbc.queryForList("""
+                SELECT s.id FROM sessao s JOIN cenario_versao v ON v.id = s.cenario_versao_id
+                WHERE v.cenario_id = ? AND s.status = 'EM_ANDAMENTO'
+                ORDER BY s.id""", Long.class, cenarioId);
     }
 
     @Override
